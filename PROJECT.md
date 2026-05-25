@@ -1,0 +1,110 @@
+# DocPilot Project
+
+## Goal
+
+DocPilot is an open source AI document editor. It follows the Codex idea of letting an AI agent operate on a structured project, but the editing target is extended Markdown rich text rather than code.
+
+## Current Backend Shape
+
+- Java 25.
+- Spring Boot 3.5.10.
+- Maven multi-module project.
+- No dependency on `moonpx-parent` or any `moonpx-*` artifact.
+- `moonpx-*` repositories are only style references for module boundaries and Java coding conventions.
+
+## Modules
+
+- `docpilot-block`: foundational document structure library.
+  - Parses Markdown with flexmark-java.
+  - Keeps DocPilot's own block model as the stable internal document representation.
+  - Maps block documents to ProseMirror JSON DTOs.
+  - Renders block documents back to normalized Markdown.
+  - Preserves HTML blocks as `docpilotHtmlBlock` data nodes.
+- `docpilot-document`: document domain module.
+  - Owns the upper domain boundary for users, workspaces, resource nodes, documents, and document sharing.
+  - Depends on `docpilot-block` for Markdown parsing and block snapshots.
+  - Abstracts authentication through `AuthContextProvider` and `DocumentAccessAuthorizer`.
+  - Abstracts user profile access through `UserProfileProvider`.
+  - Abstracts storage through repository interfaces only; no database implementation is included yet.
+- `docpilot-filesystem`: workspace virtual filesystem module.
+  - Exposes workspace paths through `FilesystemService`.
+  - Maps virtual paths such as `/project` to concrete `FilesystemProvider` instances through `PathMapping`.
+  - Includes local filesystem and S3 provider implementations.
+  - Keeps PathMapping storage behind `PathMappingStore` so startup can use memory first and database later.
+- `docpilot-startup`: backend application entrypoint.
+  - Provides `io.docpilot.DocPilotApplication`.
+  - Exposes `GET /health`.
+  - Depends on `docpilot-block`, `docpilot-document`, and `docpilot-filesystem`.
+
+## Block Model
+
+- `BlockDocument`: schema version, top-level blocks, metadata.
+- `BlockNode`: block id, type, attrs, inline children, block children, source range.
+- `InlineNode`: inline type, text, attrs, marks, source range.
+- `SourceRange`: original Markdown offsets and line/column positions.
+
+First supported block types include paragraph, heading, blockquote, bullet list, ordered list, list item, task list item, code block, thematic break, table, table row, table cell, HTML block, and unsupported block.
+
+First supported inline types include text, soft break, hard break, code, link, image, HTML inline, and unsupported inline.
+
+First supported marks are bold, italic, and strike.
+
+## HTML Strategy
+
+Markdown HTML is parsed and preserved, not executed. HTML block ProseMirror output uses:
+
+- `type: "docpilotHtmlBlock"`
+- `attrs.id`
+- `attrs.title`
+- `attrs.source`
+- `attrs.displayMode`
+- `attrs.allowScripts`
+
+Default HTML attrs:
+
+- `id = BlockNode.id`
+- `title = "HTML"`
+- `displayMode = "fit"`
+- `allowScripts = false`
+
+The backend only stores and outputs these fields. Frontend rendering, sandboxing, script policy, and plain-text extraction for indexing are separate future decisions.
+
+## Identifier Strategy
+
+Every block has a single `BlockNode.id`. The id is generated with UUID and stored without hyphen separators, for example `1234567890abcdef1234567890abcdef`. HTML blocks reuse the same value in `attrs.id`; there is no separate `syncId` or `htmlId`.
+
+## Document Domain
+
+The `docpilot-document` module is a pure Java domain module. It does not implement login, registration, user persistence, database adapters, or REST APIs.
+
+Current package boundaries:
+
+- `model`: mutable JavaBean domain models and enums.
+- `auth`: current-user context and document permission abstractions.
+- `user`: user profile lookup abstraction.
+- `repository`: storage ports for documents, workspaces, workspace nodes, and document shares.
+- `application`: use-case entry points.
+- `processing`: id generators and pure domain helpers.
+
+Core concepts:
+
+- `Workspace`: a user-owned resource container. A user can own multiple workspaces.
+- `WorkspaceNode`: a node inside a workspace tree. First supported node types are `FOLDER` and `DOCUMENT`.
+- `DocPilotDocument`: the document content aggregate. It owns Markdown, parsed `BlockDocument`, lifecycle state, and version. It does not own tree placement.
+- `DocumentShare`: a document-level share from the owner to a target user. First supported roles are `OWNER`, `EDITOR`, and `VIEWER`.
+
+Application boundaries:
+
+- `WorkspaceManager`: creates owned workspaces and creates/lists first-level resource nodes inside a workspace.
+- `DocumentManager`: creates document content aggregates, reads document content, replaces Markdown, reparses blocks, and checks optimistic versions.
+- `DocumentShareManager`: creates document-level shares and lists shares received by the current user.
+
+Workspace nodes are intentionally thin in this version. Full tree movement, recursive deletion, renaming rules, permission inheritance, workspace sharing, and team spaces are future design work.
+
+## Next Work
+
+- Add a concrete persistence implementation for `DocumentRepository`.
+- Add concrete persistence implementations for workspace, workspace node, and document share repositories.
+- Add concrete startup adapters for auth/user providers.
+- Add AI edit request and patch application primitives.
+- Add REST APIs only after the internal block contract is exercised by startup and frontend integration.

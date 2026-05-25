@@ -1,0 +1,9 @@
+spring:
+  application:
+    name: docpilot
+
+server:
+  port: 11451
+
+docpilot:
+  version: 1.0-SNAPSHOT
