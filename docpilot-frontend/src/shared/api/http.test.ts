@@ -8,7 +8,7 @@ describe('postJson', () => {
 
   it('posts json and returns parsed response', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({ ok: true }), {
+      new Response(JSON.stringify({ code: 0, msg: 'OK', data: { ok: true } }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' }
       })
@@ -24,7 +24,7 @@ describe('postJson', () => {
 
   it('throws ApiError for error payloads', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({ code: 'DOCUMENT_VERSION_CONFLICT', message: 'conflict' }), {
+      new Response(JSON.stringify({ code: 40900, msg: 'conflict' }), {
         status: 409,
         headers: { 'Content-Type': 'application/json' }
       })
@@ -34,8 +34,8 @@ describe('postJson', () => {
       status: 409,
       message: 'conflict',
       payload: {
-        code: 'DOCUMENT_VERSION_CONFLICT',
-        message: 'conflict'
+        code: 40900,
+        msg: 'conflict'
       }
     })
   })

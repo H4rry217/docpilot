@@ -1,4 +1,4 @@
-package io.docpilot.user.auth;
+package io.docpilot.common.auth;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -7,7 +7,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Authenticated platform subject visible to domain modules.
+ * Authenticated platform subject visible to application modules.
  */
 @Getter
 @Setter

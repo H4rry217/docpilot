@@ -1,8 +1,8 @@
 package io.docpilot.document.auth;
 
+import io.docpilot.common.auth.AuthSubject;
 import io.docpilot.document.model.DocPilotDocument;
 import io.docpilot.document.model.DocumentAction;
-import io.docpilot.user.auth.AuthSubject;
 
 /**
  * Boundary for document-level authorization decisions.

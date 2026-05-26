@@ -1,6 +1,15 @@
 export type ApiErrorPayload = {
-  code: string
-  message: string
+  code: number
+  msg: string
+  requestId?: string
+  timestamp?: string
+}
+
+type ResultPayload<T> = {
+  code: number
+  msg: string
+  data?: T
+  requestId?: string
   timestamp?: string
 }
 
@@ -19,18 +28,28 @@ export class ApiError extends Error {
 function isApiErrorPayload(value: unknown): value is ApiErrorPayload {
   if (!value || typeof value !== 'object') return false
   const candidate = value as Record<string, unknown>
-  return typeof candidate.code === 'string' && typeof candidate.message === 'string'
+  return typeof candidate.code === 'number' && typeof candidate.msg === 'string'
+}
+
+function isResultPayload<T>(value: unknown): value is ResultPayload<T> {
+  return isApiErrorPayload(value)
 }
 
 export async function postJson<TResponse, TBody extends object = Record<string, never>>(
   path: string,
   body: TBody
 ): Promise<TResponse> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json'
+  }
+  const token = globalThis.localStorage?.getItem('docpilot.auth.token')
+  if (token) {
+    headers.Authorization = `Bearer ${token}`
+  }
+
   const response = await fetch(path, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
+    headers,
     body: JSON.stringify(body)
   })
 
@@ -38,7 +57,7 @@ export async function postJson<TResponse, TBody extends object = Record<string, 
   const payload: unknown = text ? JSON.parse(text) : undefined
   if (!response.ok) {
     const errorPayload = isApiErrorPayload(payload) ? payload : undefined
-    throw new ApiError(response.status, errorPayload?.message ?? response.statusText, errorPayload)
+    throw new ApiError(response.status, errorPayload?.msg ?? response.statusText, errorPayload)
   }
-  return payload as TResponse
+  return isResultPayload<TResponse>(payload) ? (payload.data as TResponse) : (payload as TResponse)
 }

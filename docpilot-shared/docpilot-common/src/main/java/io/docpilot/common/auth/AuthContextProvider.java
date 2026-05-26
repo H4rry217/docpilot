@@ -1,4 +1,4 @@
-package io.docpilot.user.auth;
+package io.docpilot.common.auth;
 
 import java.util.Optional;
 
@@ -8,7 +8,7 @@ import java.util.Optional;
 public interface AuthContextProvider {
 
     /**
-     * Returns the current subject, or empty when the request is anonymous.
+     * Returns the current subject, or empty when the current flow is anonymous.
      */
     Optional<AuthSubject> currentSubject();
 

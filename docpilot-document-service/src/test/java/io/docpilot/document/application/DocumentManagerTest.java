@@ -1,5 +1,7 @@
 package io.docpilot.document.application;
 
+import io.docpilot.common.auth.AuthContextProvider;
+import io.docpilot.common.auth.AuthSubject;
 import io.docpilot.document.auth.DefaultDocumentAccessAuthorizer;
 import io.docpilot.document.exception.DocumentAccessDeniedException;
 import io.docpilot.document.exception.DocumentVersionConflictException;
@@ -10,8 +12,6 @@ import io.docpilot.document.model.CreateDocumentCommand;
 import io.docpilot.document.model.DocumentVisibility;
 import io.docpilot.document.model.UpdateDocumentContentCommand;
 import io.docpilot.document.repository.DocumentRepository;
-import io.docpilot.user.auth.AuthContextProvider;
-import io.docpilot.user.auth.AuthSubject;
 import io.docpilot.user.model.UserInformation;
 import io.docpilot.user.provider.UserInformationProvider;
 import org.junit.jupiter.api.Test;

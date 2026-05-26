@@ -1,8 +1,6 @@
 package io.docpilot.config;
 
 import io.docpilot.user.application.UserInformationManager;
-import io.docpilot.user.auth.AuthContextProvider;
-import io.docpilot.user.auth.AuthSubject;
 import io.docpilot.user.model.UserInformation;
 import io.docpilot.user.repository.UserInformationRepository;
 import org.springframework.context.annotation.Bean;
@@ -17,16 +15,6 @@ public class UserApplicationConfig {
 
     public static final String DEV_USER_ID = "dev-user";
     public static final String DEV_DISPLAY_NAME = "HarryZ";
-
-    @Bean
-    public AuthContextProvider authContextProvider() {
-        return () -> {
-            AuthSubject subject = new AuthSubject();
-            subject.setUserId(DEV_USER_ID);
-            subject.setDisplayName(DEV_DISPLAY_NAME);
-            return Optional.of(subject);
-        };
-    }
 
     @Bean
     public UserInformationRepository userInformationRepository() {

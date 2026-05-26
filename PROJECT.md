@@ -14,6 +14,9 @@ DocPilot is an open source AI document editor. It follows the Codex idea of lett
 
 ## Modules
 
+- `docpilot-shared`: grouping parent for shared backend modules.
+  - `docpilot-common`: framework-neutral shared types such as `Result`, `StatusCode`, JSON helpers, common exceptions, auth subject abstractions, and `BaseEntity`.
+  - `docpilot-web-common`: Spring Web shared infrastructure such as global exception handling, request trace/log filters, `@RequireAuth`, and the default Bearer JWT subject resolver.
 - `docpilot-block`: foundational document structure library.
   - Parses Markdown with flexmark-java.
   - Keeps DocPilot's own block model as the stable internal document representation.

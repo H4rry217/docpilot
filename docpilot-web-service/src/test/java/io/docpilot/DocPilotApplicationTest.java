@@ -1,6 +1,10 @@
 package io.docpilot;
 
+import io.docpilot.common.auth.AuthSubject;
+import io.docpilot.common.auth.AuthSubjectContext;
+import io.docpilot.config.UserApplicationConfig;
 import io.docpilot.document.application.WorkspaceManager;
+import io.docpilot.document.model.CreateWorkspaceCommand;
 import io.docpilot.filesystem.FilesystemDefaultPaths;
 import io.docpilot.filesystem.PathMappingService;
 import io.docpilot.filesystem.provider.ProviderRegistry;
@@ -28,16 +32,24 @@ class DocPilotApplicationTest {
 
     @Test
     void filesystemDefaultsToLocalProviderAndProjectPathMapping() {
-        assertThat(providerRegistry.findById("local")).isPresent();
+        AuthSubject subject = new AuthSubject();
+        subject.setUserId(UserApplicationConfig.DEV_USER_ID);
+        subject.setDisplayName(UserApplicationConfig.DEV_DISPLAY_NAME);
 
-        var workspace = workspaceManager.listMyWorkspaces().getFirst();
+        AuthSubjectContext.runAs(subject, () -> {
+            assertThat(providerRegistry.findById("local")).isPresent();
 
-        assertThat(pathMappingService.list(workspace.getWorkspaceId()))
-                .anySatisfy(mapping -> {
-                    assertThat(mapping.getVirtualPath()).isEqualTo(FilesystemDefaultPaths.PROJECT_VIRTUAL_PATH);
-                    assertThat(mapping.getProviderId()).isEqualTo("local");
-                    assertThat(mapping.getProviderRoot()).isEqualTo(FilesystemDefaultPaths.workspaceProjectProviderRoot(workspace.getWorkspaceId()));
-                });
+            CreateWorkspaceCommand command = new CreateWorkspaceCommand();
+            command.setName("Filesystem Test Workspace");
+            var workspace = workspaceManager.createWorkspace(command);
+
+            assertThat(pathMappingService.list(workspace.getWorkspaceId()))
+                    .anySatisfy(mapping -> {
+                        assertThat(mapping.getVirtualPath()).isEqualTo(FilesystemDefaultPaths.PROJECT_VIRTUAL_PATH);
+                        assertThat(mapping.getProviderId()).isEqualTo("local");
+                        assertThat(mapping.getProviderRoot()).isEqualTo(FilesystemDefaultPaths.workspaceProjectProviderRoot(workspace.getWorkspaceId()));
+                    });
+        });
     }
 
 }

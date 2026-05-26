@@ -1,5 +1,6 @@
 package io.docpilot.config;
 
+import io.docpilot.common.auth.AuthContextProvider;
 import io.docpilot.document.application.DocumentManager;
 import io.docpilot.document.application.WorkspaceManager;
 import io.docpilot.document.auth.DefaultDocumentAccessAuthorizer;
@@ -9,7 +10,6 @@ import io.docpilot.document.processing.WorkspaceNodeIdGenerator;
 import io.docpilot.document.repository.DocumentRepository;
 import io.docpilot.document.repository.WorkspaceNodeRepository;
 import io.docpilot.document.repository.WorkspaceRepository;
-import io.docpilot.user.auth.AuthContextProvider;
 import io.docpilot.user.provider.UserInformationProvider;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;

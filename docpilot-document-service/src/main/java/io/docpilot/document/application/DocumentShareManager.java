@@ -1,5 +1,7 @@
 package io.docpilot.document.application;
 
+import io.docpilot.common.auth.AuthContextProvider;
+import io.docpilot.common.auth.AuthSubject;
 import io.docpilot.document.exception.DocumentAccessDeniedException;
 import io.docpilot.document.exception.DocumentNotFoundException;
 import io.docpilot.document.model.DocPilotDocument;
@@ -10,9 +12,6 @@ import io.docpilot.document.model.ShareDocumentCommand;
 import io.docpilot.document.processing.DocumentShareIdGenerator;
 import io.docpilot.document.repository.DocumentRepository;
 import io.docpilot.document.repository.DocumentShareRepository;
-import io.docpilot.user.auth.AuthContextProvider;
-import io.docpilot.user.auth.AuthSubject;
-
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;

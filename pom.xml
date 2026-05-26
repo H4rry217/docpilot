@@ -17,6 +17,7 @@
     <packaging>pom</packaging>
 
     <modules>
+        <module>docpilot-shared</module>
         <module>docpilot-ai-service</module>
         <module>docpilot-block</module>
         <module>docpilot-filesystem</module>
@@ -37,6 +38,18 @@
 
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <groupId>io.docpilot</groupId>
+                <artifactId>docpilot-common</artifactId>
+                <version>${docpilot.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.docpilot</groupId>
+                <artifactId>docpilot-web-common</artifactId>
+                <version>${docpilot.version}</version>
+            </dependency>
+
             <dependency>
                 <groupId>io.docpilot</groupId>
                 <artifactId>docpilot-ai-service</artifactId>
