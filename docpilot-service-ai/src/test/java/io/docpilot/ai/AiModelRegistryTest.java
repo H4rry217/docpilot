@@ -1,6 +1,6 @@
 package io.docpilot.ai;
 
-import io.docpilot.ai.openai.OpenAiChatCompletionRequest;
+import io.docpilot.ai.openai.LlmChatRequest;
 import io.docpilot.ai.openai.OpenAiChatCompletionResponse;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Flux;
@@ -45,12 +45,12 @@ class AiModelRegistryTest {
     private record StubAiChatModel(String id) implements AiChatModel {
 
         @Override
-        public OpenAiChatCompletionResponse chat(OpenAiChatCompletionRequest request) {
+        public OpenAiChatCompletionResponse chat(LlmChatRequest request) {
             return new OpenAiChatCompletionResponse();
         }
 
         @Override
-        public Flux<OpenAiChatCompletionResponse> stream(OpenAiChatCompletionRequest request) {
+        public Flux<OpenAiChatCompletionResponse> stream(LlmChatRequest request) {
             return Flux.empty();
         }
 

@@ -55,7 +55,7 @@ class OpenAiCompatibleChatModelTest {
                     """);
         });
         OpenAiCompatibleChatModel model = createModel();
-        OpenAiChatCompletionRequest request = new OpenAiChatCompletionRequest();
+        LlmChatRequest request = new LlmChatRequest();
         request.setMessages(List.of(new OpenAiChatMessage("user", "hello")));
         request.setTemperature(0.7);
         request.setAdditionalProperty("custom_flag", true);
@@ -82,7 +82,7 @@ class OpenAiCompatibleChatModelTest {
                     """);
         });
         OpenAiCompatibleChatModel model = createModel();
-        OpenAiChatCompletionRequest request = new OpenAiChatCompletionRequest();
+        LlmChatRequest request = new LlmChatRequest();
         request.setModel("override-model");
         request.setMessages(List.of(new OpenAiChatMessage("user", "hello")));
 
@@ -109,7 +109,7 @@ class OpenAiCompatibleChatModelTest {
             exchange.close();
         });
         OpenAiCompatibleChatModel model = createModel();
-        OpenAiChatCompletionRequest request = new OpenAiChatCompletionRequest();
+        LlmChatRequest request = new LlmChatRequest();
         request.setMessages(List.of(new OpenAiChatMessage("user", "hello")));
 
         List<OpenAiChatCompletionResponse> chunks = model.stream(request)
@@ -140,7 +140,7 @@ class OpenAiCompatibleChatModelTest {
         startServer(exchange -> sendJson(exchange, 401, "{\"error\":{\"message\":\"bad key\"}}"));
         OpenAiCompatibleChatModel model = createModel();
 
-        assertThatThrownBy(() -> model.chat(new OpenAiChatCompletionRequest()))
+        assertThatThrownBy(() -> model.chat(new LlmChatRequest()))
                 .isInstanceOf(AiModelException.class)
                 .hasMessageContaining("HTTP 401")
                 .hasMessageContaining("bad key");

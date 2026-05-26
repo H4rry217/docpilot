@@ -61,8 +61,8 @@ public class OpenAiCompatibleChatModel implements AiChatModel {
     }
 
     @Override
-    public OpenAiChatCompletionResponse chat(OpenAiChatCompletionRequest request) {
-        OpenAiChatCompletionRequest preparedRequest = prepareRequest(request, false);
+    public OpenAiChatCompletionResponse chat(LlmChatRequest request) {
+        LlmChatRequest preparedRequest = prepareRequest(request, false);
         HttpRequest httpRequest = buildRequest(preparedRequest, "application/json");
         try {
             HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
@@ -77,9 +77,9 @@ public class OpenAiCompatibleChatModel implements AiChatModel {
     }
 
     @Override
-    public Flux<OpenAiChatCompletionResponse> stream(OpenAiChatCompletionRequest request) {
+    public Flux<OpenAiChatCompletionResponse> stream(LlmChatRequest request) {
         return Flux.defer(() -> {
-            OpenAiChatCompletionRequest preparedRequest = prepareRequest(request, true);
+            LlmChatRequest preparedRequest = prepareRequest(request, true);
             HttpRequest httpRequest = buildRequest(preparedRequest, "text/event-stream");
             try {
                 HttpResponse<InputStream> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofInputStream());
@@ -98,9 +98,8 @@ public class OpenAiCompatibleChatModel implements AiChatModel {
         }).subscribeOn(Schedulers.boundedElastic());
     }
 
-    private OpenAiChatCompletionRequest prepareRequest(OpenAiChatCompletionRequest request, boolean stream) {
-        OpenAiChatCompletionRequest source = request == null ? new OpenAiChatCompletionRequest() : request;
-        OpenAiChatCompletionRequest preparedRequest = objectMapper.convertValue(source, OpenAiChatCompletionRequest.class);
+    private LlmChatRequest prepareRequest(LlmChatRequest request, boolean stream) {
+        LlmChatRequest preparedRequest = request == null ? new LlmChatRequest() : request.copy();
         if (preparedRequest.getModel() == null || preparedRequest.getModel().isBlank()) {
             preparedRequest.setModel(configuredModel);
         }
@@ -108,9 +107,9 @@ public class OpenAiCompatibleChatModel implements AiChatModel {
         return preparedRequest;
     }
 
-    private HttpRequest buildRequest(OpenAiChatCompletionRequest request, String accept) {
+    private HttpRequest buildRequest(LlmChatRequest request, String accept) {
         try {
-            String body = objectMapper.writeValueAsString(request);
+            String body = objectMapper.writeValueAsString(request.toPayload());
             return HttpRequest.newBuilder(endpoint)
                     .timeout(timeout)
                     .header("Authorization", "Bearer " + apiKey)
