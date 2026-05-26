@@ -20,21 +20,28 @@ DocPilot is an open source AI document editor. It follows the Codex idea of lett
   - Maps block documents to ProseMirror JSON DTOs.
   - Renders block documents back to normalized Markdown.
   - Preserves HTML blocks as `docpilotHtmlBlock` data nodes.
-- `docpilot-document`: document domain module.
-  - Owns the upper domain boundary for users, workspaces, resource nodes, documents, and document sharing.
+- `docpilot-document-service`: document domain service module.
+  - Owns the upper domain boundary for workspaces, resource nodes, documents, and document sharing.
   - Depends on `docpilot-block` for Markdown parsing and block snapshots.
-  - Abstracts authentication through `AuthContextProvider` and `DocumentAccessAuthorizer`.
-  - Abstracts user profile access through `UserProfileProvider`.
+  - Depends on `docpilot-user-service` for the current authenticated subject and user information reads.
+  - Abstracts document permissions through `DocumentAccessAuthorizer`.
   - Abstracts storage through repository interfaces only; no database implementation is included yet.
+- `docpilot-user-service`: user domain boundary service module.
+  - Owns the platform authenticated subject abstraction.
+  - Exposes `AuthContextProvider` for current-user context.
+  - Exposes `UserInformationProvider` and `UserInformationRepository` for user information reads and persistence adapters.
+  - Provides `UserInformationManager` as the first user information use-case boundary.
+- `docpilot-ai-service`: AI model integration service module.
+  - Keeps model registry and OpenAI-compatible chat model abstractions.
 - `docpilot-filesystem`: workspace virtual filesystem module.
   - Exposes workspace paths through `FilesystemService`.
   - Maps virtual paths such as `/project` to concrete `FilesystemProvider` instances through `PathMapping`.
   - Includes local filesystem and S3 provider implementations.
   - Keeps PathMapping storage behind `PathMappingStore` so startup can use memory first and database later.
-- `docpilot-startup`: backend application entrypoint.
+- `docpilot-web-service`: backend application entrypoint.
   - Provides `io.docpilot.DocPilotApplication`.
   - Exposes `GET /health`.
-  - Depends on `docpilot-block`, `docpilot-document`, and `docpilot-filesystem`.
+  - Depends on `docpilot-block`, `docpilot-document-service`, `docpilot-user-service`, `docpilot-ai-service`, and `docpilot-filesystem`.
 
 ## Block Model
 
@@ -75,16 +82,27 @@ Every block has a single `BlockNode.id`. The id is generated with UUID and store
 
 ## Document Domain
 
-The `docpilot-document` module is a pure Java domain module. It does not implement login, registration, user persistence, database adapters, or REST APIs.
+The `docpilot-document-service` module is a pure Java domain service module. It does not implement login, registration, user persistence, database adapters, or REST APIs.
 
 Current package boundaries:
 
 - `model`: mutable JavaBean domain models and enums.
-- `auth`: current-user context and document permission abstractions.
-- `user`: user profile lookup abstraction.
+- `auth`: document permission abstractions.
 - `repository`: storage ports for documents, workspaces, workspace nodes, and document shares.
 - `application`: use-case entry points.
 - `processing`: id generators and pure domain helpers.
+
+## User Domain
+
+The `docpilot-user-service` module is the shared user boundary for cloud document features. It keeps platform identity separate from document ownership and sharing.
+
+Current package boundaries:
+
+- `auth`: authenticated subject and current-subject provider.
+- `model`: user information DTOs exposed to other modules.
+- `provider`: read-side user information lookup boundary.
+- `repository`: persistence ports for user information.
+- `application`: user information use cases.
 
 Core concepts:
 
@@ -106,5 +124,6 @@ Workspace nodes are intentionally thin in this version. Full tree movement, recu
 - Add a concrete persistence implementation for `DocumentRepository`.
 - Add concrete persistence implementations for workspace, workspace node, and document share repositories.
 - Add concrete startup adapters for auth/user providers.
+- Add registration/login and persistent user information storage behind `docpilot-user-service`.
 - Add AI edit request and patch application primitives.
 - Add REST APIs only after the internal block contract is exercised by startup and frontend integration.

@@ -17,11 +17,12 @@
     <packaging>pom</packaging>
 
     <modules>
-        <module>docpilot-service-ai</module>
-        <module>docpilot-core-block</module>
-        <module>docpilot-core-filesystem</module>
-        <module>docpilot-service-document</module>
-        <module>docpilot-service-web</module>
+        <module>docpilot-ai-service</module>
+        <module>docpilot-block</module>
+        <module>docpilot-filesystem</module>
+        <module>docpilot-user-service</module>
+        <module>docpilot-document-service</module>
+        <module>docpilot-web-service</module>
     </modules>
 
     <properties>
@@ -38,25 +39,31 @@
         <dependencies>
             <dependency>
                 <groupId>io.docpilot</groupId>
-                <artifactId>docpilot-service-ai</artifactId>
+                <artifactId>docpilot-ai-service</artifactId>
                 <version>${docpilot.version}</version>
             </dependency>
 
             <dependency>
                 <groupId>io.docpilot</groupId>
-                <artifactId>docpilot-core-block</artifactId>
+                <artifactId>docpilot-block</artifactId>
                 <version>${docpilot.version}</version>
             </dependency>
 
             <dependency>
                 <groupId>io.docpilot</groupId>
-                <artifactId>docpilot-service-document</artifactId>
+                <artifactId>docpilot-document-service</artifactId>
                 <version>${docpilot.version}</version>
             </dependency>
 
             <dependency>
                 <groupId>io.docpilot</groupId>
-                <artifactId>docpilot-core-filesystem</artifactId>
+                <artifactId>docpilot-user-service</artifactId>
+                <version>${docpilot.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.docpilot</groupId>
+                <artifactId>docpilot-filesystem</artifactId>
                 <version>${docpilot.version}</version>
             </dependency>
 
