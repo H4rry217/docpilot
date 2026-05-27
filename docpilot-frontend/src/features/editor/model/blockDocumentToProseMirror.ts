@@ -1,5 +1,5 @@
 import type { JSONContent } from '@tiptap/core'
-import type { BlockDocument, BlockNode, InlineNode, MarkType } from '../../../entities/block/types'
+import type { BlockDocument, BlockNode, InlineMark, InlineNode } from '../../../entities/block/types'
 import type { ProseMirrorMark, ProseMirrorNode } from '../../../entities/prosemirror/types'
 
 type JsonObject = Record<string, unknown>
@@ -52,8 +52,30 @@ function blockToProseMirrorJson(block: BlockNode): JSONContent {
       return node('tableRow', attrs, childContent(block))
     case 'TABLE_CELL':
       return node('tableCell', attrs, inlineContent(block))
+    case 'FRONT_MATTER':
+      return { type: 'docpilotFrontMatter', attrs }
+    case 'MATH_BLOCK':
+      return { type: 'docpilotMathBlock', attrs }
+    case 'DIAGRAM_BLOCK':
+      return { type: 'docpilotDiagramBlock', attrs }
+    case 'CALLOUT':
+      return node('docpilotCallout', attrs, childContent(block))
+    case 'FOOTNOTE_DEFINITION':
+      return node('docpilotFootnoteDefinition', attrs, childContent(block))
+    case 'DEFINITION_LIST':
+      return node('docpilotDefinitionList', attrs, childContent(block))
+    case 'DEFINITION_TERM':
+      return node('docpilotDefinitionTerm', attrs, inlineContent(block))
+    case 'DEFINITION_ITEM':
+      return node('docpilotDefinitionItem', attrs, childContent(block))
+    case 'TOC':
+      return { type: 'docpilotToc', attrs }
+    case 'LINK_REFERENCE_DEFINITION':
+      return { type: 'docpilotLinkReferenceDefinition', attrs }
     case 'HTML_BLOCK':
       return { type: 'docpilotHtmlBlock', attrs }
+    case 'EXTENSION_BLOCK':
+      return node('docpilotExtensionBlock', attrs, childContent(block))
     case 'UNSUPPORTED_BLOCK':
       return { type: 'docpilotUnsupportedBlock', attrs }
     case 'DOCUMENT':
@@ -73,22 +95,18 @@ function inlineToProseMirrorJson(inline: InlineNode): JSONContent {
       return textNode('\n', markContent(inline.marks))
     case 'HARD_BREAK':
       return { type: 'hardBreak' }
-    case 'CODE':
-      return textNode(inline.text ?? '', [...markContent(inline.marks), { type: 'code' }])
-    case 'LINK':
-      return textNode(inline.text ?? '', [
-        ...markContent(inline.marks),
-        {
-          type: 'link',
-          attrs: {
-            href: stringInlineAttr(inline, 'href'),
-            title: stringInlineAttr(inline, 'title')
-          }
-        }
-      ])
-    case 'HTML_INLINE':
-      return textNode(stringInlineAttr(inline, 'source'))
     case 'IMAGE':
+      return { type: 'image', attrs: inline.attrs }
+    case 'MATH_INLINE':
+      return { type: 'docpilotMathInline', attrs: withInlineSource(inline, inline.attrs) }
+    case 'FOOTNOTE_REF':
+      return { type: 'docpilotFootnoteRef', attrs: withInlineSource(inline, inline.attrs) }
+    case 'EMOJI':
+      return { type: 'docpilotEmoji', attrs: withInlineSource(inline, inline.attrs) }
+    case 'HTML_INLINE':
+      return { type: 'docpilotHtmlInline', attrs: withInlineSource(inline, inline.attrs) }
+    case 'EXTENSION_INLINE':
+      return { type: 'docpilotExtensionInline', attrs: withInlineSource(inline, inline.attrs) }
     case 'UNSUPPORTED_INLINE':
       return textNode(inline.text ?? '')
     default:
@@ -116,11 +134,18 @@ function textContent(text: string): JSONContent[] {
   return text ? [textNode(text)] : []
 }
 
-function markContent(marks: MarkType[]): ProseMirrorMark[] {
+function markContent(marks: InlineMark[]): ProseMirrorMark[] {
   return marks.map((mark) => {
-    if (mark === 'BOLD') return { type: 'bold' }
-    if (mark === 'ITALIC') return { type: 'italic' }
-    return { type: 'strike' }
+    if (mark.type === 'BOLD') return { type: 'bold', attrs: mark.attrs }
+    if (mark.type === 'ITALIC') return { type: 'italic', attrs: mark.attrs }
+    if (mark.type === 'STRIKE') return { type: 'strike', attrs: mark.attrs }
+    if (mark.type === 'CODE') return { type: 'code', attrs: mark.attrs }
+    if (mark.type === 'LINK') return { type: 'link', attrs: mark.attrs }
+    if (mark.type === 'UNDERLINE') return { type: 'underline', attrs: mark.attrs }
+    if (mark.type === 'INSERT') return { type: 'insert', attrs: mark.attrs }
+    if (mark.type === 'SUBSCRIPT') return { type: 'subscript', attrs: mark.attrs }
+    if (mark.type === 'SUPERSCRIPT') return { type: 'superscript', attrs: mark.attrs }
+    return { type: 'highlight', attrs: mark.attrs }
   })
 }
 
@@ -132,12 +157,14 @@ function withBlockSource(block: BlockNode, attrs: JsonObject): JsonObject {
   }
 }
 
-function textAttr(block: BlockNode, name: string): string {
-  const value = block.attrs[name]
-  return typeof value === 'string' ? value : ''
+function withInlineSource(inline: InlineNode, attrs: JsonObject): JsonObject {
+  return {
+    ...attrs,
+    ...(inline.sourceRange ? { sourceRange: inline.sourceRange } : {})
+  }
 }
 
-function stringInlineAttr(inline: InlineNode, name: string): string {
-  const value = inline.attrs[name]
+function textAttr(block: BlockNode, name: string): string {
+  const value = block.attrs[name]
   return typeof value === 'string' ? value : ''
 }

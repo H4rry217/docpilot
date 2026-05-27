@@ -7,7 +7,21 @@ public enum MarkType {
     /** Emphasis. */
     ITALIC("italic"),
     /** GitHub-flavored strikethrough. */
-    STRIKE("strike");
+    STRIKE("strike"),
+    /** Inline code span. */
+    CODE("code"),
+    /** Link with href/title attrs. */
+    LINK("link"),
+    /** Underlined text. */
+    UNDERLINE("underline"),
+    /** Inserted text. */
+    INSERT("insert"),
+    /** Subscript text. */
+    SUBSCRIPT("subscript"),
+    /** Superscript text. */
+    SUPERSCRIPT("superscript"),
+    /** Highlighted text. */
+    HIGHLIGHT("highlight");
 
     private final String value;
 

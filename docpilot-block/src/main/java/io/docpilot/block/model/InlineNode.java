@@ -33,7 +33,7 @@ public class InlineNode {
     /**
      * Ordered text marks applied to this inline node.
      */
-    private List<MarkType> marks = new ArrayList<>();
+    private List<InlineMark> marks = new ArrayList<>();
 
     /**
      * Original Markdown source location for patch positioning.
@@ -41,7 +41,7 @@ public class InlineNode {
     private SourceRange sourceRange;
 
     public static InlineNode of(InlineType type, String text, Map<String, Object> attrs,
-                                List<MarkType> marks, SourceRange sourceRange) {
+                                List<InlineMark> marks, SourceRange sourceRange) {
         InlineNode inline = new InlineNode();
         inline.setType(type);
         inline.setText(text == null ? "" : text);

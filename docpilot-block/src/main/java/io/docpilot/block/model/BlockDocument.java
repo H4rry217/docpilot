@@ -16,9 +16,9 @@ import java.util.Map;
 public class BlockDocument {
 
     /**
-     * Current schema id for the first DocPilot block contract.
+     * Current schema id for the expanded DocPilot block contract.
      */
-    public static final String CURRENT_SCHEMA_VERSION = "docpilot-block/1";
+    public static final String CURRENT_SCHEMA_VERSION = "docpilot-block/2";
 
     /**
      * Block schema version used by downstream clients.

@@ -4,6 +4,7 @@ import io.docpilot.block.model.BlockDocument;
 import io.docpilot.block.model.BlockNode;
 import io.docpilot.block.model.BlockType;
 import io.docpilot.block.model.HtmlDisplayMode;
+import io.docpilot.block.model.InlineMark;
 import io.docpilot.block.model.InlineType;
 import io.docpilot.block.model.MarkType;
 import org.junit.jupiter.api.Test;
@@ -31,12 +32,16 @@ class MarkdownBlockParserTest {
         BlockNode paragraph = document.getBlocks().get(1);
         assertThat(paragraph.getType()).isEqualTo(BlockType.PARAGRAPH);
         assertThat(paragraph.getInlines())
-                .anySatisfy(inline -> assertThat(inline.getMarks()).contains(MarkType.BOLD))
-                .anySatisfy(inline -> assertThat(inline.getMarks()).contains(MarkType.ITALIC))
-                .anySatisfy(inline -> assertThat(inline.getMarks()).contains(MarkType.STRIKE))
+                .anySatisfy(inline -> assertThat(hasMark(inline.getMarks(), MarkType.BOLD)).isTrue())
+                .anySatisfy(inline -> assertThat(hasMark(inline.getMarks(), MarkType.ITALIC)).isTrue())
+                .anySatisfy(inline -> assertThat(hasMark(inline.getMarks(), MarkType.STRIKE)).isTrue())
                 .anySatisfy(inline -> {
-                    assertThat(inline.getType()).isEqualTo(InlineType.LINK);
-                    assertThat(inline.getAttrs()).containsEntry("href", "https://example.com");
+                    assertThat(inline.getText()).isEqualTo("link");
+                    assertThat(inline.getMarks())
+                            .anySatisfy(mark -> {
+                                assertThat(mark.getType()).isEqualTo(MarkType.LINK);
+                                assertThat(mark.getAttrs()).containsEntry("href", "https://example.com");
+                            });
                 })
                 .anySatisfy(inline -> {
                     assertThat(inline.getType()).isEqualTo(InlineType.IMAGE);
@@ -84,6 +89,95 @@ class MarkdownBlockParserTest {
         assertThat(html.getAttrs()).doesNotContainKeys("plainText", "syncId");
         assertThat(html.getAttrs().get("id")).isEqualTo(html.getId());
         assertThat(html.getId()).matches("[0-9a-f]{32}");
+    }
+
+    @Test
+    void parseEnhancedBlocksAndInlineMarks() {
+        BlockDocument document = parser.parse("""
+                ---
+                title: Spec
+                tags: [ai, docs]
+                ---
+
+                > [!NOTE] Read me
+                > Body with $x^2$, ==hot==, ++new++, ^up^, ~down~, <u>under</u>, and [**deep**](https://example.com).
+
+                $$
+                a^2 + b^2 = c^2
+                $$
+
+                ```mermaid
+                graph TD
+                  A-->B
+                ```
+
+                Term
+                : Definition body
+
+                Footnote here[^one].
+
+                [^one]: Footnote body
+
+                [TOC]
+                """);
+
+        assertThat(document.getSchemaVersion()).isEqualTo("docpilot-block/2");
+        assertThat(document.getBlocks()).extracting(BlockNode::getType)
+                .contains(BlockType.FRONT_MATTER, BlockType.CALLOUT, BlockType.MATH_BLOCK,
+                        BlockType.DIAGRAM_BLOCK, BlockType.DEFINITION_LIST, BlockType.FOOTNOTE_DEFINITION, BlockType.TOC);
+
+        BlockNode frontMatter = document.getBlocks().getFirst();
+        assertThat(frontMatter.getAttrs()).containsEntry("format", "yaml");
+        assertThat(frontMatter.getAttrs().get("data")).asString().contains("Spec");
+
+        BlockNode callout = document.getBlocks().stream()
+                .filter(block -> block.getType() == BlockType.CALLOUT)
+                .findFirst()
+                .orElseThrow();
+        assertThat(callout.getAttrs())
+                .containsEntry("kind", "note")
+                .containsEntry("title", "Read me");
+        BlockNode calloutParagraph = callout.getChildren().getFirst();
+        assertThat(calloutParagraph.getInlines())
+                .anySatisfy(inline -> assertThat(inline.getType()).isEqualTo(InlineType.MATH_INLINE))
+                .anySatisfy(inline -> assertThat(hasMark(inline.getMarks(), MarkType.HIGHLIGHT)).isTrue())
+                .anySatisfy(inline -> assertThat(hasMark(inline.getMarks(), MarkType.INSERT)).isTrue())
+                .anySatisfy(inline -> assertThat(hasMark(inline.getMarks(), MarkType.SUPERSCRIPT)).isTrue())
+                .anySatisfy(inline -> assertThat(hasMark(inline.getMarks(), MarkType.SUBSCRIPT)).isTrue())
+                .anySatisfy(inline -> assertThat(hasMark(inline.getMarks(), MarkType.UNDERLINE)).isTrue())
+                .anySatisfy(inline -> {
+                    assertThat(inline.getText()).isEqualTo("deep");
+                    assertThat(hasMark(inline.getMarks(), MarkType.BOLD)).isTrue();
+                    assertThat(hasMark(inline.getMarks(), MarkType.LINK)).isTrue();
+                });
+
+        BlockNode math = document.getBlocks().stream()
+                .filter(block -> block.getType() == BlockType.MATH_BLOCK)
+                .findFirst()
+                .orElseThrow();
+        assertThat(math.getAttrs()).containsEntry("notation", "latex");
+        assertThat(math.getAttrs().get("text")).asString().contains("a^2 + b^2");
+
+        BlockNode diagram = document.getBlocks().stream()
+                .filter(block -> block.getType() == BlockType.DIAGRAM_BLOCK)
+                .findFirst()
+                .orElseThrow();
+        assertThat(diagram.getAttrs()).containsEntry("engine", "mermaid");
+
+        BlockNode footnoteDefinition = document.getBlocks().stream()
+                .filter(block -> block.getType() == BlockType.FOOTNOTE_DEFINITION)
+                .findFirst()
+                .orElseThrow();
+        assertThat(footnoteDefinition.getAttrs()).containsEntry("label", "one");
+    }
+
+    private boolean hasMark(Iterable<InlineMark> marks, MarkType type) {
+        for (InlineMark mark : marks) {
+            if (mark.getType() == type) {
+                return true;
+            }
+        }
+        return false;
     }
 
 }

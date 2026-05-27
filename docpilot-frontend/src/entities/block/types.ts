@@ -23,26 +23,55 @@ export type BlockType =
   | 'TABLE'
   | 'TABLE_ROW'
   | 'TABLE_CELL'
+  | 'FRONT_MATTER'
+  | 'MATH_BLOCK'
+  | 'DIAGRAM_BLOCK'
+  | 'CALLOUT'
+  | 'FOOTNOTE_DEFINITION'
+  | 'DEFINITION_LIST'
+  | 'DEFINITION_TERM'
+  | 'DEFINITION_ITEM'
+  | 'TOC'
+  | 'LINK_REFERENCE_DEFINITION'
   | 'HTML_BLOCK'
+  | 'EXTENSION_BLOCK'
   | 'UNSUPPORTED_BLOCK'
 
 export type InlineType =
   | 'TEXT'
   | 'SOFT_BREAK'
   | 'HARD_BREAK'
-  | 'CODE'
-  | 'LINK'
   | 'IMAGE'
+  | 'MATH_INLINE'
+  | 'FOOTNOTE_REF'
+  | 'EMOJI'
   | 'HTML_INLINE'
+  | 'EXTENSION_INLINE'
   | 'UNSUPPORTED_INLINE'
 
-export type MarkType = 'BOLD' | 'ITALIC' | 'STRIKE'
+export type MarkType =
+  | 'BOLD'
+  | 'ITALIC'
+  | 'STRIKE'
+  | 'CODE'
+  | 'LINK'
+  | 'UNDERLINE'
+  | 'INSERT'
+  | 'SUBSCRIPT'
+  | 'SUPERSCRIPT'
+  | 'HIGHLIGHT'
+
+export type InlineMark = {
+  type: MarkType
+  attrs: Record<string, unknown>
+  sourceRange?: SourceRange
+}
 
 export type InlineNode = {
   type: InlineType
   text?: string
   attrs: Record<string, unknown>
-  marks: MarkType[]
+  marks: InlineMark[]
   sourceRange?: SourceRange
 }
 
@@ -56,7 +85,7 @@ export type BlockNode = {
 }
 
 export type BlockDocument = {
-  schemaVersion: 'docpilot-block/1' | string
+  schemaVersion: 'docpilot-block/2' | string
   blocks: BlockNode[]
   metadata: Record<string, unknown>
 }

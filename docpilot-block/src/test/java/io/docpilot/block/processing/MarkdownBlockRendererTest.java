@@ -38,4 +38,29 @@ class MarkdownBlockRendererTest {
         assertThat(renderer.render(document)).isEqualTo(source);
     }
 
+    @Test
+    void renderEnhancedMarkdownBackFromBlockDocument() {
+        BlockDocument document = parser.parse("""
+                ---
+                title: Spec
+                ---
+
+                > [!WARNING] Heads up
+                > Body with $x$ and ==hot==.
+
+                ```mermaid
+                graph TD
+                A-->B
+                ```
+                """);
+
+        String markdown = renderer.render(document);
+
+        assertThat(markdown).contains("---\ntitle: Spec\n---");
+        assertThat(markdown).contains("> [!WARNING] Heads up");
+        assertThat(markdown).contains("$x$");
+        assertThat(markdown).contains("==hot==");
+        assertThat(markdown).contains("```mermaid");
+    }
+
 }

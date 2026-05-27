@@ -3,11 +3,13 @@ package io.docpilot.block.processing;
 import io.docpilot.block.model.BlockDocument;
 import io.docpilot.block.model.BlockNode;
 import io.docpilot.block.model.BlockType;
+import io.docpilot.block.model.InlineMark;
 import io.docpilot.block.model.InlineNode;
 import io.docpilot.block.model.InlineType;
 import io.docpilot.block.model.MarkType;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 /**
@@ -16,7 +18,7 @@ import java.util.stream.Collectors;
 public class MarkdownBlockRenderer {
 
     /**
-     * Serializes a block document, preserving raw HTML block source.
+     * Serializes a block document, preserving raw extension and HTML sources when available.
      */
     public String render(BlockDocument document) {
         return document.getBlocks().stream()
@@ -39,8 +41,18 @@ public class MarkdownBlockRenderer {
             case TABLE -> renderTable(block);
             case TABLE_ROW -> renderInlines(block.getChildren().stream().flatMap(child -> child.getInlines().stream()).toList());
             case TABLE_CELL -> renderInlines(block.getInlines());
+            case FRONT_MATTER -> String.valueOf(block.getAttrs().getOrDefault("raw", ""));
+            case MATH_BLOCK -> renderMathBlock(block);
+            case DIAGRAM_BLOCK -> renderDiagramBlock(block);
+            case CALLOUT -> renderCallout(block, depth);
+            case FOOTNOTE_DEFINITION -> renderFootnoteDefinition(block, depth);
+            case DEFINITION_LIST -> renderDefinitionList(block, depth);
+            case DEFINITION_TERM -> renderInlines(block.getInlines());
+            case DEFINITION_ITEM -> ": " + renderChildren(block.getChildren(), depth + 1);
+            case TOC -> String.valueOf(block.getAttrs().getOrDefault("raw", "[TOC]"));
+            case LINK_REFERENCE_DEFINITION -> renderLinkReferenceDefinition(block);
             case HTML_BLOCK -> String.valueOf(block.getAttrs().getOrDefault("source", ""));
-            case UNSUPPORTED_BLOCK -> String.valueOf(block.getAttrs().getOrDefault("source", ""));
+            case EXTENSION_BLOCK, UNSUPPORTED_BLOCK -> String.valueOf(block.getAttrs().getOrDefault("source", block.getAttrs().getOrDefault("raw", "")));
             case DOCUMENT -> renderChildren(block.getChildren(), depth);
         };
     }
@@ -90,6 +102,48 @@ public class MarkdownBlockRenderer {
         return "```" + language + "\n" + text.stripTrailing() + "\n```";
     }
 
+    private String renderMathBlock(BlockNode block) {
+        String text = String.valueOf(block.getAttrs().getOrDefault("text", ""));
+        return "$$\n" + text.stripTrailing() + "\n$$";
+    }
+
+    private String renderDiagramBlock(BlockNode block) {
+        String engine = String.valueOf(block.getAttrs().getOrDefault("engine", "mermaid"));
+        String text = String.valueOf(block.getAttrs().getOrDefault("text", ""));
+        return "```" + engine + "\n" + text.stripTrailing() + "\n```";
+    }
+
+    private String renderCallout(BlockNode block, int depth) {
+        String kind = String.valueOf(block.getAttrs().getOrDefault("kind", "note")).toUpperCase(Locale.ROOT);
+        String title = String.valueOf(block.getAttrs().getOrDefault("title", "")).trim();
+        String header = title.isEmpty() ? "> [!" + kind + "]" : "> [!" + kind + "] " + title;
+        String body = renderChildren(block.getChildren(), depth);
+        if (body.isBlank()) {
+            return header;
+        }
+        return header + "\n" + prefixLines(body, "> ");
+    }
+
+    private String renderFootnoteDefinition(BlockNode block, int depth) {
+        String label = String.valueOf(block.getAttrs().getOrDefault("label", ""));
+        String body = renderChildren(block.getChildren(), depth + 1);
+        return "[^" + label + "]: " + body;
+    }
+
+    private String renderDefinitionList(BlockNode block, int depth) {
+        return block.getChildren().stream()
+                .map(child -> renderBlock(child, depth))
+                .filter(value -> !value.isBlank())
+                .collect(Collectors.joining("\n"));
+    }
+
+    private String renderLinkReferenceDefinition(BlockNode block) {
+        String label = String.valueOf(block.getAttrs().getOrDefault("label", ""));
+        String href = String.valueOf(block.getAttrs().getOrDefault("href", ""));
+        String title = String.valueOf(block.getAttrs().getOrDefault("title", ""));
+        return title.isBlank() ? "[" + label + "]: " + href : "[" + label + "]: " + href + " \"" + title + "\"";
+    }
+
     private String renderTable(BlockNode table) {
         List<BlockNode> rows = table.getChildren();
         if (rows.isEmpty()) {
@@ -123,23 +177,48 @@ public class MarkdownBlockRenderer {
             case TEXT -> inline.getText();
             case SOFT_BREAK -> "\n";
             case HARD_BREAK -> "  \n";
-            case CODE -> "`" + inline.getText() + "`";
-            case LINK -> "[" + inline.getText() + "](" + inline.getAttrs().getOrDefault("href", "") + ")";
             case IMAGE -> "![" + inline.getAttrs().getOrDefault("alt", inline.getText()) + "](" + inline.getAttrs().getOrDefault("src", "") + ")";
+            case MATH_INLINE -> "$" + inline.getText() + "$";
+            case FOOTNOTE_REF -> "[^" + inline.getAttrs().getOrDefault("label", inline.getText()) + "]";
+            case EMOJI -> String.valueOf(inline.getAttrs().getOrDefault("shortcut", inline.getText()));
             case HTML_INLINE -> String.valueOf(inline.getAttrs().getOrDefault("source", inline.getText()));
-            case UNSUPPORTED_INLINE -> inline.getText();
+            case EXTENSION_INLINE, UNSUPPORTED_INLINE -> String.valueOf(inline.getAttrs().getOrDefault("source", inline.getText()));
         };
 
-        if (inline.getType() == InlineType.CODE || inline.getType() == InlineType.LINK || inline.getType() == InlineType.IMAGE) {
+        if (inline.getType() == InlineType.IMAGE || inline.getType() == InlineType.HTML_INLINE) {
             return text;
         }
 
-        for (MarkType mark : inline.getMarks()) {
-            text = switch (mark) {
-                case BOLD -> "**" + text + "**";
-                case ITALIC -> "*" + text + "*";
-                case STRIKE -> "~~" + text + "~~";
-            };
+        InlineMark link = null;
+        boolean code = false;
+        for (InlineMark mark : inline.getMarks()) {
+            if (mark.getType() == MarkType.LINK) {
+                link = mark;
+            } else if (mark.getType() == MarkType.CODE) {
+                code = true;
+            }
+        }
+
+        if (code) {
+            text = "`" + text + "`";
+        } else {
+            for (InlineMark mark : inline.getMarks()) {
+                text = switch (mark.getType()) {
+                    case BOLD -> "**" + text + "**";
+                    case ITALIC -> "*" + text + "*";
+                    case STRIKE -> "~~" + text + "~~";
+                    case UNDERLINE -> "<u>" + text + "</u>";
+                    case INSERT -> "++" + text + "++";
+                    case SUBSCRIPT -> "~" + text + "~";
+                    case SUPERSCRIPT -> "^" + text + "^";
+                    case HIGHLIGHT -> "==" + text + "==";
+                    case CODE, LINK -> text;
+                };
+            }
+        }
+
+        if (link != null) {
+            text = "[" + text + "](" + link.getAttrs().getOrDefault("href", "") + ")";
         }
         return text;
     }

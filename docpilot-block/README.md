@@ -28,7 +28,10 @@
   - Uses `attrs` for block-specific fields such as heading level, code language, table alignment, or HTML source.
 - `InlineNode`
   - Inline content inside text-like blocks.
-  - Supports text, code, link, image, breaks, raw HTML inline, and unsupported inline fallback.
+  - Supports text, image, math, footnote references, emoji, breaks, raw HTML inline, extension inline fallback, and unsupported inline fallback.
+- `InlineMark`
+  - Rich-text marks applied to inline ranges.
+  - Supports bold, italic, strike, code, link, underline, insert, subscript, superscript, and highlight marks.
 - `SourceRange`
   - Original Markdown source location.
   - Intended for later AI edit/patch workflows.
@@ -37,7 +40,7 @@ The model uses JavaBean classes with Lombok `@Getter` and `@Setter`, because lat
 
 ## Supported Markdown
 
-The first implementation supports:
+The current `docpilot-block/2` implementation supports:
 
 - Paragraphs and headings.
 - Block quotes.
@@ -46,12 +49,20 @@ The first implementation supports:
 - Fenced and indented code blocks.
 - Thematic breaks.
 - GFM tables.
-- Bold, italic, and strikethrough marks.
-- Links and images.
+- YAML front matter.
+- Math blocks and inline math.
+- Mermaid-style diagram fenced blocks.
+- Callouts/admonitions.
+- Footnote references and definitions.
+- Definition lists.
+- TOC markers.
+- Link reference definitions.
+- Bold, italic, strikethrough, code, link, underline, insert, subscript, superscript, and highlight marks.
+- Images.
 - Soft and hard breaks.
 - Raw HTML block and inline nodes.
 
-Parser nodes that do not yet have a first-class DocPilot representation fall back to `UNSUPPORTED_BLOCK` or `UNSUPPORTED_INLINE`.
+Parser nodes that do not yet have a first-class DocPilot representation fall back to `EXTENSION_BLOCK`, `EXTENSION_INLINE`, `UNSUPPORTED_BLOCK`, or `UNSUPPORTED_INLINE`.
 
 ## HTML Strategy
 
@@ -106,6 +117,11 @@ String normalizedMarkdown = renderer.render(document);
 - `TASK_LIST_ITEM` -> `taskItem`
 - `CODE_BLOCK` -> `codeBlock`
 - `TABLE` -> `table`
+- `FRONT_MATTER` -> `docpilotFrontMatter`
+- `MATH_BLOCK` -> `docpilotMathBlock`
+- `DIAGRAM_BLOCK` -> `docpilotDiagramBlock`
+- `CALLOUT` -> `docpilotCallout`
+- `FOOTNOTE_DEFINITION` -> `docpilotFootnoteDefinition`
 - `HTML_BLOCK` -> `docpilotHtmlBlock`
 
 The converter uses string constants internally for node names, mark names, and attr keys.
@@ -118,4 +134,4 @@ Run this module through the root Maven build:
 mvn test
 ```
 
-Current tests cover Markdown parsing, GFM tables/task lists, HTML preservation, ProseMirror conversion, and Markdown rendering.
+Current tests cover Markdown parsing, GFM tables/task lists, enhanced block and inline nodes, HTML preservation, ProseMirror conversion, and Markdown rendering.

@@ -3,12 +3,11 @@ package io.docpilot.block.processing;
 import io.docpilot.block.model.BlockDocument;
 import io.docpilot.block.model.BlockNode;
 import io.docpilot.block.model.HtmlDisplayMode;
+import io.docpilot.block.model.InlineMark;
 import io.docpilot.block.model.InlineNode;
-import io.docpilot.block.model.MarkType;
 import io.docpilot.block.prosemirror.ProseMirrorMark;
 import io.docpilot.block.prosemirror.ProseMirrorNode;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,8 +32,23 @@ public class ProseMirrorJsonConverter {
     private static final String NODE_TABLE_CELL = "tableCell";
     private static final String NODE_HARD_BREAK = "hardBreak";
     private static final String NODE_IMAGE = "image";
+    private static final String NODE_DOCPILOT_FRONT_MATTER = "docpilotFrontMatter";
+    private static final String NODE_DOCPILOT_MATH_BLOCK = "docpilotMathBlock";
+    private static final String NODE_DOCPILOT_MATH_INLINE = "docpilotMathInline";
+    private static final String NODE_DOCPILOT_DIAGRAM_BLOCK = "docpilotDiagramBlock";
+    private static final String NODE_DOCPILOT_CALLOUT = "docpilotCallout";
+    private static final String NODE_DOCPILOT_FOOTNOTE_DEFINITION = "docpilotFootnoteDefinition";
+    private static final String NODE_DOCPILOT_FOOTNOTE_REF = "docpilotFootnoteRef";
+    private static final String NODE_DOCPILOT_DEFINITION_LIST = "docpilotDefinitionList";
+    private static final String NODE_DOCPILOT_DEFINITION_TERM = "docpilotDefinitionTerm";
+    private static final String NODE_DOCPILOT_DEFINITION_ITEM = "docpilotDefinitionItem";
+    private static final String NODE_DOCPILOT_TOC = "docpilotToc";
+    private static final String NODE_DOCPILOT_LINK_REFERENCE_DEFINITION = "docpilotLinkReferenceDefinition";
+    private static final String NODE_DOCPILOT_EMOJI = "docpilotEmoji";
     private static final String NODE_DOCPILOT_HTML_BLOCK = "docpilotHtmlBlock";
     private static final String NODE_DOCPILOT_HTML_INLINE = "docpilotHtmlInline";
+    private static final String NODE_DOCPILOT_EXTENSION_BLOCK = "docpilotExtensionBlock";
+    private static final String NODE_DOCPILOT_EXTENSION_INLINE = "docpilotExtensionInline";
     private static final String NODE_DOCPILOT_UNSUPPORTED_BLOCK = "docpilotUnsupportedBlock";
     private static final String NODE_DOCPILOT_UNSUPPORTED_INLINE = "docpilotUnsupportedInline";
 
@@ -43,6 +57,11 @@ public class ProseMirrorJsonConverter {
     private static final String MARK_STRIKE = "strike";
     private static final String MARK_CODE = "code";
     private static final String MARK_LINK = "link";
+    private static final String MARK_UNDERLINE = "underline";
+    private static final String MARK_INSERT = "insert";
+    private static final String MARK_SUBSCRIPT = "subscript";
+    private static final String MARK_SUPERSCRIPT = "superscript";
+    private static final String MARK_HIGHLIGHT = "highlight";
 
     private static final String ATTR_SCHEMA_VERSION = "schemaVersion";
     private static final String ATTR_LEVEL = "level";
@@ -50,8 +69,6 @@ public class ProseMirrorJsonConverter {
     private static final String ATTR_CHECKED = "checked";
     private static final String ATTR_LANGUAGE = "language";
     private static final String ATTR_TEXT = "text";
-    private static final String ATTR_HREF = "href";
-    private static final String ATTR_TITLE = "title";
     private static final String ATTR_BLOCK_ID = "blockId";
     private static final String ATTR_SOURCE_RANGE = "sourceRange";
 
@@ -80,7 +97,18 @@ public class ProseMirrorJsonConverter {
             case TABLE -> ProseMirrorNode.node(NODE_TABLE, sourceAttrs(block), childContent(block));
             case TABLE_ROW -> ProseMirrorNode.node(NODE_TABLE_ROW, sourceAttrs(block), childContent(block));
             case TABLE_CELL -> ProseMirrorNode.node(NODE_TABLE_CELL, withSource(block, normalizeAttrs(block.getAttrs())), inlineContent(block));
+            case FRONT_MATTER -> ProseMirrorNode.leaf(NODE_DOCPILOT_FRONT_MATTER, withSource(block, normalizeAttrs(block.getAttrs())));
+            case MATH_BLOCK -> ProseMirrorNode.leaf(NODE_DOCPILOT_MATH_BLOCK, withSource(block, normalizeAttrs(block.getAttrs())));
+            case DIAGRAM_BLOCK -> ProseMirrorNode.leaf(NODE_DOCPILOT_DIAGRAM_BLOCK, withSource(block, normalizeAttrs(block.getAttrs())));
+            case CALLOUT -> ProseMirrorNode.node(NODE_DOCPILOT_CALLOUT, withSource(block, normalizeAttrs(block.getAttrs())), childContent(block));
+            case FOOTNOTE_DEFINITION -> ProseMirrorNode.node(NODE_DOCPILOT_FOOTNOTE_DEFINITION, withSource(block, normalizeAttrs(block.getAttrs())), childContent(block));
+            case DEFINITION_LIST -> ProseMirrorNode.node(NODE_DOCPILOT_DEFINITION_LIST, sourceAttrs(block), childContent(block));
+            case DEFINITION_TERM -> ProseMirrorNode.node(NODE_DOCPILOT_DEFINITION_TERM, withSource(block, normalizeAttrs(block.getAttrs())), inlineContent(block));
+            case DEFINITION_ITEM -> ProseMirrorNode.node(NODE_DOCPILOT_DEFINITION_ITEM, withSource(block, normalizeAttrs(block.getAttrs())), childContent(block));
+            case TOC -> ProseMirrorNode.leaf(NODE_DOCPILOT_TOC, withSource(block, normalizeAttrs(block.getAttrs())));
+            case LINK_REFERENCE_DEFINITION -> ProseMirrorNode.leaf(NODE_DOCPILOT_LINK_REFERENCE_DEFINITION, withSource(block, normalizeAttrs(block.getAttrs())));
             case HTML_BLOCK -> ProseMirrorNode.leaf(NODE_DOCPILOT_HTML_BLOCK, withSource(block, normalizeAttrs(block.getAttrs())));
+            case EXTENSION_BLOCK -> ProseMirrorNode.node(NODE_DOCPILOT_EXTENSION_BLOCK, withSource(block, normalizeAttrs(block.getAttrs())), childContent(block));
             case UNSUPPORTED_BLOCK -> ProseMirrorNode.leaf(NODE_DOCPILOT_UNSUPPORTED_BLOCK, withSource(block, normalizeAttrs(block.getAttrs())));
             case DOCUMENT -> ProseMirrorNode.node(NODE_DOC, sourceAttrs(block), childContent(block));
         };
@@ -99,28 +127,31 @@ public class ProseMirrorJsonConverter {
             case TEXT -> ProseMirrorNode.text(inline.getText(), marks(inline.getMarks()));
             case SOFT_BREAK -> ProseMirrorNode.text("\n", marks(inline.getMarks()));
             case HARD_BREAK -> ProseMirrorNode.leaf(NODE_HARD_BREAK, sourceAttrs(inline));
-            case CODE -> ProseMirrorNode.text(inline.getText(), appendMark(marks(inline.getMarks()), ProseMirrorMark.of(MARK_CODE)));
-            case LINK -> ProseMirrorNode.text(inline.getText(), appendMark(marks(inline.getMarks()), ProseMirrorMark.of(MARK_LINK, linkAttrs(inline))));
             case IMAGE -> ProseMirrorNode.leaf(NODE_IMAGE, withSource(inline, normalizeAttrs(inline.getAttrs())));
+            case MATH_INLINE -> ProseMirrorNode.leaf(NODE_DOCPILOT_MATH_INLINE, withSource(inline, normalizeAttrs(inline.getAttrs())));
+            case FOOTNOTE_REF -> ProseMirrorNode.leaf(NODE_DOCPILOT_FOOTNOTE_REF, withSource(inline, normalizeAttrs(inline.getAttrs())));
+            case EMOJI -> ProseMirrorNode.leaf(NODE_DOCPILOT_EMOJI, withSource(inline, normalizeAttrs(inline.getAttrs())));
             case HTML_INLINE -> ProseMirrorNode.leaf(NODE_DOCPILOT_HTML_INLINE, withSource(inline, normalizeAttrs(inline.getAttrs())));
+            case EXTENSION_INLINE -> ProseMirrorNode.leaf(NODE_DOCPILOT_EXTENSION_INLINE, withSource(inline, normalizeAttrs(inline.getAttrs())));
             case UNSUPPORTED_INLINE -> ProseMirrorNode.leaf(NODE_DOCPILOT_UNSUPPORTED_INLINE, withSource(inline, normalizeAttrs(inline.getAttrs())));
         };
     }
 
-    private List<ProseMirrorMark> marks(List<MarkType> marks) {
+    private List<ProseMirrorMark> marks(List<InlineMark> marks) {
         return marks.stream()
-                .map(mark -> switch (mark) {
-                    case BOLD -> ProseMirrorMark.of(MARK_BOLD);
-                    case ITALIC -> ProseMirrorMark.of(MARK_ITALIC);
-                    case STRIKE -> ProseMirrorMark.of(MARK_STRIKE);
+                .map(mark -> switch (mark.getType()) {
+                    case BOLD -> ProseMirrorMark.of(MARK_BOLD, normalizeAttrs(mark.getAttrs()));
+                    case ITALIC -> ProseMirrorMark.of(MARK_ITALIC, normalizeAttrs(mark.getAttrs()));
+                    case STRIKE -> ProseMirrorMark.of(MARK_STRIKE, normalizeAttrs(mark.getAttrs()));
+                    case CODE -> ProseMirrorMark.of(MARK_CODE, normalizeAttrs(mark.getAttrs()));
+                    case LINK -> ProseMirrorMark.of(MARK_LINK, normalizeAttrs(mark.getAttrs()));
+                    case UNDERLINE -> ProseMirrorMark.of(MARK_UNDERLINE, normalizeAttrs(mark.getAttrs()));
+                    case INSERT -> ProseMirrorMark.of(MARK_INSERT, normalizeAttrs(mark.getAttrs()));
+                    case SUBSCRIPT -> ProseMirrorMark.of(MARK_SUBSCRIPT, normalizeAttrs(mark.getAttrs()));
+                    case SUPERSCRIPT -> ProseMirrorMark.of(MARK_SUPERSCRIPT, normalizeAttrs(mark.getAttrs()));
+                    case HIGHLIGHT -> ProseMirrorMark.of(MARK_HIGHLIGHT, normalizeAttrs(mark.getAttrs()));
                 })
                 .toList();
-    }
-
-    private List<ProseMirrorMark> appendMark(List<ProseMirrorMark> marks, ProseMirrorMark mark) {
-        List<ProseMirrorMark> next = new ArrayList<>(marks);
-        next.add(mark);
-        return next;
     }
 
     private List<ProseMirrorNode> textContent(String text) {
@@ -128,13 +159,6 @@ public class ProseMirrorJsonConverter {
             return List.of();
         }
         return List.of(ProseMirrorNode.text(text, List.of()));
-    }
-
-    private Map<String, Object> linkAttrs(InlineNode inline) {
-        Map<String, Object> attrs = new HashMap<>();
-        attrs.put(ATTR_HREF, inline.getAttrs().getOrDefault(ATTR_HREF, ""));
-        attrs.put(ATTR_TITLE, inline.getAttrs().getOrDefault(ATTR_TITLE, ""));
-        return attrs;
     }
 
     private Map<String, Object> normalizeAttrs(Map<String, Object> attrs) {

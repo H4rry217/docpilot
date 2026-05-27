@@ -1,11 +1,11 @@
 import type { JSONContent } from '@tiptap/core'
-import type { BlockDocument, BlockNode, BlockType, InlineNode, MarkType } from '../../../entities/block/types'
+import type { BlockDocument, BlockNode, BlockType, InlineMark, InlineNode, MarkType } from '../../../entities/block/types'
 
 type JsonAttrs = Record<string, unknown>
 
 export function proseMirrorJsonToBlockDocument(json: JSONContent): BlockDocument {
   return {
-    schemaVersion: stringAttr(json.attrs, 'schemaVersion', 'docpilot-block/1'),
+    schemaVersion: stringAttr(json.attrs, 'schemaVersion', 'docpilot-block/2'),
     blocks: (json.content ?? []).map((node, index) => blockFromNode(node, `${index}`)).filter(Boolean),
     metadata: {
       source: 'frontend-live-preview'
@@ -25,11 +25,23 @@ function blockFromNode(node: JSONContent, path: string): BlockNode {
     return block(path, 'HTML_BLOCK', attrs)
   }
 
+  if (node.type === 'docpilotMathBlock') {
+    return block(path, 'MATH_BLOCK', attrs)
+  }
+
+  if (node.type === 'docpilotDiagramBlock') {
+    return block(path, 'DIAGRAM_BLOCK', attrs)
+  }
+
+  if (node.type === 'docpilotFrontMatter') {
+    return block(path, 'FRONT_MATTER', attrs)
+  }
+
   if (node.type === 'horizontalRule') {
     return block(path, 'THEMATIC_BREAK', attrs)
   }
 
-  if (type === 'PARAGRAPH' || type === 'HEADING' || type === 'TABLE_CELL') {
+  if (type === 'PARAGRAPH' || type === 'HEADING' || type === 'TABLE_CELL' || type === 'DEFINITION_TERM') {
     return block(path, type, attrs, inlineContent(node), childBlocks(node, path))
   }
 
@@ -38,13 +50,13 @@ function blockFromNode(node: JSONContent, path: string): BlockNode {
 
 function childBlocks(node: JSONContent, path: string): BlockNode[] {
   return (node.content ?? [])
-    .filter((child) => child.type !== 'text' && child.type !== 'hardBreak')
+    .filter((child) => !isInlineNode(child))
     .map((child, index) => blockFromNode(child, `${path}.${index}`))
 }
 
 function inlineContent(node: JSONContent): InlineNode[] {
   const directInline = (node.content ?? [])
-    .filter((child) => child.type === 'text' || child.type === 'hardBreak')
+    .filter(isInlineNode)
     .map(inlineFromNode)
 
   if (directInline.length) {
@@ -64,25 +76,27 @@ function inlineFromNode(node: JSONContent): InlineNode {
     return { type: 'HARD_BREAK', attrs: {}, marks: [] }
   }
 
-  const link = node.marks?.find((mark) => mark.type === 'link')
-  const code = node.marks?.some((mark) => mark.type === 'code') ?? false
+  if (node.type === 'docpilotMathInline') {
+    return { type: 'MATH_INLINE', text: stringAttr(node.attrs, 'text', ''), attrs: node.attrs ?? {}, marks: [] }
+  }
+
+  if (node.type === 'docpilotFootnoteRef') {
+    return { type: 'FOOTNOTE_REF', attrs: node.attrs ?? {}, marks: [] }
+  }
+
+  if (node.type === 'docpilotHtmlInline') {
+    return { type: 'HTML_INLINE', text: stringAttr(node.attrs, 'source', ''), attrs: node.attrs ?? {}, marks: [] }
+  }
+
+  if (node.type === 'docpilotEmoji') {
+    return { type: 'EMOJI', text: stringAttr(node.attrs, 'shortcut', ''), attrs: node.attrs ?? {}, marks: [] }
+  }
+
+  if (node.type === 'docpilotExtensionInline') {
+    return { type: 'EXTENSION_INLINE', text: stringAttr(node.attrs, 'source', ''), attrs: node.attrs ?? {}, marks: [] }
+  }
+
   const text = node.text ?? ''
-
-  if (code) {
-    return { type: 'CODE', text, attrs: {}, marks: markTypes(node) }
-  }
-
-  if (link) {
-    return {
-      type: 'LINK',
-      text,
-      attrs: {
-        href: stringAttr(link.attrs, 'href', ''),
-        title: stringAttr(link.attrs, 'title', '')
-      },
-      marks: markTypes(node)
-    }
-  }
 
   return {
     type: 'TEXT',
@@ -92,15 +106,44 @@ function inlineFromNode(node: JSONContent): InlineNode {
   }
 }
 
-function markTypes(node: JSONContent): MarkType[] {
+function markTypes(node: JSONContent): InlineMark[] {
   return (node.marks ?? [])
     .map((mark) => {
-      if (mark.type === 'bold') return 'BOLD'
-      if (mark.type === 'italic') return 'ITALIC'
-      if (mark.type === 'strike') return 'STRIKE'
-      return null
+      const type = markType(mark.type)
+      if (!type) return null
+      return {
+        type,
+        attrs: mark.attrs ?? {}
+      }
     })
-    .filter((mark): mark is MarkType => mark !== null)
+    .filter((mark): mark is InlineMark => mark !== null)
+}
+
+function markType(type: string): MarkType | null {
+  switch (type) {
+    case 'bold':
+      return 'BOLD'
+    case 'italic':
+      return 'ITALIC'
+    case 'strike':
+      return 'STRIKE'
+    case 'code':
+      return 'CODE'
+    case 'link':
+      return 'LINK'
+    case 'underline':
+      return 'UNDERLINE'
+    case 'insert':
+      return 'INSERT'
+    case 'subscript':
+      return 'SUBSCRIPT'
+    case 'superscript':
+      return 'SUPERSCRIPT'
+    case 'highlight':
+      return 'HIGHLIGHT'
+    default:
+      return null
+  }
 }
 
 function block(path: string, type: BlockType, attrs: JsonAttrs, inlines: InlineNode[] = [], children: BlockNode[] = []): BlockNode {
@@ -140,9 +183,44 @@ function blockType(type?: string): BlockType {
       return 'TABLE_CELL'
     case 'docpilotHtmlBlock':
       return 'HTML_BLOCK'
+    case 'docpilotFrontMatter':
+      return 'FRONT_MATTER'
+    case 'docpilotMathBlock':
+      return 'MATH_BLOCK'
+    case 'docpilotDiagramBlock':
+      return 'DIAGRAM_BLOCK'
+    case 'docpilotCallout':
+      return 'CALLOUT'
+    case 'docpilotFootnoteDefinition':
+      return 'FOOTNOTE_DEFINITION'
+    case 'docpilotDefinitionList':
+      return 'DEFINITION_LIST'
+    case 'docpilotDefinitionTerm':
+      return 'DEFINITION_TERM'
+    case 'docpilotDefinitionItem':
+      return 'DEFINITION_ITEM'
+    case 'docpilotToc':
+      return 'TOC'
+    case 'docpilotLinkReferenceDefinition':
+      return 'LINK_REFERENCE_DEFINITION'
+    case 'docpilotExtensionBlock':
+      return 'EXTENSION_BLOCK'
     default:
       return 'UNSUPPORTED_BLOCK'
   }
+}
+
+function isInlineNode(node: JSONContent): boolean {
+  return [
+    'text',
+    'hardBreak',
+    'image',
+    'docpilotMathInline',
+    'docpilotFootnoteRef',
+    'docpilotHtmlInline',
+    'docpilotEmoji',
+    'docpilotExtensionInline'
+  ].includes(node.type ?? '')
 }
 
 function textFromNode(node: JSONContent): string {

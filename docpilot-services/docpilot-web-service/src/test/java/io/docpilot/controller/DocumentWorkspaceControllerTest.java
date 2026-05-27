@@ -46,7 +46,7 @@ class DocumentWorkspaceControllerTest {
                                 """.formatted(seededDocument.documentId())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.document.title").exists())
-                .andExpect(jsonPath("$.data.document.blockDocument.schemaVersion").value("docpilot-block/1"))
+                .andExpect(jsonPath("$.data.document.blockDocument.schemaVersion").value("docpilot-block/2"))
                 .andExpect(jsonPath("$.data.prosemirror.type").value("doc"))
                 .andExpect(jsonPath("$.data.prosemirror.content[0].attrs.blockId").exists());
     }

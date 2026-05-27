@@ -28,8 +28,30 @@ public enum BlockType {
     TABLE_ROW("tableRow"),
     /** Table cell with header/alignment attrs. */
     TABLE_CELL("tableCell"),
+    /** YAML/TOML-like document front matter preserved with parsed metadata. */
+    FRONT_MATTER("frontMatter"),
+    /** Block-level math expression. */
+    MATH_BLOCK("mathBlock"),
+    /** Diagram source such as Mermaid. */
+    DIAGRAM_BLOCK("diagramBlock"),
+    /** Structured callout/admonition container. */
+    CALLOUT("callout"),
+    /** Footnote definition block. */
+    FOOTNOTE_DEFINITION("footnoteDefinition"),
+    /** Definition list container. */
+    DEFINITION_LIST("definitionList"),
+    /** Definition list term. */
+    DEFINITION_TERM("definitionTerm"),
+    /** Definition list item body. */
+    DEFINITION_ITEM("definitionItem"),
+    /** Generated or placeholder table of contents marker. */
+    TOC("toc"),
+    /** Link reference definition. */
+    LINK_REFERENCE_DEFINITION("linkReferenceDefinition"),
     /** Raw HTML block preserved as data. */
     HTML_BLOCK("htmlBlock"),
+    /** Fallback for known extension blocks not yet modeled in detail. */
+    EXTENSION_BLOCK("extensionBlock"),
     /** Fallback for parser nodes not yet modeled. */
     UNSUPPORTED_BLOCK("unsupportedBlock");
 

@@ -41,14 +41,17 @@ DocPilot is an open source AI document editor. It follows the Codex idea of lett
 
 - `BlockDocument`: schema version, top-level blocks, metadata.
 - `BlockNode`: block id, type, attrs, inline children, block children, source range.
-- `InlineNode`: inline type, text, attrs, marks, source range.
+- `InlineNode`: inline type, text, attrs, rich-text marks, source range.
+- `InlineMark`: mark type, attrs, source range.
 - `SourceRange`: original Markdown offsets and line/column positions.
 
-First supported block types include paragraph, heading, blockquote, bullet list, ordered list, list item, task list item, code block, thematic break, table, table row, table cell, HTML block, and unsupported block.
+Current schema version is `docpilot-block/2`.
 
-First supported inline types include text, soft break, hard break, code, link, image, HTML inline, and unsupported inline.
+Supported block types include paragraph, heading, blockquote, bullet list, ordered list, list item, task list item, code block, thematic break, table, table row, table cell, front matter, math block, diagram block, callout, footnote definition, definition list, TOC, link reference definition, HTML block, extension block, and unsupported block.
 
-First supported marks are bold, italic, and strike.
+Supported inline types include text, soft break, hard break, image, math inline, footnote reference, emoji, HTML inline, extension inline, and unsupported inline.
+
+Supported marks include bold, italic, strike, code, link, underline, insert, subscript, superscript, and highlight.
 
 ## HTML Strategy
 
