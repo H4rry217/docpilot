@@ -1,0 +1,109 @@
+package io.docpilot.infrastructure.auth;
+
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.dao.DataAccessException;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.util.StringUtils;
+
+import javax.sql.DataSource;
+import java.security.SecureRandom;
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.util.Base64;
+import java.util.List;
+import java.util.Optional;
+import java.util.function.Supplier;
+
+public class DefaultUserAuthSettingsStore {
+
+    static final String PASSWORD_PEPPER_KEY = "auth.password-pepper";
+
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+    private static final String CREATE_SETTINGS_TABLE_SQL = """
+            CREATE TABLE IF NOT EXISTS docpilot_setting (
+                setting_key VARCHAR(120) NOT NULL,
+                setting_value VARCHAR(2048) NOT NULL,
+                create_time TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+                update_time TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+                PRIMARY KEY (setting_key)
+            )
+            """;
+
+    private final JdbcTemplate jdbcTemplate;
+    private final boolean initializeSchema;
+    private volatile boolean schemaInitialized;
+
+    public DefaultUserAuthSettingsStore(DataSource dataSource, boolean initializeSchema) {
+        this.jdbcTemplate = new JdbcTemplate(dataSource);
+        this.initializeSchema = initializeSchema;
+    }
+
+    public String passwordPepper(String configuredPepper) {
+        if (StringUtils.hasText(configuredPepper)) {
+            return configuredPepper;
+        }
+        return findOrCreateSetting(PASSWORD_PEPPER_KEY, this::initialPasswordPepper);
+    }
+
+    private String findOrCreateSetting(String key, Supplier<String> valueSupplier) {
+        initializeSchemaIfNeeded();
+        Optional<String> existing = findSetting(key);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+
+        String value = valueSupplier.get();
+        Instant now = Instant.now();
+        try {
+            jdbcTemplate.update("""
+                    INSERT INTO docpilot_setting (setting_key, setting_value, create_time, update_time)
+                    VALUES (?, ?, ?, ?)
+                    """, key, value, Timestamp.from(now), Timestamp.from(now));
+            return value;
+        } catch (DuplicateKeyException e) {
+            return findSetting(key)
+                    .orElseThrow(() -> new IllegalStateException("Failed to read initialized setting: " + key, e));
+        }
+    }
+
+    private Optional<String> findSetting(String key) {
+        List<String> values = jdbcTemplate.query(
+                "SELECT setting_value FROM docpilot_setting WHERE setting_key = ?",
+                (resultSet, rowNumber) -> resultSet.getString("setting_value"),
+                key
+        );
+        return values.stream().findFirst();
+    }
+
+    private void initializeSchemaIfNeeded() {
+        if (!initializeSchema || schemaInitialized) {
+            return;
+        }
+        synchronized (this) {
+            if (!schemaInitialized) {
+                jdbcTemplate.execute(CREATE_SETTINGS_TABLE_SQL);
+                schemaInitialized = true;
+            }
+        }
+    }
+
+    private String initialPasswordPepper() {
+        return hasExistingUsers() ? "" : generateSecret();
+    }
+
+    private boolean hasExistingUsers() {
+        try {
+            Integer count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM docpilot_user", Integer.class);
+            return count != null && count > 0;
+        } catch (DataAccessException e) {
+            return false;
+        }
+    }
+
+    private String generateSecret() {
+        byte[] bytes = new byte[32];
+        SECURE_RANDOM.nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+}

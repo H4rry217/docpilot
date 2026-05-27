@@ -11,7 +11,4 @@ public final class FilesystemPathNames {
     public static final char SEPARATOR_CHAR = '/';
     public static final char WINDOWS_SEPARATOR_CHAR = '\\';
 
-    private FilesystemPathNames() {
-    }
-
 }

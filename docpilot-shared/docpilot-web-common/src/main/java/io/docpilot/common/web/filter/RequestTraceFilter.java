@@ -28,6 +28,7 @@ public class RequestTraceFilter extends OncePerRequestFilter {
         }
 
         MDC.put(RequestConstants.KEY_REQUEST_ID, requestId);
+        MDC.put(RequestConstants.KEY_TRACE_ID, requestId);
         MDC.put(RequestConstants.KEY_REQUEST_URI, request.getRequestURI());
         response.setHeader(RequestConstants.HEADER_REQUEST_ID, requestId);
 

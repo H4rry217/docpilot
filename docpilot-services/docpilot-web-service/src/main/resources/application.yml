@@ -1,0 +1,25 @@
+spring:
+  application:
+    name: docpilot
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none
+
+server:
+  port: 11451
+
+docpilot:
+  version: 1.0-SNAPSHOT
+  auth:
+    jwt:
+      access-token-ttl-seconds: 604800
+    default-user:
+      enabled: true
+      init-schema: true
+      password-pepper: ${DOCPILOT_AUTH_PASSWORD_PEPPER:}
+      password-iterations: ${DOCPILOT_AUTH_PASSWORD_ITERATIONS:600000}
+      datasource:
+        url: ${DOCPILOT_AUTH_DB_URL:jdbc:mysql://127.0.0.1:3306/docpilot?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC}
+        username: ${DOCPILOT_AUTH_DB_USERNAME:docpilot}
+        password: ${DOCPILOT_AUTH_DB_PASSWORD:}

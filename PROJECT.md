@@ -23,28 +23,19 @@ DocPilot is an open source AI document editor. It follows the Codex idea of lett
   - Maps block documents to ProseMirror JSON DTOs.
   - Renders block documents back to normalized Markdown.
   - Preserves HTML blocks as `docpilotHtmlBlock` data nodes.
-- `docpilot-document-service`: document domain service module.
-  - Owns the upper domain boundary for workspaces, resource nodes, documents, and document sharing.
-  - Depends on `docpilot-block` for Markdown parsing and block snapshots.
-  - Depends on `docpilot-user-service` for the current authenticated subject and user information reads.
-  - Abstracts document permissions through `DocumentAccessAuthorizer`.
-  - Abstracts storage through repository interfaces only; no database implementation is included yet.
-- `docpilot-user-service`: user domain boundary service module.
-  - Owns the platform authenticated subject abstraction.
-  - Exposes `AuthContextProvider` for current-user context.
-  - Exposes `UserInformationProvider` and `UserInformationRepository` for user information reads and persistence adapters.
-  - Provides `UserInformationManager` as the first user information use-case boundary.
-- `docpilot-ai-service`: AI model integration service module.
-  - Keeps model registry and OpenAI-compatible chat model abstractions.
 - `docpilot-filesystem`: workspace virtual filesystem module.
   - Exposes workspace paths through `FilesystemService`.
   - Maps virtual paths such as `/project` to concrete `FilesystemProvider` instances through `PathMapping`.
   - Includes local filesystem and S3 provider implementations.
   - Keeps PathMapping storage behind `PathMappingStore` so startup can use memory first and database later.
-- `docpilot-web-service`: backend application entrypoint.
-  - Provides `io.docpilot.DocPilotApplication`.
-  - Exposes `GET /health`.
-  - Depends on `docpilot-block`, `docpilot-document-service`, `docpilot-user-service`, `docpilot-ai-service`, and `docpilot-filesystem`.
+- `docpilot-services`: grouping parent for service and backend application modules.
+  - `docpilot-user-service`: user domain boundary service module.
+  - `docpilot-ai-service`: AI model integration service module.
+  - `docpilot-document-service`: document domain service module.
+  - `docpilot-web-service`: backend application entrypoint.
+    - Provides `io.docpilot.DocPilotApplication`.
+    - Exposes `GET /health`.
+    - Depends on `docpilot-block`, `docpilot-document-service`, `docpilot-user-service`, `docpilot-ai-service`, and `docpilot-filesystem`.
 
 ## Block Model
 

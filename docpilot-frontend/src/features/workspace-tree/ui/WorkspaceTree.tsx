@@ -1,10 +1,12 @@
 import { ChevronDown, FileText, Folder, FolderOpen } from 'lucide-react'
+import type { ReactNode } from 'react'
 import type { WorkspaceTreeNode } from '../../../entities/workspace/types'
 
 export type WorkspaceTreeProps = {
   nodes: WorkspaceTreeNode[]
   selectedDocumentId?: string
   onSelectDocument: (node: WorkspaceTreeNode) => void
+  profileSlot?: ReactNode
 }
 
 function TreeNode({
@@ -60,9 +62,10 @@ function TreeNode({
   )
 }
 
-export function WorkspaceTree({ nodes, selectedDocumentId, onSelectDocument }: WorkspaceTreeProps) {
+export function WorkspaceTree({ nodes, selectedDocumentId, onSelectDocument, profileSlot }: WorkspaceTreeProps) {
   return (
     <aside className="workspace-panel">
+      {profileSlot}
       <div className="tree-list">
         {nodes.map((node) => (
           <TreeNode

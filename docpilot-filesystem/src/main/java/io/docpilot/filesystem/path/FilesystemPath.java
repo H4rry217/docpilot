@@ -9,9 +9,6 @@ import java.util.List;
 
 public final class FilesystemPath {
 
-    private FilesystemPath() {
-    }
-
     public static String normalizeVirtualPath(String path) {
         if (StringUtils.isBlank(path)) {
             throw new InvalidPathException("Path is required");

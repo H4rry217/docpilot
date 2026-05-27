@@ -1,5 +1,6 @@
 package io.docpilot.common.auth;
 
+import io.docpilot.common.context.RequestConstants;
 import org.slf4j.MDC;
 
 import java.util.Optional;
@@ -22,12 +23,15 @@ public final class AuthSubjectContext {
             return;
         }
         CURRENT.set(subject);
-        MDC.put("userId", subject.getUserId());
+        String userId = String.valueOf(subject.getUserId());
+        MDC.put(RequestConstants.KEY_USER_ID, userId);
+        MDC.put(RequestConstants.KEY_USER, userId);
     }
 
     public static void clear() {
         CURRENT.remove();
-        MDC.remove("userId");
+        MDC.remove(RequestConstants.KEY_USER_ID);
+        MDC.remove(RequestConstants.KEY_USER);
     }
 
     public static void runAs(AuthSubject subject, Runnable runnable) {

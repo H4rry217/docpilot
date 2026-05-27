@@ -2,6 +2,7 @@ package io.docpilot.common.web.auth;
 
 import io.docpilot.common.auth.AuthSubject;
 import io.docpilot.common.auth.AuthSubjectContext;
+import io.docpilot.common.context.RequestConstants;
 import io.docpilot.common.exception.ForbiddenException;
 import io.docpilot.common.exception.UnauthorizedException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -38,7 +39,9 @@ public class RequireAuthInterceptor implements HandlerInterceptor {
             }
         }
 
-        MDC.put("userId", authenticatedSubject.getUserId());
+        String userId = String.valueOf(authenticatedSubject.getUserId());
+        MDC.put(RequestConstants.KEY_USER_ID, userId);
+        MDC.put(RequestConstants.KEY_USER, userId);
         return true;
     }
 

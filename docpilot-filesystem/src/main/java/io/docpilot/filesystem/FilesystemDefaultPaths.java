@@ -10,9 +10,6 @@ public final class FilesystemDefaultPaths {
     private static final String WORKSPACES_ROOT = "workspaces";
     private static final String PROJECT_ROOT_NAME = "project";
 
-    private FilesystemDefaultPaths() {
-    }
-
     public static String workspaceProjectProviderRoot(String workspaceId) {
         return FilesystemPath.joinProviderPath(
                 FilesystemPath.joinProviderPath(WORKSPACES_ROOT, workspaceId),

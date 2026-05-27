@@ -4,7 +4,7 @@ export type WorkspaceNodeType = 'FOLDER' | 'DOCUMENT'
 
 export type Workspace = {
   workspaceId: string
-  ownerUserId: string
+  ownerUserId: number
   name: string
   rootNodeId: string
   state: WorkspaceState

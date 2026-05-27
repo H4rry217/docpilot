@@ -18,12 +18,9 @@
 
     <modules>
         <module>docpilot-shared</module>
-        <module>docpilot-ai-service</module>
         <module>docpilot-block</module>
         <module>docpilot-filesystem</module>
-        <module>docpilot-user-service</module>
-        <module>docpilot-document-service</module>
-        <module>docpilot-web-service</module>
+        <module>docpilot-services</module>
     </modules>
 
     <properties>
@@ -33,6 +30,7 @@
         <lombok.version>1.18.42</lombok.version>
         <aws.sdk.version>2.41.1</aws.sdk.version>
         <commons-io.version>2.18.0</commons-io.version>
+        <java-jwt.version>4.4.0</java-jwt.version>
         <docpilot.version>1.0-SNAPSHOT</docpilot.version>
     </properties>
 
@@ -90,6 +88,12 @@
                 <groupId>commons-io</groupId>
                 <artifactId>commons-io</artifactId>
                 <version>${commons-io.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.auth0</groupId>
+                <artifactId>java-jwt</artifactId>
+                <version>${java-jwt.version}</version>
             </dependency>
 
             <dependency>

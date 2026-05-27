@@ -56,6 +56,10 @@ export async function postJson<TResponse, TBody extends object = Record<string, 
   const text = await response.text()
   const payload: unknown = text ? JSON.parse(text) : undefined
   if (!response.ok) {
+    if (response.status === 401) {
+      globalThis.localStorage?.removeItem('docpilot.auth.token')
+      globalThis.window?.dispatchEvent(new Event('docpilot.auth.invalid'))
+    }
     const errorPayload = isApiErrorPayload(payload) ? payload : undefined
     throw new ApiError(response.status, errorPayload?.msg ?? response.statusText, errorPayload)
   }

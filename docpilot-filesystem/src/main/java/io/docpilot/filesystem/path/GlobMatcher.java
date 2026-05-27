@@ -5,9 +5,6 @@ import org.apache.commons.lang3.StringUtils;
 
 public final class GlobMatcher {
 
-    private GlobMatcher() {
-    }
-
     public static boolean matches(String pattern, String path) {
         return FilenameUtils.wildcardMatch(FilesystemPath.toUnixPath(path), FilesystemPath.toUnixPath(pattern));
     }

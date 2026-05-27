@@ -16,7 +16,7 @@ public class AuthSubject {
     /**
      * Stable authenticated user id.
      */
-    private String userId;
+    private Long userId;
 
     /**
      * Display name supplied by the user layer when available.

@@ -1,40 +1,30 @@
 package io.docpilot.common.web.auth;
 
-import com.fasterxml.jackson.core.type.TypeReference;
+import com.auth0.jwt.JWT;
+import com.auth0.jwt.algorithms.Algorithm;
+import com.auth0.jwt.exceptions.JWTDecodeException;
+import com.auth0.jwt.exceptions.JWTVerificationException;
+import com.auth0.jwt.exceptions.TokenExpiredException;
+import com.auth0.jwt.interfaces.Claim;
+import com.auth0.jwt.interfaces.DecodedJWT;
+import com.auth0.jwt.interfaces.Verification;
 import io.docpilot.common.auth.AuthSubject;
 import io.docpilot.common.context.RequestConstants;
 import io.docpilot.common.exception.UnauthorizedException;
-import io.docpilot.common.json.JsonUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.util.StringUtils;
 
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.time.Clock;
-import java.util.Base64;
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
 public class BearerJwtAuthSubjectResolver implements AuthSubjectResolver {
 
-    private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
-    };
+    private final DocPilotJwtConfig config;
 
-    private final DocPilotJwtProperties properties;
-    private final Clock clock;
-
-    public BearerJwtAuthSubjectResolver(DocPilotJwtProperties properties) {
-        this(properties, Clock.systemUTC());
-    }
-
-    BearerJwtAuthSubjectResolver(DocPilotJwtProperties properties, Clock clock) {
-        this.properties = properties;
-        this.clock = clock;
+    public BearerJwtAuthSubjectResolver(DocPilotJwtConfig config) {
+        this.config = config;
     }
 
     @Override
@@ -49,113 +39,37 @@ public class BearerJwtAuthSubjectResolver implements AuthSubjectResolver {
             throw new UnauthorizedException("Bearer token is empty");
         }
 
-        Map<String, Object> claims = verifyAndReadClaims(token);
-        String userId = stringClaim(claims, "sub");
-        if (!StringUtils.hasText(userId)) {
+        DecodedJWT jwt = verifyAndReadJwt(token);
+        Long userId = subjectId(jwt);
+        if (userId == null) {
             throw new UnauthorizedException("Token subject is missing");
         }
 
         AuthSubject subject = new AuthSubject();
         subject.setUserId(userId);
-        subject.setDisplayName(firstStringClaim(claims, "displayName", "name", "preferred_username"));
-        subject.setPlatformRoles(readRoles(claims));
+        subject.setDisplayName(firstStringClaim(jwt, "displayName", "name", "preferred_username"));
+        subject.setPlatformRoles(readRoles(jwt));
         return Optional.of(subject);
     }
 
-    private Map<String, Object> verifyAndReadClaims(String token) {
-        String[] parts = token.split("\\.", -1);
-        if (parts.length != 3) {
-            throw new UnauthorizedException("Invalid bearer token");
-        }
-
-        Map<String, Object> header = readPart(parts[0]);
-        String alg = stringClaim(header, "alg");
-        if (!"HS256".equals(alg)) {
-            throw new UnauthorizedException("Unsupported token algorithm");
-        }
-
-        verifySignature(parts[0] + "." + parts[1], parts[2]);
-
-        Map<String, Object> claims = readPart(parts[1]);
-        validateIssuer(claims);
-        validateTime(claims);
-        return claims;
-    }
-
-    private Map<String, Object> readPart(String encodedPart) {
+    private DecodedJWT verifyAndReadJwt(String token) {
         try {
-            byte[] decoded = Base64.getUrlDecoder().decode(encodedPart);
-            return JsonUtils.convert(new String(decoded, StandardCharsets.UTF_8), MAP_TYPE);
-        } catch (RuntimeException e) {
-            throw new UnauthorizedException("Invalid bearer token");
-        }
-    }
-
-    private void verifySignature(String signingInput, String signature) {
-        try {
-            Mac mac = Mac.getInstance("HmacSHA256");
-            SecretKeySpec secretKey = new SecretKeySpec(properties.getSecret().getBytes(StandardCharsets.UTF_8), "HmacSHA256");
-            mac.init(secretKey);
-            String expected = Base64.getUrlEncoder()
-                    .withoutPadding()
-                    .encodeToString(mac.doFinal(signingInput.getBytes(StandardCharsets.UTF_8)));
-            if (!MessageDigest.isEqual(expected.getBytes(StandardCharsets.US_ASCII), signature.getBytes(StandardCharsets.US_ASCII))) {
-                throw new UnauthorizedException("Invalid bearer token signature");
+            Verification verification = JWT.require(Algorithm.HMAC256(config.getSecret()))
+                    .acceptLeeway(config.getClockSkewSeconds());
+            if (StringUtils.hasText(config.getIssuer())) {
+                verification.withIssuer(config.getIssuer());
             }
-        } catch (UnauthorizedException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new UnauthorizedException("Unable to verify bearer token");
-        }
-    }
-
-    private void validateIssuer(Map<String, Object> claims) {
-        if (!StringUtils.hasText(properties.getIssuer())) {
-            return;
-        }
-        String issuer = stringClaim(claims, "iss");
-        if (!properties.getIssuer().equals(issuer)) {
-            throw new UnauthorizedException("Invalid token issuer");
-        }
-    }
-
-    private void validateTime(Map<String, Object> claims) {
-        long now = clock.instant().getEpochSecond();
-        long skew = properties.getClockSkewSeconds();
-
-        Long expiresAt = longClaim(claims, "exp");
-        if (expiresAt != null && now - skew >= expiresAt) {
+            return verification.build().verify(token);
+        } catch (TokenExpiredException e) {
             throw new UnauthorizedException("Bearer token has expired");
-        }
-
-        Long notBefore = longClaim(claims, "nbf");
-        if (notBefore != null && now + skew < notBefore) {
-            throw new UnauthorizedException("Bearer token is not active yet");
+        } catch (JWTVerificationException | IllegalArgumentException e) {
+            throw new UnauthorizedException("Invalid bearer token");
         }
     }
 
-    private Set<String> readRoles(Map<String, Object> claims) {
-        Set<String> roles = new HashSet<>();
-        Object rolesClaim = claims.get("roles");
-        if (rolesClaim instanceof Collection<?> collection) {
-            for (Object role : collection) {
-                if (role != null && StringUtils.hasText(role.toString())) {
-                    roles.add(role.toString());
-                }
-            }
-        } else if (rolesClaim instanceof String text) {
-            for (String role : text.split("[,\\s]+")) {
-                if (StringUtils.hasText(role)) {
-                    roles.add(role);
-                }
-            }
-        }
-        return roles;
-    }
-
-    private String firstStringClaim(Map<String, Object> claims, String... names) {
+    private String firstStringClaim(DecodedJWT jwt, String... names) {
         for (String name : names) {
-            String value = stringClaim(claims, name);
+            String value = stringClaim(jwt, name);
             if (StringUtils.hasText(value)) {
                 return value;
             }
@@ -163,24 +77,73 @@ public class BearerJwtAuthSubjectResolver implements AuthSubjectResolver {
         return null;
     }
 
-    private String stringClaim(Map<String, Object> claims, String name) {
-        Object value = claims.get(name);
-        return value == null ? null : value.toString();
+    private String stringClaim(DecodedJWT jwt, String name) {
+        try {
+            Claim claim = jwt.getClaim(name);
+            return claim == null || claim.isMissing() || claim.isNull() ? null : claim.asString();
+        } catch (JWTDecodeException e) {
+            throw new UnauthorizedException("Invalid token claim: " + name);
+        }
     }
 
-    private Long longClaim(Map<String, Object> claims, String name) {
-        Object value = claims.get(name);
-        if (value instanceof Number number) {
-            return number.longValue();
+    private Long subjectId(DecodedJWT jwt) {
+        String subject = jwt.getSubject();
+        if (StringUtils.hasText(subject)) {
+            return parseLongClaim("sub", subject);
         }
-        if (value instanceof String text && StringUtils.hasText(text)) {
-            try {
-                return Long.parseLong(text);
-            } catch (NumberFormatException e) {
-                throw new UnauthorizedException("Invalid token numeric date: " + name);
+
+        try {
+            Claim subjectClaim = jwt.getClaim("sub");
+            if (subjectClaim == null || subjectClaim.isMissing() || subjectClaim.isNull()) {
+                return null;
             }
+            Long numericSubject = subjectClaim.asLong();
+            if (numericSubject != null) {
+                return numericSubject;
+            }
+            String textSubject = subjectClaim.asString();
+            return StringUtils.hasText(textSubject) ? parseLongClaim("sub", textSubject) : null;
+        } catch (JWTDecodeException e) {
+            throw new UnauthorizedException("Invalid token claim: sub");
         }
-        return null;
+    }
+
+    private Long parseLongClaim(String name, String value) {
+        try {
+            return Long.parseLong(value);
+        } catch (NumberFormatException e) {
+            throw new UnauthorizedException("Invalid token numeric claim: " + name);
+        }
+    }
+
+    private Set<String> readRoles(DecodedJWT jwt) {
+        Set<String> roles = new HashSet<>();
+        Claim rolesClaim = jwt.getClaim("roles");
+        if (rolesClaim == null || rolesClaim.isMissing() || rolesClaim.isNull()) {
+            return roles;
+        }
+
+        try {
+            Collection<String> roleList = rolesClaim.asList(String.class);
+            if (roleList != null) {
+                roleList.stream()
+                        .filter(StringUtils::hasText)
+                        .forEach(roles::add);
+                return roles;
+            }
+
+            String text = rolesClaim.asString();
+            if (StringUtils.hasText(text)) {
+                for (String role : text.split("[,\\s]+")) {
+                    if (StringUtils.hasText(role)) {
+                        roles.add(role);
+                    }
+                }
+            }
+            return roles;
+        } catch (JWTDecodeException e) {
+            throw new UnauthorizedException("Invalid token claim: roles");
+        }
     }
 
 }

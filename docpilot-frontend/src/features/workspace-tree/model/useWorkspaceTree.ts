@@ -48,9 +48,10 @@ function findDefaultDocument(nodes: WorkspaceTreeNode[], selectedDocumentId?: st
   )
 }
 
-export function useWorkspaceTree(selectedDocumentId?: string): WorkspaceTreeState {
+export function useWorkspaceTree(selectedDocumentId?: string, enabled = true): WorkspaceTreeState {
   const query = useQuery({
     queryKey: ['workspace-tree'],
+    enabled,
     queryFn: async () => {
       const workspaceList = await listWorkspaces()
       const workspace = workspaceList.workspaces[0]

@@ -5,8 +5,9 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      '/workspace': 'http://127.0.0.1:8080',
-      '/document': 'http://127.0.0.1:8080'
+      '/auth': 'http://127.0.0.1:11451',
+      '/workspace': 'http://127.0.0.1:11451',
+      '/document': 'http://127.0.0.1:11451'
     }
   }
 })

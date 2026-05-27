@@ -6,7 +6,7 @@ export type DocumentState = 'ACTIVE' | 'DELETED'
 
 export type DocPilotDocument = {
   documentId: string
-  ownerUserId: string
+  ownerUserId: number
   title: string
   markdown: string
   blockDocument: BlockDocument
