@@ -25,6 +25,10 @@ public class AiConfig {
         private String baseUrl;
         private String apiKey;
         private String model;
+        private String displayName;
+        private Integer contextWindowTokens;
+        private Integer maxOutputTokens;
+        private Map<String, Object> metadata = new LinkedHashMap<>();
         private Duration timeout = Duration.ofSeconds(60);
 
     }

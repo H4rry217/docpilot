@@ -1,5 +1,8 @@
 package io.docpilot.block.model;
 
+import lombok.Getter;
+
+@Getter
 public enum BlockType {
 
     /** Document root when a nested model needs an explicit root block. */
@@ -59,10 +62,6 @@ public enum BlockType {
 
     BlockType(String value) {
         this.value = value;
-    }
-
-    public String getValue() {
-        return value;
     }
 
 }

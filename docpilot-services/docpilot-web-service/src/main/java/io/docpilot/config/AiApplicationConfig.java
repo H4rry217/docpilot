@@ -1,8 +1,9 @@
 package io.docpilot.config;
 
 import io.docpilot.ai.AiChatModel;
+import io.docpilot.ai.AiModelMetadata;
 import io.docpilot.ai.AiModelRegistry;
-import io.docpilot.ai.openai.OpenAiCompatibleChatModel;
+import io.docpilot.ai.provider.openai.OpenAiCompatibleChatModel;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -40,12 +41,26 @@ public class AiApplicationConfig {
             throw new IllegalArgumentException("Unsupported AI model provider for " + modelId + ": " + provider);
         }
         return new OpenAiCompatibleChatModel(
-                modelId,
+                toMetadata(modelId, provider, config),
                 config.getBaseUrl(),
                 config.getApiKey(),
                 config.getModel(),
                 config.getTimeout()
         );
+    }
+
+    private AiModelMetadata toMetadata(String modelId, String provider, AiConfig.Model config) {
+        var builder = AiModelMetadata.builder()
+                .id(modelId)
+                .provider(provider)
+                .modelName(config.getModel())
+                .displayName(config.getDisplayName())
+                .contextWindowTokens(config.getContextWindowTokens())
+                .maxOutputTokens(config.getMaxOutputTokens());
+        if (config.getMetadata() != null) {
+            config.getMetadata().forEach(builder::additionalProperty);
+        }
+        return builder.build();
     }
 
 }

@@ -28,14 +28,17 @@ DocPilot is an open source AI document editor. It follows the Codex idea of lett
   - Maps virtual paths such as `/project` to concrete `FilesystemProvider` instances through `PathMapping`.
   - Includes local filesystem and S3 provider implementations.
   - Keeps PathMapping storage behind `PathMappingStore` so startup can use memory first and database later.
+- `docpilot-ai`: AI model integration infrastructure module.
+  - Keeps provider-neutral chat request, response, usage, stream event, response format, and model metadata types.
+  - Provides `AiChatModel` and `AiModelRegistry` as the stable service-facing AI boundary.
+  - Includes an OpenAI-compatible provider adapter behind `io.docpilot.ai.provider.openai`.
 - `docpilot-services`: grouping parent for service and backend application modules.
   - `docpilot-user-service`: user domain boundary service module.
-  - `docpilot-ai-service`: AI model integration service module.
   - `docpilot-document-service`: document domain service module.
   - `docpilot-web-service`: backend application entrypoint.
     - Provides `io.docpilot.DocPilotApplication`.
     - Exposes `GET /health`.
-    - Depends on `docpilot-block`, `docpilot-document-service`, `docpilot-user-service`, `docpilot-ai-service`, and `docpilot-filesystem`.
+    - Depends on `docpilot-block`, `docpilot-document-service`, `docpilot-user-service`, `docpilot-ai`, and `docpilot-filesystem`.
 
 ## Block Model
 

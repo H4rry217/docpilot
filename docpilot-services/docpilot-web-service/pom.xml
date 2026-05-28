@@ -21,7 +21,7 @@
 
         <dependency>
             <groupId>io.docpilot</groupId>
-            <artifactId>docpilot-ai-service</artifactId>
+            <artifactId>docpilot-ai</artifactId>
         </dependency>
 
         <dependency>

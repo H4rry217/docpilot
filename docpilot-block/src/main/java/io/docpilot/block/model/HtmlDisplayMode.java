@@ -1,8 +1,11 @@
 package io.docpilot.block.model;
 
+import lombok.Getter;
+
 /**
  * Rendering layout mode for preserved HTML blocks.
  */
+@Getter
 public enum HtmlDisplayMode {
 
     /**
@@ -24,13 +27,6 @@ public enum HtmlDisplayMode {
 
     HtmlDisplayMode(String value) {
         this.value = value;
-    }
-
-    /**
-     * Stable value used in ProseMirror JSON attrs.
-     */
-    public String getValue() {
-        return value;
     }
 
 }

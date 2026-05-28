@@ -16,7 +16,6 @@
 
     <modules>
         <module>docpilot-user-service</module>
-        <module>docpilot-ai-service</module>
         <module>docpilot-document-service</module>
         <module>docpilot-web-service</module>
     </modules>

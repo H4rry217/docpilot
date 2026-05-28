@@ -20,6 +20,7 @@
         <module>docpilot-shared</module>
         <module>docpilot-block</module>
         <module>docpilot-filesystem</module>
+        <module>docpilot-ai</module>
         <module>docpilot-services</module>
     </modules>
 
@@ -50,7 +51,7 @@
 
             <dependency>
                 <groupId>io.docpilot</groupId>
-                <artifactId>docpilot-ai-service</artifactId>
+                <artifactId>docpilot-ai</artifactId>
                 <version>${docpilot.version}</version>
             </dependency>
 

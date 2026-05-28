@@ -1,5 +1,8 @@
 package io.docpilot.block.model;
 
+import lombok.Getter;
+
+@Getter
 public enum MarkType {
 
     /** Strong emphasis. */
@@ -27,10 +30,6 @@ public enum MarkType {
 
     MarkType(String value) {
         this.value = value;
-    }
-
-    public String getValue() {
-        return value;
     }
 
 }
