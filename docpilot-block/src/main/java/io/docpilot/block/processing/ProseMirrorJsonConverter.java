@@ -1,12 +1,31 @@
 package io.docpilot.block.processing;
 
 import io.docpilot.block.model.BlockDocument;
-import io.docpilot.block.model.BlockNode;
 import io.docpilot.block.model.HtmlDisplayMode;
 import io.docpilot.block.model.InlineMark;
 import io.docpilot.block.model.InlineNode;
 import io.docpilot.block.prosemirror.ProseMirrorMark;
 import io.docpilot.block.prosemirror.ProseMirrorNode;
+import io.docpilot.block.typed.BlockAttrs;
+import io.docpilot.block.typed.BlockNodeConverter;
+import io.docpilot.block.typed.CalloutBlock;
+import io.docpilot.block.typed.CodeBlock;
+import io.docpilot.block.typed.DiagramBlock;
+import io.docpilot.block.typed.FootnoteDefinitionBlock;
+import io.docpilot.block.typed.FrontMatterBlock;
+import io.docpilot.block.typed.GenericTypedBlock;
+import io.docpilot.block.typed.HeadingBlock;
+import io.docpilot.block.typed.HtmlBlock;
+import io.docpilot.block.typed.LinkReferenceDefinitionBlock;
+import io.docpilot.block.typed.MathBlock;
+import io.docpilot.block.typed.OrderedListBlock;
+import io.docpilot.block.typed.ParagraphBlock;
+import io.docpilot.block.typed.RawBlock;
+import io.docpilot.block.typed.TableCellBlock;
+import io.docpilot.block.typed.TaskListItemBlock;
+import io.docpilot.block.typed.TocBlock;
+import io.docpilot.block.typed.TypedBlockDocument;
+import io.docpilot.block.typed.TypedBlockNode;
 
 import java.util.HashMap;
 import java.util.List;
@@ -64,11 +83,6 @@ public class ProseMirrorJsonConverter {
     private static final String MARK_HIGHLIGHT = "highlight";
 
     private static final String ATTR_SCHEMA_VERSION = "schemaVersion";
-    private static final String ATTR_LEVEL = "level";
-    private static final String ATTR_START = "start";
-    private static final String ATTR_CHECKED = "checked";
-    private static final String ATTR_LANGUAGE = "language";
-    private static final String ATTR_TEXT = "text";
     private static final String ATTR_BLOCK_ID = "blockId";
     private static final String ATTR_SOURCE_RANGE = "sourceRange";
 
@@ -76,50 +90,97 @@ public class ProseMirrorJsonConverter {
      * Creates a ProseMirror doc node from a DocPilot block document.
      */
     public ProseMirrorNode toProseMirror(BlockDocument document) {
-        List<ProseMirrorNode> content = document.getBlocks().stream()
-                .map(this::toNode)
-                .toList();
-        return ProseMirrorNode.node(NODE_DOC, Map.of(ATTR_SCHEMA_VERSION, document.getSchemaVersion()), content);
+        return toProseMirror(BlockNodeConverter.toTyped(document), document.getSchemaVersion());
     }
 
-    private ProseMirrorNode toNode(BlockNode block) {
-        return switch (block.getType()) {
-            case PARAGRAPH -> ProseMirrorNode.node(NODE_PARAGRAPH, sourceAttrs(block), inlineContent(block));
-            case HEADING -> ProseMirrorNode.node(NODE_HEADING, withSource(block, Map.of(ATTR_LEVEL, attr(block, ATTR_LEVEL, 1))), inlineContent(block));
-            case BLOCK_QUOTE -> ProseMirrorNode.node(NODE_BLOCKQUOTE, sourceAttrs(block), childContent(block));
-            case BULLET_LIST -> ProseMirrorNode.node(NODE_BULLET_LIST, sourceAttrs(block), childContent(block));
-            case ORDERED_LIST -> ProseMirrorNode.node(NODE_ORDERED_LIST, withSource(block, Map.of(ATTR_START, attr(block, ATTR_START, 1))), childContent(block));
-            case LIST_ITEM -> ProseMirrorNode.node(NODE_LIST_ITEM, sourceAttrs(block), childContent(block));
-            case TASK_LIST_ITEM -> ProseMirrorNode.node(NODE_TASK_ITEM, withSource(block, Map.of(ATTR_CHECKED, attr(block, ATTR_CHECKED, false))), childContent(block));
-            case CODE_BLOCK -> ProseMirrorNode.node(NODE_CODE_BLOCK, withSource(block, Map.of(ATTR_LANGUAGE, attr(block, ATTR_LANGUAGE, ""))),
-                    textContent(String.valueOf(attr(block, ATTR_TEXT, ""))));
+    public ProseMirrorNode toProseMirror(TypedBlockDocument document, String schemaVersion) {
+        List<ProseMirrorNode> content = document.blocks().stream()
+                .map(this::toNode)
+                .toList();
+        return ProseMirrorNode.node(NODE_DOC, Map.of(ATTR_SCHEMA_VERSION, schemaVersion), content);
+    }
+
+    private ProseMirrorNode toNode(TypedBlockNode block) {
+        if (block instanceof ParagraphBlock paragraph) {
+            return ProseMirrorNode.node(NODE_PARAGRAPH, sourceAttrs(paragraph), inlineContent(paragraph.inlines()));
+        }
+        if (block instanceof HeadingBlock heading) {
+            return ProseMirrorNode.node(NODE_HEADING, withSource(heading, Map.of(BlockAttrs.LEVEL.key(), heading.level())),
+                    inlineContent(heading.inlines()));
+        }
+        if (block instanceof OrderedListBlock orderedList) {
+            return ProseMirrorNode.node(NODE_ORDERED_LIST, withSource(orderedList, Map.of(BlockAttrs.START.key(), orderedList.start())),
+                    childContent(orderedList.children()));
+        }
+        if (block instanceof TaskListItemBlock taskListItem) {
+            return ProseMirrorNode.node(NODE_TASK_ITEM, withSource(taskListItem, Map.of(BlockAttrs.CHECKED.key(), taskListItem.checked())),
+                    childContent(taskListItem.children()));
+        }
+        if (block instanceof CodeBlock codeBlock) {
+            return ProseMirrorNode.node(NODE_CODE_BLOCK, withSource(codeBlock, Map.of(BlockAttrs.LANGUAGE.key(), codeBlock.language())),
+                    textContent(codeBlock.text()));
+        }
+        if (block instanceof TableCellBlock tableCell) {
+            return ProseMirrorNode.node(NODE_TABLE_CELL, withSource(tableCell, attrsForTableCell(tableCell)), inlineContent(tableCell.inlines()));
+        }
+        if (block instanceof FrontMatterBlock frontMatter) {
+            return ProseMirrorNode.leaf(NODE_DOCPILOT_FRONT_MATTER, withSource(frontMatter, attrsForFrontMatter(frontMatter)));
+        }
+        if (block instanceof MathBlock mathBlock) {
+            return ProseMirrorNode.leaf(NODE_DOCPILOT_MATH_BLOCK, withSource(mathBlock, attrsForMath(mathBlock)));
+        }
+        if (block instanceof DiagramBlock diagramBlock) {
+            return ProseMirrorNode.leaf(NODE_DOCPILOT_DIAGRAM_BLOCK, withSource(diagramBlock, attrsForDiagram(diagramBlock)));
+        }
+        if (block instanceof CalloutBlock callout) {
+            return ProseMirrorNode.node(NODE_DOCPILOT_CALLOUT, withSource(callout, attrsForCallout(callout)), childContent(callout.children()));
+        }
+        if (block instanceof FootnoteDefinitionBlock footnoteDefinition) {
+            return ProseMirrorNode.node(NODE_DOCPILOT_FOOTNOTE_DEFINITION, withSource(footnoteDefinition, attrsForFootnoteDefinition(footnoteDefinition)),
+                    childContent(footnoteDefinition.children()));
+        }
+        if (block instanceof LinkReferenceDefinitionBlock linkReferenceDefinition) {
+            return ProseMirrorNode.leaf(NODE_DOCPILOT_LINK_REFERENCE_DEFINITION, withSource(linkReferenceDefinition, attrsForLinkReferenceDefinition(linkReferenceDefinition)));
+        }
+        if (block instanceof TocBlock toc) {
+            return ProseMirrorNode.leaf(NODE_DOCPILOT_TOC, withSource(toc, attrsForToc(toc)));
+        }
+        if (block instanceof HtmlBlock htmlBlock) {
+            return ProseMirrorNode.leaf(NODE_DOCPILOT_HTML_BLOCK, withSource(htmlBlock, attrsForHtml(htmlBlock)));
+        }
+        if (block instanceof RawBlock rawBlock) {
+            return rawBlock.type() == io.docpilot.block.model.BlockType.EXTENSION_BLOCK
+                    ? ProseMirrorNode.node(NODE_DOCPILOT_EXTENSION_BLOCK, withSource(rawBlock, attrsForRaw(rawBlock)), childContent(rawBlock.children()))
+                    : ProseMirrorNode.leaf(NODE_DOCPILOT_UNSUPPORTED_BLOCK, withSource(rawBlock, attrsForRaw(rawBlock)));
+        }
+        if (block instanceof GenericTypedBlock generic) {
+            return toGenericNode(generic);
+        }
+        return ProseMirrorNode.leaf(NODE_DOCPILOT_UNSUPPORTED_BLOCK, sourceAttrs(block));
+    }
+
+    private ProseMirrorNode toGenericNode(GenericTypedBlock block) {
+        return switch (block.type()) {
+            case BLOCK_QUOTE -> ProseMirrorNode.node(NODE_BLOCKQUOTE, sourceAttrs(block), childContent(block.children()));
+            case BULLET_LIST -> ProseMirrorNode.node(NODE_BULLET_LIST, sourceAttrs(block), childContent(block.children()));
+            case LIST_ITEM -> ProseMirrorNode.node(NODE_LIST_ITEM, sourceAttrs(block), childContent(block.children()));
             case THEMATIC_BREAK -> ProseMirrorNode.leaf(NODE_HORIZONTAL_RULE, sourceAttrs(block));
-            case TABLE -> ProseMirrorNode.node(NODE_TABLE, sourceAttrs(block), childContent(block));
-            case TABLE_ROW -> ProseMirrorNode.node(NODE_TABLE_ROW, sourceAttrs(block), childContent(block));
-            case TABLE_CELL -> ProseMirrorNode.node(NODE_TABLE_CELL, withSource(block, normalizeAttrs(block.getAttrs())), inlineContent(block));
-            case FRONT_MATTER -> ProseMirrorNode.leaf(NODE_DOCPILOT_FRONT_MATTER, withSource(block, normalizeAttrs(block.getAttrs())));
-            case MATH_BLOCK -> ProseMirrorNode.leaf(NODE_DOCPILOT_MATH_BLOCK, withSource(block, normalizeAttrs(block.getAttrs())));
-            case DIAGRAM_BLOCK -> ProseMirrorNode.leaf(NODE_DOCPILOT_DIAGRAM_BLOCK, withSource(block, normalizeAttrs(block.getAttrs())));
-            case CALLOUT -> ProseMirrorNode.node(NODE_DOCPILOT_CALLOUT, withSource(block, normalizeAttrs(block.getAttrs())), childContent(block));
-            case FOOTNOTE_DEFINITION -> ProseMirrorNode.node(NODE_DOCPILOT_FOOTNOTE_DEFINITION, withSource(block, normalizeAttrs(block.getAttrs())), childContent(block));
-            case DEFINITION_LIST -> ProseMirrorNode.node(NODE_DOCPILOT_DEFINITION_LIST, sourceAttrs(block), childContent(block));
-            case DEFINITION_TERM -> ProseMirrorNode.node(NODE_DOCPILOT_DEFINITION_TERM, withSource(block, normalizeAttrs(block.getAttrs())), inlineContent(block));
-            case DEFINITION_ITEM -> ProseMirrorNode.node(NODE_DOCPILOT_DEFINITION_ITEM, withSource(block, normalizeAttrs(block.getAttrs())), childContent(block));
-            case TOC -> ProseMirrorNode.leaf(NODE_DOCPILOT_TOC, withSource(block, normalizeAttrs(block.getAttrs())));
-            case LINK_REFERENCE_DEFINITION -> ProseMirrorNode.leaf(NODE_DOCPILOT_LINK_REFERENCE_DEFINITION, withSource(block, normalizeAttrs(block.getAttrs())));
-            case HTML_BLOCK -> ProseMirrorNode.leaf(NODE_DOCPILOT_HTML_BLOCK, withSource(block, normalizeAttrs(block.getAttrs())));
-            case EXTENSION_BLOCK -> ProseMirrorNode.node(NODE_DOCPILOT_EXTENSION_BLOCK, withSource(block, normalizeAttrs(block.getAttrs())), childContent(block));
-            case UNSUPPORTED_BLOCK -> ProseMirrorNode.leaf(NODE_DOCPILOT_UNSUPPORTED_BLOCK, withSource(block, normalizeAttrs(block.getAttrs())));
-            case DOCUMENT -> ProseMirrorNode.node(NODE_DOC, sourceAttrs(block), childContent(block));
+            case TABLE -> ProseMirrorNode.node(NODE_TABLE, sourceAttrs(block), childContent(block.children()));
+            case TABLE_ROW -> ProseMirrorNode.node(NODE_TABLE_ROW, sourceAttrs(block), childContent(block.children()));
+            case DEFINITION_LIST -> ProseMirrorNode.node(NODE_DOCPILOT_DEFINITION_LIST, sourceAttrs(block), childContent(block.children()));
+            case DEFINITION_TERM -> ProseMirrorNode.node(NODE_DOCPILOT_DEFINITION_TERM, withSource(block, normalizeAttrs(block.extraAttrs())), inlineContent(block.inlines()));
+            case DEFINITION_ITEM -> ProseMirrorNode.node(NODE_DOCPILOT_DEFINITION_ITEM, withSource(block, normalizeAttrs(block.extraAttrs())), childContent(block.children()));
+            case DOCUMENT -> ProseMirrorNode.node(NODE_DOC, sourceAttrs(block), childContent(block.children()));
+            default -> ProseMirrorNode.leaf(NODE_DOCPILOT_UNSUPPORTED_BLOCK, withSource(block, normalizeAttrs(block.extraAttrs())));
         };
     }
 
-    private List<ProseMirrorNode> childContent(BlockNode block) {
-        return block.getChildren().stream().map(this::toNode).toList();
+    private List<ProseMirrorNode> childContent(List<TypedBlockNode> blocks) {
+        return blocks.stream().map(this::toNode).toList();
     }
 
-    private List<ProseMirrorNode> inlineContent(BlockNode block) {
-        return block.getInlines().stream().map(this::toInlineNode).toList();
+    private List<ProseMirrorNode> inlineContent(List<InlineNode> inlines) {
+        return inlines.stream().map(this::toInlineNode).toList();
     }
 
     private ProseMirrorNode toInlineNode(InlineNode inline) {
@@ -161,6 +222,88 @@ public class ProseMirrorJsonConverter {
         return List.of(ProseMirrorNode.text(text, List.of()));
     }
 
+    private Map<String, Object> attrsForTableCell(TableCellBlock block) {
+        Map<String, Object> attrs = normalizeAttrs(block.extraAttrs());
+        attrs.put(BlockAttrs.HEADER.key(), block.header());
+        attrs.put(BlockAttrs.ALIGNMENT.key(), block.alignment().value());
+        return attrs;
+    }
+
+    private Map<String, Object> attrsForFrontMatter(FrontMatterBlock block) {
+        Map<String, Object> attrs = normalizeAttrs(block.extraAttrs());
+        attrs.put(BlockAttrs.FORMAT.key(), block.format());
+        attrs.put(BlockAttrs.RAW.key(), block.raw());
+        if (block.data() != null) {
+            attrs.put(BlockAttrs.DATA.key(), block.data());
+        }
+        return attrs;
+    }
+
+    private Map<String, Object> attrsForMath(MathBlock block) {
+        Map<String, Object> attrs = normalizeAttrs(block.extraAttrs());
+        attrs.put(BlockAttrs.NOTATION.key(), block.notation());
+        attrs.put(BlockAttrs.TEXT.key(), block.text());
+        attrs.put(BlockAttrs.DELIMITER.key(), block.delimiter());
+        return attrs;
+    }
+
+    private Map<String, Object> attrsForDiagram(DiagramBlock block) {
+        Map<String, Object> attrs = normalizeAttrs(block.extraAttrs());
+        attrs.put(BlockAttrs.ENGINE.key(), block.engine());
+        attrs.put(BlockAttrs.TEXT.key(), block.text());
+        return attrs;
+    }
+
+    private Map<String, Object> attrsForCallout(CalloutBlock block) {
+        Map<String, Object> attrs = normalizeAttrs(block.extraAttrs());
+        attrs.put(BlockAttrs.KIND.key(), block.kind());
+        attrs.put(BlockAttrs.TITLE.key(), block.title());
+        attrs.put(BlockAttrs.COLLAPSIBLE.key(), block.collapsible());
+        attrs.put(BlockAttrs.OPEN.key(), block.open());
+        return attrs;
+    }
+
+    private Map<String, Object> attrsForFootnoteDefinition(FootnoteDefinitionBlock block) {
+        Map<String, Object> attrs = normalizeAttrs(block.extraAttrs());
+        attrs.put(BlockAttrs.LABEL.key(), block.label());
+        attrs.put(BlockAttrs.RAW.key(), block.raw());
+        return attrs;
+    }
+
+    private Map<String, Object> attrsForLinkReferenceDefinition(LinkReferenceDefinitionBlock block) {
+        Map<String, Object> attrs = normalizeAttrs(block.extraAttrs());
+        attrs.put(BlockAttrs.LABEL.key(), block.label());
+        attrs.put(BlockAttrs.HREF.key(), block.href());
+        attrs.put(BlockAttrs.TITLE.key(), block.title());
+        attrs.put(BlockAttrs.RAW.key(), block.raw());
+        return attrs;
+    }
+
+    private Map<String, Object> attrsForToc(TocBlock block) {
+        Map<String, Object> attrs = normalizeAttrs(block.extraAttrs());
+        attrs.put(BlockAttrs.RAW.key(), block.raw());
+        return attrs;
+    }
+
+    private Map<String, Object> attrsForHtml(HtmlBlock block) {
+        Map<String, Object> attrs = normalizeAttrs(block.extraAttrs());
+        attrs.put(BlockAttrs.ID.key(), block.id());
+        attrs.put(BlockAttrs.TITLE.key(), block.title());
+        attrs.put(BlockAttrs.SOURCE.key(), block.source());
+        attrs.put(BlockAttrs.DISPLAY_MODE.key(), block.displayMode().getValue());
+        attrs.put(BlockAttrs.FIXED_HEIGHT_PX.key(), block.fixedHeightPx());
+        attrs.put(BlockAttrs.ALLOW_SCRIPTS.key(), block.allowScripts());
+        return attrs;
+    }
+
+    private Map<String, Object> attrsForRaw(RawBlock block) {
+        Map<String, Object> attrs = normalizeAttrs(block.extraAttrs());
+        putIfNotBlank(attrs, BlockAttrs.SOURCE.key(), block.source());
+        putIfNotBlank(attrs, BlockAttrs.RAW.key(), block.raw());
+        putIfNotBlank(attrs, BlockAttrs.NODE_TYPE.key(), block.nodeType());
+        return attrs;
+    }
+
     private Map<String, Object> normalizeAttrs(Map<String, Object> attrs) {
         Map<String, Object> next = new HashMap<>();
         attrs.forEach((key, value) -> {
@@ -173,7 +316,7 @@ public class ProseMirrorJsonConverter {
         return next;
     }
 
-    private Map<String, Object> sourceAttrs(BlockNode block) {
+    private Map<String, Object> sourceAttrs(TypedBlockNode block) {
         return withSource(block, Map.of());
     }
 
@@ -181,11 +324,11 @@ public class ProseMirrorJsonConverter {
         return withSource(inline, Map.of());
     }
 
-    private Map<String, Object> withSource(BlockNode block, Map<String, Object> attrs) {
+    private Map<String, Object> withSource(TypedBlockNode block, Map<String, Object> attrs) {
         Map<String, Object> next = new HashMap<>(attrs);
-        next.put(ATTR_BLOCK_ID, block.getId());
-        if (block.getSourceRange() != null) {
-            next.put(ATTR_SOURCE_RANGE, block.getSourceRange());
+        next.put(ATTR_BLOCK_ID, block.id());
+        if (block.sourceRange() != null) {
+            next.put(ATTR_SOURCE_RANGE, block.sourceRange());
         }
         return next;
     }
@@ -198,8 +341,10 @@ public class ProseMirrorJsonConverter {
         return next;
     }
 
-    private Object attr(BlockNode block, String name, Object defaultValue) {
-        return block.getAttrs().getOrDefault(name, defaultValue);
+    private void putIfNotBlank(Map<String, Object> attrs, String key, String value) {
+        if (value != null && !value.isBlank()) {
+            attrs.put(key, value);
+        }
     }
 
 }

@@ -3,7 +3,6 @@ package io.docpilot.block.processing;
 import io.docpilot.block.model.BlockDocument;
 import io.docpilot.block.model.BlockNode;
 import io.docpilot.block.model.BlockType;
-import io.docpilot.block.model.HtmlDisplayMode;
 import io.docpilot.block.model.InlineMark;
 import io.docpilot.block.model.InlineType;
 import io.docpilot.block.model.MarkType;
@@ -82,7 +81,7 @@ class MarkdownBlockParserTest {
         assertThat(html.getType()).isEqualTo(BlockType.HTML_BLOCK);
         assertThat(html.getAttrs())
                 .containsEntry("title", "HTML")
-                .containsEntry("displayMode", HtmlDisplayMode.FIXED)
+                .containsEntry("displayMode", "fixed")
                 .containsEntry("fixedHeightPx", 320)
                 .containsEntry("allowScripts", false)
                 .containsEntry("source", "<div><p>2026 Q2 sales report</p></div>");

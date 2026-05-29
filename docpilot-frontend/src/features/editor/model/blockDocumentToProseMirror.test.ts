@@ -43,7 +43,15 @@ describe('blockDocumentToProseMirrorJson', () => {
         },
         {
           type: 'docpilotHtmlBlock',
-          attrs: { title: 'HTML', source: '<section>hello</section>', blockId: 'html1' }
+          attrs: {
+            id: 'html1',
+            title: 'HTML',
+            source: '<section>hello</section>',
+            displayMode: 'fixed',
+            fixedHeightPx: 320,
+            allowScripts: false,
+            blockId: 'html1'
+          }
         },
         {
           type: 'docpilotMathBlock',
@@ -57,5 +65,46 @@ describe('blockDocumentToProseMirrorJson', () => {
     expect(isBlockDocument({ schemaVersion: 'docpilot-block/2', blocks: [] })).toBe(true)
     expect(isProseMirrorDoc({ type: 'doc', content: [] })).toBe(true)
     expect(isBlockDocument({ type: 'doc', content: [] })).toBe(false)
+  })
+
+  it('normalizes known block attrs before building editor json', () => {
+    const blockDocument: BlockDocument = {
+      schemaVersion: 'docpilot-block/2',
+      metadata: {},
+      blocks: [
+        {
+          id: 'html1',
+          type: 'HTML_BLOCK',
+          attrs: { source: '<div />', displayMode: 'fit', fixedHeightPx: 2000, allowScripts: 'true' },
+          inlines: [],
+          children: []
+        },
+        {
+          id: 'heading1',
+          type: 'HEADING',
+          attrs: { level: 'bad' },
+          inlines: [],
+          children: []
+        }
+      ]
+    }
+
+    expect(blockDocumentToProseMirrorJson(blockDocument).content).toMatchObject([
+      {
+        type: 'docpilotHtmlBlock',
+        attrs: {
+          id: 'html1',
+          displayMode: 'fixed',
+          fixedHeightPx: 320,
+          allowScripts: true
+        }
+      },
+      {
+        type: 'heading',
+        attrs: {
+          level: 1
+        }
+      }
+    ])
   })
 })

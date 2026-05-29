@@ -1,12 +1,30 @@
 package io.docpilot.block.processing;
 
 import io.docpilot.block.model.BlockDocument;
-import io.docpilot.block.model.BlockNode;
 import io.docpilot.block.model.BlockType;
 import io.docpilot.block.model.InlineMark;
 import io.docpilot.block.model.InlineNode;
 import io.docpilot.block.model.InlineType;
 import io.docpilot.block.model.MarkType;
+import io.docpilot.block.typed.BlockAttrs;
+import io.docpilot.block.typed.BlockNodeConverter;
+import io.docpilot.block.typed.CalloutBlock;
+import io.docpilot.block.typed.CodeBlock;
+import io.docpilot.block.typed.DiagramBlock;
+import io.docpilot.block.typed.FootnoteDefinitionBlock;
+import io.docpilot.block.typed.FrontMatterBlock;
+import io.docpilot.block.typed.GenericTypedBlock;
+import io.docpilot.block.typed.HeadingBlock;
+import io.docpilot.block.typed.HtmlBlock;
+import io.docpilot.block.typed.LinkReferenceDefinitionBlock;
+import io.docpilot.block.typed.MathBlock;
+import io.docpilot.block.typed.OrderedListBlock;
+import io.docpilot.block.typed.ParagraphBlock;
+import io.docpilot.block.typed.RawBlock;
+import io.docpilot.block.typed.TableCellBlock;
+import io.docpilot.block.typed.TaskListItemBlock;
+import io.docpilot.block.typed.TocBlock;
+import io.docpilot.block.typed.TypedBlockNode;
 
 import java.util.List;
 import java.util.Locale;
@@ -21,43 +39,82 @@ public class MarkdownBlockRenderer {
      * Serializes a block document, preserving raw extension and HTML sources when available.
      */
     public String render(BlockDocument document) {
-        return document.getBlocks().stream()
+        return BlockNodeConverter.toTyped(document).blocks().stream()
                 .map(block -> renderBlock(block, 0))
                 .filter(value -> !value.isBlank())
                 .collect(Collectors.joining("\n\n"))
                 .stripTrailing();
     }
 
-    private String renderBlock(BlockNode block, int depth) {
-        return switch (block.getType()) {
-            case PARAGRAPH -> renderInlines(block.getInlines());
-            case HEADING -> "#".repeat(asInt(block.getAttrs().get("level"), 1)) + " " + renderInlines(block.getInlines());
-            case BLOCK_QUOTE -> prefixLines(renderChildren(block.getChildren(), depth), "> ");
-            case BULLET_LIST -> renderList(block.getChildren(), depth, false, 1);
-            case ORDERED_LIST -> renderList(block.getChildren(), depth, true, asInt(block.getAttrs().get("start"), 1));
-            case LIST_ITEM, TASK_LIST_ITEM -> renderListItem(block, depth, false, 1);
-            case CODE_BLOCK -> renderCodeBlock(block);
+    private String renderBlock(TypedBlockNode block, int depth) {
+        if (block instanceof ParagraphBlock paragraph) {
+            return renderInlines(paragraph.inlines());
+        }
+        if (block instanceof HeadingBlock heading) {
+            return "#".repeat(heading.level()) + " " + renderInlines(heading.inlines());
+        }
+        if (block instanceof OrderedListBlock orderedList) {
+            return renderList(orderedList.children(), depth, true, orderedList.start());
+        }
+        if (block instanceof TaskListItemBlock) {
+            return renderListItem(block, depth, false, 1);
+        }
+        if (block instanceof CodeBlock codeBlock) {
+            return renderCodeBlock(codeBlock);
+        }
+        if (block instanceof HtmlBlock htmlBlock) {
+            return htmlBlock.source();
+        }
+        if (block instanceof TableCellBlock tableCell) {
+            return renderInlines(tableCell.inlines());
+        }
+        if (block instanceof CalloutBlock callout) {
+            return renderCallout(callout, depth);
+        }
+        if (block instanceof MathBlock mathBlock) {
+            return renderMathBlock(mathBlock);
+        }
+        if (block instanceof DiagramBlock diagramBlock) {
+            return renderDiagramBlock(diagramBlock);
+        }
+        if (block instanceof FrontMatterBlock frontMatter) {
+            return frontMatter.raw();
+        }
+        if (block instanceof FootnoteDefinitionBlock footnoteDefinition) {
+            return renderFootnoteDefinition(footnoteDefinition, depth);
+        }
+        if (block instanceof LinkReferenceDefinitionBlock linkReferenceDefinition) {
+            return renderLinkReferenceDefinition(linkReferenceDefinition);
+        }
+        if (block instanceof TocBlock toc) {
+            return toc.raw();
+        }
+        if (block instanceof RawBlock rawBlock) {
+            return rawBlock.source().isBlank() ? rawBlock.raw() : rawBlock.source();
+        }
+        if (block instanceof GenericTypedBlock generic) {
+            return renderGenericBlock(generic, depth);
+        }
+        return "";
+    }
+
+    private String renderGenericBlock(GenericTypedBlock block, int depth) {
+        return switch (block.type()) {
+            case BLOCK_QUOTE -> prefixLines(renderChildren(block.children(), depth), "> ");
+            case BULLET_LIST -> renderList(block.children(), depth, false, 1);
+            case LIST_ITEM -> renderListItem(block, depth, false, 1);
             case THEMATIC_BREAK -> "---";
-            case TABLE -> renderTable(block);
-            case TABLE_ROW -> renderInlines(block.getChildren().stream().flatMap(child -> child.getInlines().stream()).toList());
-            case TABLE_CELL -> renderInlines(block.getInlines());
-            case FRONT_MATTER -> String.valueOf(block.getAttrs().getOrDefault("raw", ""));
-            case MATH_BLOCK -> renderMathBlock(block);
-            case DIAGRAM_BLOCK -> renderDiagramBlock(block);
-            case CALLOUT -> renderCallout(block, depth);
-            case FOOTNOTE_DEFINITION -> renderFootnoteDefinition(block, depth);
-            case DEFINITION_LIST -> renderDefinitionList(block, depth);
-            case DEFINITION_TERM -> renderInlines(block.getInlines());
-            case DEFINITION_ITEM -> ": " + renderChildren(block.getChildren(), depth + 1);
-            case TOC -> String.valueOf(block.getAttrs().getOrDefault("raw", "[TOC]"));
-            case LINK_REFERENCE_DEFINITION -> renderLinkReferenceDefinition(block);
-            case HTML_BLOCK -> String.valueOf(block.getAttrs().getOrDefault("source", ""));
-            case EXTENSION_BLOCK, UNSUPPORTED_BLOCK -> String.valueOf(block.getAttrs().getOrDefault("source", block.getAttrs().getOrDefault("raw", "")));
-            case DOCUMENT -> renderChildren(block.getChildren(), depth);
+            case TABLE -> renderTable(block.children());
+            case TABLE_ROW -> renderInlines(block.children().stream().flatMap(child -> inlinesOf(child).stream()).toList());
+            case DEFINITION_LIST -> renderChildren(block.children(), depth);
+            case DEFINITION_TERM -> renderInlines(block.inlines());
+            case DEFINITION_ITEM -> ": " + renderChildren(block.children(), depth + 1);
+            case DOCUMENT -> renderChildren(block.children(), depth);
+            default -> "";
         };
     }
 
-    private String renderList(List<BlockNode> items, int depth, boolean ordered, int start) {
+    private String renderList(List<TypedBlockNode> items, int depth, boolean ordered, int start) {
         StringBuilder markdown = new StringBuilder();
         for (int i = 0; i < items.size(); i++) {
             if (i > 0) {
@@ -68,14 +125,14 @@ public class MarkdownBlockRenderer {
         return markdown.toString();
     }
 
-    private String renderListItem(BlockNode block, int depth, boolean ordered, int number) {
+    private String renderListItem(TypedBlockNode block, int depth, boolean ordered, int number) {
         String indent = "  ".repeat(depth);
         String marker = ordered ? number + ". " : "- ";
-        if (block.getType() == BlockType.TASK_LIST_ITEM) {
-            marker = "- " + (Boolean.TRUE.equals(block.getAttrs().get("checked")) ? "[x] " : "[ ] ");
+        if (block instanceof TaskListItemBlock taskListItem) {
+            marker = "- " + (taskListItem.checked() ? "[x] " : "[ ] ");
         }
 
-        String body = renderChildren(block.getChildren(), depth + 1);
+        String body = renderChildren(childrenOf(block), depth + 1);
         if (body.isBlank()) {
             return indent + marker;
         }
@@ -89,83 +146,106 @@ public class MarkdownBlockRenderer {
         return markdown.toString();
     }
 
-    private String renderChildren(List<BlockNode> children, int depth) {
+    private String renderChildren(List<TypedBlockNode> children, int depth) {
         return children.stream()
                 .map(child -> renderBlock(child, depth))
                 .filter(value -> !value.isBlank())
                 .collect(Collectors.joining("\n"));
     }
 
-    private String renderCodeBlock(BlockNode block) {
-        String language = String.valueOf(block.getAttrs().getOrDefault("language", ""));
-        String text = String.valueOf(block.getAttrs().getOrDefault("text", ""));
-        return "```" + language + "\n" + text.stripTrailing() + "\n```";
+    private String renderCodeBlock(CodeBlock block) {
+        return "```" + block.language() + "\n" + block.text().stripTrailing() + "\n```";
     }
 
-    private String renderMathBlock(BlockNode block) {
-        String text = String.valueOf(block.getAttrs().getOrDefault("text", ""));
-        return "$$\n" + text.stripTrailing() + "\n$$";
+    private String renderMathBlock(MathBlock block) {
+        return "$$\n" + block.text().stripTrailing() + "\n$$";
     }
 
-    private String renderDiagramBlock(BlockNode block) {
-        String engine = String.valueOf(block.getAttrs().getOrDefault("engine", "mermaid"));
-        String text = String.valueOf(block.getAttrs().getOrDefault("text", ""));
-        return "```" + engine + "\n" + text.stripTrailing() + "\n```";
+    private String renderDiagramBlock(DiagramBlock block) {
+        return "```" + block.engine() + "\n" + block.text().stripTrailing() + "\n```";
     }
 
-    private String renderCallout(BlockNode block, int depth) {
-        String kind = String.valueOf(block.getAttrs().getOrDefault("kind", "note")).toUpperCase(Locale.ROOT);
-        String title = String.valueOf(block.getAttrs().getOrDefault("title", "")).trim();
+    private String renderCallout(CalloutBlock block, int depth) {
+        String kind = block.kind().toUpperCase(Locale.ROOT);
+        String title = block.title().trim();
         String header = title.isEmpty() ? "> [!" + kind + "]" : "> [!" + kind + "] " + title;
-        String body = renderChildren(block.getChildren(), depth);
+        String body = renderChildren(block.children(), depth);
         if (body.isBlank()) {
             return header;
         }
         return header + "\n" + prefixLines(body, "> ");
     }
 
-    private String renderFootnoteDefinition(BlockNode block, int depth) {
-        String label = String.valueOf(block.getAttrs().getOrDefault("label", ""));
-        String body = renderChildren(block.getChildren(), depth + 1);
-        return "[^" + label + "]: " + body;
+    private String renderFootnoteDefinition(FootnoteDefinitionBlock block, int depth) {
+        String body = renderChildren(block.children(), depth + 1);
+        return "[^" + block.label() + "]: " + body;
     }
 
-    private String renderDefinitionList(BlockNode block, int depth) {
-        return block.getChildren().stream()
-                .map(child -> renderBlock(child, depth))
-                .filter(value -> !value.isBlank())
-                .collect(Collectors.joining("\n"));
+    private String renderLinkReferenceDefinition(LinkReferenceDefinitionBlock block) {
+        return block.title().isBlank()
+                ? "[" + block.label() + "]: " + block.href()
+                : "[" + block.label() + "]: " + block.href() + " \"" + block.title() + "\"";
     }
 
-    private String renderLinkReferenceDefinition(BlockNode block) {
-        String label = String.valueOf(block.getAttrs().getOrDefault("label", ""));
-        String href = String.valueOf(block.getAttrs().getOrDefault("href", ""));
-        String title = String.valueOf(block.getAttrs().getOrDefault("title", ""));
-        return title.isBlank() ? "[" + label + "]: " + href : "[" + label + "]: " + href + " \"" + title + "\"";
-    }
-
-    private String renderTable(BlockNode table) {
-        List<BlockNode> rows = table.getChildren();
+    private String renderTable(List<TypedBlockNode> rows) {
         if (rows.isEmpty()) {
             return "";
         }
 
         StringBuilder markdown = new StringBuilder();
         for (int rowIndex = 0; rowIndex < rows.size(); rowIndex++) {
-            BlockNode row = rows.get(rowIndex);
-            String cells = row.getChildren().stream()
-                    .map(cell -> " " + renderInlines(cell.getInlines()) + " ")
+            TypedBlockNode row = rows.get(rowIndex);
+            String cells = childrenOf(row).stream()
+                    .map(cell -> " " + renderInlines(inlinesOf(cell)) + " ")
                     .collect(Collectors.joining("|", "|", "|"));
             markdown.append(cells);
             if (rowIndex == 0) {
                 markdown.append('\n');
-                markdown.append(row.getChildren().stream().map(cell -> " --- ").collect(Collectors.joining("|", "|", "|")));
+                markdown.append(childrenOf(row).stream().map(cell -> " --- ").collect(Collectors.joining("|", "|", "|")));
             }
             if (rowIndex < rows.size() - 1) {
                 markdown.append('\n');
             }
         }
         return markdown.toString();
+    }
+
+    private List<TypedBlockNode> childrenOf(TypedBlockNode block) {
+        if (block instanceof OrderedListBlock orderedList) {
+            return orderedList.children();
+        }
+        if (block instanceof TaskListItemBlock taskListItem) {
+            return taskListItem.children();
+        }
+        if (block instanceof CalloutBlock callout) {
+            return callout.children();
+        }
+        if (block instanceof FootnoteDefinitionBlock footnoteDefinition) {
+            return footnoteDefinition.children();
+        }
+        if (block instanceof RawBlock rawBlock) {
+            return rawBlock.children();
+        }
+        if (block instanceof GenericTypedBlock generic) {
+            return generic.children();
+        }
+        return List.of();
+    }
+
+    private List<InlineNode> inlinesOf(TypedBlockNode block) {
+        if (block instanceof ParagraphBlock paragraph) {
+            return paragraph.inlines();
+        }
+        if (block instanceof HeadingBlock heading) {
+            return heading.inlines();
+        }
+        if (block instanceof TableCellBlock tableCell) {
+            return tableCell.inlines();
+        }
+        if (block instanceof GenericTypedBlock generic) {
+            return generic.inlines();
+        }
+        return List.of();
     }
 
     private String renderInlines(List<InlineNode> inlines) {
@@ -179,10 +259,10 @@ public class MarkdownBlockRenderer {
             case HARD_BREAK -> "  \n";
             case IMAGE -> "![" + inline.getAttrs().getOrDefault("alt", inline.getText()) + "](" + inline.getAttrs().getOrDefault("src", "") + ")";
             case MATH_INLINE -> "$" + inline.getText() + "$";
-            case FOOTNOTE_REF -> "[^" + inline.getAttrs().getOrDefault("label", inline.getText()) + "]";
+            case FOOTNOTE_REF -> "[^" + inline.getAttrs().getOrDefault(BlockAttrs.LABEL.key(), inline.getText()) + "]";
             case EMOJI -> String.valueOf(inline.getAttrs().getOrDefault("shortcut", inline.getText()));
-            case HTML_INLINE -> String.valueOf(inline.getAttrs().getOrDefault("source", inline.getText()));
-            case EXTENSION_INLINE, UNSUPPORTED_INLINE -> String.valueOf(inline.getAttrs().getOrDefault("source", inline.getText()));
+            case HTML_INLINE -> String.valueOf(inline.getAttrs().getOrDefault(BlockAttrs.SOURCE.key(), inline.getText()));
+            case EXTENSION_INLINE, UNSUPPORTED_INLINE -> String.valueOf(inline.getAttrs().getOrDefault(BlockAttrs.SOURCE.key(), inline.getText()));
         };
 
         if (inline.getType() == InlineType.IMAGE || inline.getType() == InlineType.HTML_INLINE) {
@@ -218,24 +298,13 @@ public class MarkdownBlockRenderer {
         }
 
         if (link != null) {
-            text = "[" + text + "](" + link.getAttrs().getOrDefault("href", "") + ")";
+            text = "[" + text + "](" + link.getAttrs().getOrDefault(BlockAttrs.HREF.key(), "") + ")";
         }
         return text;
     }
 
     private String prefixLines(String value, String prefix) {
         return value.lines().map(line -> prefix + line).collect(Collectors.joining("\n"));
-    }
-
-    private int asInt(Object value, int defaultValue) {
-        if (value instanceof Number number) {
-            return number.intValue();
-        }
-        try {
-            return Integer.parseInt(String.valueOf(value));
-        } catch (NumberFormatException e) {
-            return defaultValue;
-        }
     }
 
 }

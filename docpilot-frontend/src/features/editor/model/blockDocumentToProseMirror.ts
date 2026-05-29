@@ -1,6 +1,7 @@
 import type { JSONContent } from '@tiptap/core'
 import type { BlockDocument, BlockNode, InlineMark, InlineNode } from '../../../entities/block/types'
 import type { ProseMirrorMark, ProseMirrorNode } from '../../../entities/prosemirror/types'
+import { normalizeBlockAttrsForProseMirror } from './blockAttrs'
 
 type JsonObject = Record<string, unknown>
 
@@ -27,7 +28,7 @@ export function blockDocumentToProseMirrorJson(document: BlockDocument): JSONCon
 }
 
 function blockToProseMirrorJson(block: BlockNode): JSONContent {
-  const attrs = withBlockSource(block, block.attrs)
+  const attrs = withBlockSource(block, normalizeBlockAttrsForProseMirror(block.type, block.attrs, block.id))
 
   switch (block.type) {
     case 'PARAGRAPH':

@@ -16,6 +16,8 @@
 - `io.docpilot.block.model`：DocPilot Block 领域模型，使用可变 JavaBean。
 - `io.docpilot.block.processing`：解析、渲染、ID 生成、ProseMirror JSON 转换等处理逻辑。
 - `io.docpilot.block.prosemirror`：ProseMirror JSON 输出 DTO。
+- `io.docpilot.block.typed`：Java 内部使用的 typed block view、属性读取、校验问题模型和统一转换入口。
+- `io.docpilot.block.typed.adapter`：各类 `BlockType` 和 typed node 之间的转换、默认值、兼容和校验逻辑。
 
 ## 核心模型
 
@@ -34,6 +36,33 @@
   - 后续用于 AI 编辑、局部替换、patch 定位等场景。
 
 这些模型都使用 Lombok `@Getter` / `@Setter` 的 JavaBean 形式，因为后续需要替换或更新某个 block 的内容。
+
+## Typed Block View
+
+`BlockDocument` / `BlockNode` 仍然是唯一 canonical model，用于数据库、REST、前端 JSON、历史兼容和未知 block 保真。它的 JSON 结构不变，也不会因为 typed view 升级 `docpilot-block/2`。
+
+`TypedBlockDocument` / `TypedBlockNode` 是 Java 内部处理逻辑使用的类型化视图，主要服务于 renderer、ProseMirror converter、validator 和后续 AI patch。它不替代 canonical model，也不直接暴露给 REST 或前端 wire format。
+
+转换入口集中在 `BlockNodeConverter`：
+
+```java
+TypedBlockDocument typed = BlockNodeConverter.toTyped(document);
+BlockDocument canonical = BlockNodeConverter.toBlockDocument(typed);
+List<ValidationIssue> issues = BlockNodeConverter.validate(document);
+```
+
+设计边界：
+
+- parser 仍输出 `BlockNode`，保持 canonical 数据结构稳定。
+- renderer 和 ProseMirror converter 先转 typed，再根据 typed node 处理业务逻辑。
+- adapter 负责 `fromBlockNode`、`toBlockNode` 和 `validate`，把默认值、旧值兼容、类型转换和校验收口到一个地方。
+- 业务逻辑不再裸读 `block.getAttrs().get(...)`，避免字段名散落、类型转换重复和默认值不一致。
+- `BlockAttrs` 是 attr key enum，代码里通过 `BlockAttrs.LEVEL.key()` 取得 canonical JSON key。
+- 可以类型化的字段尽量使用 enum，例如 HTML 的 `HtmlDisplayMode`、表格单元格的 `TableCellAlignment`。
+- 未覆盖的 block 类型走 `GenericTypedBlock`，未知 attrs 会进入 `extraAttrs`，转回 `BlockNode` 时合并回去，避免迁移期间丢内容。
+- `toTyped` 默认容错 normalize；单个 attr 类型错误不会中断文档渲染，但 `validate` 会返回结构化问题。
+
+`ValidationIssue` 包含 `path`、`blockType`、`attrKey`、`severity` 和 `message`，用于后续在编辑器、日志或 AI 修复流程里定位问题。
 
 ## 当前支持的 Markdown
 
@@ -62,7 +91,8 @@ HTML block attrs：
 - `id`：和 `BlockNode.id` 相同。
 - `title`：默认 `HTML`。
 - `source`：原始 HTML 源码。
-- `displayMode`：默认 `HtmlDisplayMode.FIT`。
+- `displayMode`：默认 `fixed`，canonical 输出只使用 `fixed` 或 `auto`；旧值 `FIT`、`fit`、`fixed`、`auto` 都能兼容读取。
+- `fixedHeightPx`：固定高度模式下的预览高度，默认 `320`。
 - `allowScripts`：默认 `false`。
 
 ProseMirror 输出示例：
@@ -74,7 +104,8 @@ ProseMirror 输出示例：
     "id": "1234567890abcdef1234567890abcdef",
     "title": "HTML",
     "source": "<div>hello</div>",
-    "displayMode": "fit",
+    "displayMode": "fixed",
+    "fixedHeightPx": 320,
     "allowScripts": false
   }
 }
@@ -93,6 +124,8 @@ ProseMirrorNode prosemirrorDoc = converter.toProseMirror(document);
 
 MarkdownBlockRenderer renderer = new MarkdownBlockRenderer();
 String normalizedMarkdown = renderer.render(document);
+
+TypedBlockDocument typed = BlockNodeConverter.toTyped(document);
 ```
 
 ## ProseMirror 转换

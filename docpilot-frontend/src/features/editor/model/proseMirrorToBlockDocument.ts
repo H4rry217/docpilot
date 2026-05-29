@@ -1,7 +1,6 @@
 import type { JSONContent } from '@tiptap/core'
 import type { BlockDocument, BlockNode, BlockType, InlineMark, InlineNode, MarkType } from '../../../entities/block/types'
-
-type JsonAttrs = Record<string, unknown>
+import { normalizeBlockAttrsForCanonical, stripInternalAttrs, stringAttr, type JsonAttrs } from './blockAttrs'
 
 export function proseMirrorJsonToBlockDocument(json: JSONContent): BlockDocument {
   return {
@@ -147,10 +146,11 @@ function markType(type: string): MarkType | null {
 }
 
 function block(path: string, type: BlockType, attrs: JsonAttrs, inlines: InlineNode[] = [], children: BlockNode[] = []): BlockNode {
+  const id = stringAttr(attrs, 'blockId', `frontend${path.replaceAll('.', '')}`)
   return {
-    id: stringAttr(attrs, 'blockId', `frontend${path.replaceAll('.', '')}`),
+    id,
     type,
-    attrs: stripInternalAttrs(attrs),
+    attrs: normalizeBlockAttrsForCanonical(type, stripInternalAttrs(attrs), id),
     inlines,
     children
   }
@@ -225,16 +225,4 @@ function isInlineNode(node: JSONContent): boolean {
 
 function textFromNode(node: JSONContent): string {
   return (node.content ?? []).map((child) => child.text ?? '').join('')
-}
-
-function stringAttr(attrs: JsonAttrs | undefined, key: string, fallback: string): string {
-  const value = attrs?.[key]
-  return typeof value === 'string' ? value : fallback
-}
-
-function stripInternalAttrs(attrs: JsonAttrs): JsonAttrs {
-  const next = { ...attrs }
-  delete next.blockId
-  delete next.sourceRange
-  return next
 }

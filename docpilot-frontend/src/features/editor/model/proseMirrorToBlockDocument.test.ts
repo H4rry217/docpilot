@@ -79,9 +79,39 @@ describe('proseMirrorJsonToBlockDocument', () => {
       id: 'html1',
       type: 'HTML_BLOCK',
       attrs: {
+        id: 'html1',
         title: 'HTML',
-        source: '<div>hello</div>'
+        source: '<div>hello</div>',
+        displayMode: 'fixed',
+        fixedHeightPx: 320,
+        allowScripts: false
       }
+    })
+  })
+
+  it('normalizes html attrs from editor json', () => {
+    const blockDocument = proseMirrorJsonToBlockDocument({
+      type: 'doc',
+      content: [
+        {
+          type: 'docpilotHtmlBlock',
+          attrs: {
+            blockId: 'html1',
+            source: '<section />',
+            displayMode: 'fit',
+            fixedHeightPx: 80,
+            allowScripts: 'true'
+          }
+        }
+      ]
+    })
+
+    expect(blockDocument.blocks[0].attrs).toMatchObject({
+      id: 'html1',
+      source: '<section />',
+      displayMode: 'fixed',
+      fixedHeightPx: 320,
+      allowScripts: true
     })
   })
 })

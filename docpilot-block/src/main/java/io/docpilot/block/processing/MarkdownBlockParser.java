@@ -37,13 +37,13 @@ import com.vladsch.flexmark.util.misc.Extension;
 import io.docpilot.block.model.BlockDocument;
 import io.docpilot.block.model.BlockNode;
 import io.docpilot.block.model.BlockType;
-import io.docpilot.block.model.HtmlDisplayMode;
 import io.docpilot.block.model.InlineMark;
 import io.docpilot.block.model.InlineNode;
 import io.docpilot.block.model.InlineType;
 import io.docpilot.block.model.MarkType;
 import io.docpilot.block.model.SourcePosition;
 import io.docpilot.block.model.SourceRange;
+import io.docpilot.block.typed.BlockAttrs;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -60,9 +60,6 @@ import java.util.regex.Pattern;
  */
 public class MarkdownBlockParser {
 
-    private static final String ATTR_TEXT = "text";
-    private static final String ATTR_SOURCE = "source";
-    private static final String ATTR_RAW = "raw";
     private static final Pattern FRONT_MATTER_OPEN = Pattern.compile("(?m)^---[ \\t]*\\R");
     private static final Pattern ATTRIBUTE_GROUP = Pattern.compile("\\s*\\{([^{}]+)}\\s*$");
     private static final Pattern LINK_REFERENCE = Pattern.compile("^\\[([^]]+)]\\s*:\\s*(\\S+)(?:\\s+\"([^\"]*)\")?\\s*$", Pattern.DOTALL);
@@ -152,14 +149,14 @@ public class MarkdownBlockParser {
         String simpleName = node.getClass().getSimpleName();
 
         if (node instanceof Paragraph && isToc(node)) {
-            return withTrailingAttributes(block(id, BlockType.TOC, Map.of(ATTR_RAW, raw(node)), List.of(), List.of(), node, sourceIndex, baseOffset), node);
+            return withTrailingAttributes(block(id, BlockType.TOC, Map.of(BlockAttrs.RAW.key(), raw(node)), List.of(), List.of(), node, sourceIndex, baseOffset), node);
         }
         if (node instanceof Paragraph && isDollarMathBlock(node)) {
-            return block(id, BlockType.MATH_BLOCK, Map.of("notation", "latex", ATTR_TEXT, dollarMathBlockText(raw(node)), "delimiter", "$$"),
+            return block(id, BlockType.MATH_BLOCK, Map.of(BlockAttrs.NOTATION.key(), "latex", BlockAttrs.TEXT.key(), dollarMathBlockText(raw(node)), BlockAttrs.DELIMITER.key(), "$$"),
                     List.of(), List.of(), node, sourceIndex, baseOffset);
         }
         if (isTocBlock(node)) {
-            return block(id, BlockType.TOC, Map.of(ATTR_RAW, raw(node)), List.of(), List.of(), node, sourceIndex, baseOffset);
+            return block(id, BlockType.TOC, Map.of(BlockAttrs.RAW.key(), raw(node)), List.of(), List.of(), node, sourceIndex, baseOffset);
         }
         if (node instanceof Reference) {
             return block(id, BlockType.LINK_REFERENCE_DEFINITION, linkReferenceAttrs(raw(node)), List.of(), List.of(), node, sourceIndex, baseOffset);
@@ -191,7 +188,7 @@ public class MarkdownBlockParser {
             return withTrailingAttributes(block(id, BlockType.PARAGRAPH, Map.of(), convertInlines(node, List.of(), sourceIndex, baseOffset), List.of(), node, sourceIndex, baseOffset), node);
         }
         if (node instanceof Heading heading) {
-            return withTrailingAttributes(block(id, BlockType.HEADING, Map.of("level", heading.getLevel()),
+            return withTrailingAttributes(block(id, BlockType.HEADING, Map.of(BlockAttrs.LEVEL.key(), heading.getLevel()),
                     convertInlines(node, List.of(), sourceIndex, baseOffset), List.of(), node, sourceIndex, baseOffset), node);
         }
         if (node instanceof BlockQuote) {
@@ -201,11 +198,11 @@ public class MarkdownBlockParser {
             return block(id, BlockType.BULLET_LIST, Map.of(), List.of(), convertChildren(node, path, source, sourceIndex, baseOffset), node, sourceIndex, baseOffset);
         }
         if (node instanceof OrderedList orderedList) {
-            return block(id, BlockType.ORDERED_LIST, Map.of("start", orderedList.getStartNumber()), List.of(),
+            return block(id, BlockType.ORDERED_LIST, Map.of(BlockAttrs.START.key(), orderedList.getStartNumber()), List.of(),
                     convertChildren(node, path, source, sourceIndex, baseOffset), node, sourceIndex, baseOffset);
         }
         if (node instanceof TaskListItem taskListItem) {
-            return block(id, BlockType.TASK_LIST_ITEM, Map.of("checked", taskListItem.isItemDoneMarker()), List.of(),
+            return block(id, BlockType.TASK_LIST_ITEM, Map.of(BlockAttrs.CHECKED.key(), taskListItem.isItemDoneMarker()), List.of(),
                     convertChildren(node, path, source, sourceIndex, baseOffset), node, sourceIndex, baseOffset);
         }
         if (node instanceof ListItem) {
@@ -215,18 +212,18 @@ public class MarkdownBlockParser {
             String language = fencedCodeBlock.getInfo().toString().trim();
             String text = fencedCodeBlock.getContentChars().toString();
             if ("math".equalsIgnoreCase(language)) {
-                return block(id, BlockType.MATH_BLOCK, Map.of("notation", "latex", ATTR_TEXT, text, "delimiter", "fenced"), List.of(), List.of(), node, sourceIndex, baseOffset);
+                return block(id, BlockType.MATH_BLOCK, Map.of(BlockAttrs.NOTATION.key(), "latex", BlockAttrs.TEXT.key(), text, BlockAttrs.DELIMITER.key(), "fenced"), List.of(), List.of(), node, sourceIndex, baseOffset);
             }
             if ("mermaid".equalsIgnoreCase(language)) {
-                return block(id, BlockType.DIAGRAM_BLOCK, Map.of("engine", "mermaid", ATTR_TEXT, text), List.of(), List.of(), node, sourceIndex, baseOffset);
+                return block(id, BlockType.DIAGRAM_BLOCK, Map.of(BlockAttrs.ENGINE.key(), "mermaid", BlockAttrs.TEXT.key(), text), List.of(), List.of(), node, sourceIndex, baseOffset);
             }
             Map<String, Object> attrs = new HashMap<>();
-            attrs.put("language", language);
-            attrs.put(ATTR_TEXT, text);
+            attrs.put(BlockAttrs.LANGUAGE.key(), language);
+            attrs.put(BlockAttrs.TEXT.key(), text);
             return block(id, BlockType.CODE_BLOCK, attrs, List.of(), List.of(), node, sourceIndex, baseOffset);
         }
         if (node instanceof IndentedCodeBlock) {
-            return block(id, BlockType.CODE_BLOCK, Map.of("language", "", ATTR_TEXT, node.getChars().toString()), List.of(), List.of(), node, sourceIndex, baseOffset);
+            return block(id, BlockType.CODE_BLOCK, Map.of(BlockAttrs.LANGUAGE.key(), "", BlockAttrs.TEXT.key(), node.getChars().toString()), List.of(), List.of(), node, sourceIndex, baseOffset);
         }
         if (node instanceof ThematicBreak) {
             return block(id, BlockType.THEMATIC_BREAK, Map.of(), List.of(), List.of(), node, sourceIndex, baseOffset);
@@ -242,27 +239,27 @@ public class MarkdownBlockParser {
         }
         if (node instanceof TableCell tableCell) {
             Map<String, Object> attrs = new HashMap<>();
-            attrs.put("header", tableCell.isHeader());
-            attrs.put("alignment", tableCell.getAlignment() == null ? "none" : tableCell.getAlignment().name().toLowerCase(Locale.ROOT));
+            attrs.put(BlockAttrs.HEADER.key(), tableCell.isHeader());
+            attrs.put(BlockAttrs.ALIGNMENT.key(), tableCell.getAlignment() == null ? "none" : tableCell.getAlignment().name().toLowerCase(Locale.ROOT));
             return withTrailingAttributes(block(id, BlockType.TABLE_CELL, attrs, convertInlines(node, List.of(), sourceIndex, baseOffset), List.of(), node, sourceIndex, baseOffset), node);
         }
         if (node instanceof HtmlBlock) {
             String rawHtml = raw(node);
             Map<String, Object> attrs = new HashMap<>();
-            attrs.put("id", id);
-            attrs.put("title", "HTML");
-            attrs.put(ATTR_SOURCE, rawHtml);
-            attrs.put("displayMode", HtmlDisplayMode.FIXED);
-            attrs.put("fixedHeightPx", 320);
-            attrs.put("allowScripts", false);
+            attrs.put(BlockAttrs.ID.key(), id);
+            attrs.put(BlockAttrs.TITLE.key(), "HTML");
+            attrs.put(BlockAttrs.SOURCE.key(), rawHtml);
+            attrs.put(BlockAttrs.DISPLAY_MODE.key(), "fixed");
+            attrs.put(BlockAttrs.FIXED_HEIGHT_PX.key(), 320);
+            attrs.put(BlockAttrs.ALLOW_SCRIPTS.key(), false);
             return block(id, BlockType.HTML_BLOCK, attrs, List.of(), List.of(), node, sourceIndex, baseOffset);
         }
         if (simpleName.endsWith("Block") && node.getClass().getName().contains(".ext.")) {
-            return block(id, BlockType.EXTENSION_BLOCK, Map.of(ATTR_SOURCE, raw(node), "nodeType", simpleName), List.of(),
+            return block(id, BlockType.EXTENSION_BLOCK, Map.of(BlockAttrs.SOURCE.key(), raw(node), BlockAttrs.NODE_TYPE.key(), simpleName), List.of(),
                     convertChildren(node, path, source, sourceIndex, baseOffset), node, sourceIndex, baseOffset);
         }
 
-        return block(id, BlockType.UNSUPPORTED_BLOCK, Map.of(ATTR_SOURCE, raw(node), "nodeType", simpleName),
+        return block(id, BlockType.UNSUPPORTED_BLOCK, Map.of(BlockAttrs.SOURCE.key(), raw(node), BlockAttrs.NODE_TYPE.key(), simpleName),
                 List.of(), convertChildren(node, path, source, sourceIndex, baseOffset), node, sourceIndex, baseOffset);
     }
 
@@ -410,17 +407,17 @@ public class MarkdownBlockParser {
             return List.of(inline(InlineType.EMOJI, raw(node), Map.of("shortcut", raw(node)), marks, node, sourceIndex, baseOffset));
         }
         if (node instanceof HtmlInline) {
-            return List.of(inline(InlineType.HTML_INLINE, raw(node), Map.of(ATTR_SOURCE, raw(node)), marks, node, sourceIndex, baseOffset));
+            return List.of(inline(InlineType.HTML_INLINE, raw(node), Map.of(BlockAttrs.SOURCE.key(), raw(node)), marks, node, sourceIndex, baseOffset));
         }
         if (node.hasChildren()) {
             return convertInlines(node, marks, sourceIndex, baseOffset);
         }
         if (node.getClass().getName().contains(".ext.")) {
             return List.of(inline(InlineType.EXTENSION_INLINE, raw(node),
-                    Map.of(ATTR_SOURCE, raw(node), "nodeType", simpleName), marks, node, sourceIndex, baseOffset));
+                    Map.of(BlockAttrs.SOURCE.key(), raw(node), BlockAttrs.NODE_TYPE.key(), simpleName), marks, node, sourceIndex, baseOffset));
         }
         return List.of(inline(InlineType.UNSUPPORTED_INLINE, raw(node),
-                Map.of(ATTR_SOURCE, raw(node), "nodeType", simpleName), marks, node, sourceIndex, baseOffset));
+                Map.of(BlockAttrs.SOURCE.key(), raw(node), BlockAttrs.NODE_TYPE.key(), simpleName), marks, node, sourceIndex, baseOffset));
     }
 
     private List<InlineNode> parseTextInlines(String text, List<InlineMark> marks, Node node, SourceIndex sourceIndex, int baseOffset) {
@@ -557,9 +554,9 @@ public class MarkdownBlockParser {
 
     private BlockNode frontMatterBlock(FrontMatterSlice frontMatter, SourceIndex sourceIndex) {
         Map<String, Object> attrs = new HashMap<>();
-        attrs.put("format", "yaml");
-        attrs.put(ATTR_RAW, frontMatter.raw());
-        attrs.put("data", parseFrontMatterData(frontMatter.content()));
+        attrs.put(BlockAttrs.FORMAT.key(), "yaml");
+        attrs.put(BlockAttrs.RAW.key(), frontMatter.raw());
+        attrs.put(BlockAttrs.DATA.key(), parseFrontMatterData(frontMatter.content()));
         return BlockNode.of(idGenerator.nextId(), BlockType.FRONT_MATTER, attrs, List.of(), List.of(),
                 range(0, frontMatter.endOffset(), sourceIndex));
     }
@@ -678,22 +675,22 @@ public class MarkdownBlockParser {
     private Map<String, Object> linkReferenceAttrs(String raw) {
         Matcher matcher = LINK_REFERENCE.matcher(raw.trim());
         if (!matcher.matches()) {
-            return Map.of(ATTR_RAW, raw);
+            return Map.of(BlockAttrs.RAW.key(), raw);
         }
         Map<String, Object> attrs = new HashMap<>();
-        attrs.put("label", matcher.group(1));
-        attrs.put("href", matcher.group(2));
-        attrs.put("title", matcher.group(3) == null ? "" : matcher.group(3));
-        attrs.put(ATTR_RAW, raw);
+        attrs.put(BlockAttrs.LABEL.key(), matcher.group(1));
+        attrs.put(BlockAttrs.HREF.key(), matcher.group(2));
+        attrs.put(BlockAttrs.TITLE.key(), matcher.group(3) == null ? "" : matcher.group(3));
+        attrs.put(BlockAttrs.RAW.key(), raw);
         return attrs;
     }
 
     private Map<String, Object> footnoteDefinitionAttrs(String raw) {
         Matcher matcher = FOOTNOTE_DEFINITION.matcher(raw.trim());
         if (!matcher.matches()) {
-            return Map.of("label", "", ATTR_RAW, raw);
+            return Map.of(BlockAttrs.LABEL.key(), "", BlockAttrs.RAW.key(), raw);
         }
-        return Map.of("label", matcher.group(1), ATTR_RAW, raw);
+        return Map.of(BlockAttrs.LABEL.key(), matcher.group(1), BlockAttrs.RAW.key(), raw);
     }
 
     private Map<String, Object> blockQuoteCalloutAttrs(String raw) {
@@ -702,20 +699,20 @@ public class MarkdownBlockParser {
             return null;
         }
         Map<String, Object> attrs = new HashMap<>();
-        attrs.put("kind", matcher.group(1).toLowerCase(Locale.ROOT));
-        attrs.put("title", matcher.group(2).trim());
-        attrs.put("collapsible", false);
-        attrs.put("open", true);
+        attrs.put(BlockAttrs.KIND.key(), matcher.group(1).toLowerCase(Locale.ROOT));
+        attrs.put(BlockAttrs.TITLE.key(), matcher.group(2).trim());
+        attrs.put(BlockAttrs.COLLAPSIBLE.key(), false);
+        attrs.put(BlockAttrs.OPEN.key(), true);
         return attrs;
     }
 
     private Map<String, Object> admonitionAttrs(String raw) {
         Matcher matcher = ADMONITION_HEADER.matcher(firstLine(raw));
         Map<String, Object> attrs = new HashMap<>();
-        attrs.put("kind", matcher.matches() ? matcher.group(1).toLowerCase(Locale.ROOT) : "note");
-        attrs.put("title", matcher.matches() ? matcher.group(2).trim() : "");
-        attrs.put("collapsible", false);
-        attrs.put("open", true);
+        attrs.put(BlockAttrs.KIND.key(), matcher.matches() ? matcher.group(1).toLowerCase(Locale.ROOT) : "note");
+        attrs.put(BlockAttrs.TITLE.key(), matcher.matches() ? matcher.group(2).trim() : "");
+        attrs.put(BlockAttrs.COLLAPSIBLE.key(), false);
+        attrs.put(BlockAttrs.OPEN.key(), true);
         return attrs;
     }
 
@@ -763,7 +760,7 @@ public class MarkdownBlockParser {
         Map<String, String> dataAttrs = new LinkedHashMap<>();
         for (String token : body.trim().split("\\s+")) {
             if (token.startsWith("#") && token.length() > 1) {
-                attrs.put("htmlId", token.substring(1));
+                attrs.put(BlockAttrs.HTML_ID.key(), token.substring(1));
             } else if (token.startsWith(".") && token.length() > 1) {
                 classNames.add(token.substring(1));
             } else {
@@ -774,10 +771,10 @@ public class MarkdownBlockParser {
             }
         }
         if (!classNames.isEmpty()) {
-            attrs.put("classNames", classNames);
+            attrs.put(BlockAttrs.CLASS_NAMES.key(), classNames);
         }
         if (!dataAttrs.isEmpty()) {
-            attrs.put("dataAttrs", dataAttrs);
+            attrs.put(BlockAttrs.DATA_ATTRS.key(), dataAttrs);
         }
         return attrs;
     }
