@@ -1,0 +1,52 @@
+.resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 50;
+  width: 10px;
+  border: 0;
+  background: transparent;
+  cursor: col-resize;
+  padding: 0;
+}
+
+.resize-handle::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 4px;
+  width: 2px;
+  border-radius: 2px;
+  background: transparent;
+  content: "";
+  opacity: 0;
+  transition:
+    background 120ms ease,
+    box-shadow 120ms ease,
+    opacity 120ms ease;
+}
+
+.resize-handle:hover::after,
+.resize-handle:focus-visible::after,
+.is-resizing-panel .resize-handle::after {
+  background: #2f7ed8;
+  box-shadow: 0 0 0 2px rgb(47 126 216 / 14%);
+  opacity: 1;
+}
+
+.resize-handle:focus-visible {
+  outline: none;
+}
+
+.resize-handle-left {
+  right: -5px;
+}
+
+.resize-handle-right {
+  left: -5px;
+}
+
+.is-resizing-panel {
+  cursor: col-resize;
+  user-select: none;
+}

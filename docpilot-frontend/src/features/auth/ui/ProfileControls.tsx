@@ -4,6 +4,7 @@ import type { UserInformation } from '../../../entities/user/types'
 import { useI18n } from '../../../shared/i18n'
 import { Button } from '../../../shared/ui/Button'
 import { changeDisplayName, changePassword } from '../api/authApi'
+import './ProfileControls.css'
 
 export function ProfileControls({
   user,

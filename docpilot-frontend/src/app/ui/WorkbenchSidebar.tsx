@@ -1,13 +1,13 @@
 import { Bot, Files, ListTree, Search, Settings } from 'lucide-react'
 import { type ReactNode } from 'react'
-import type { UserInformation } from '../../entities/user/types'
 import type { Workspace, WorkspaceTreeNode } from '../../entities/workspace/types'
-import { ProfileControls } from '../../features/auth/ui/ProfileControls'
 import { WorkspaceTree } from '../../features/workspace-tree/ui/WorkspaceTree'
-import { useI18n, type Locale } from '../../shared/i18n'
+import { useI18n } from '../../shared/i18n'
 import { useResizableWidth } from '../../shared/ui/useResizableWidth'
+import '../../shared/ui/ResizablePanel.css'
+import './WorkbenchSidebar.css'
 
-export type SidebarMode = 'files' | 'outline' | 'search' | 'agent' | 'settings'
+export type SidebarMode = 'files' | 'outline' | 'search' | 'agent'
 
 export const WORKSPACE_SIDEBAR_DEFAULT_WIDTH = 200
 export const WORKSPACE_SIDEBAR_MIN_WIDTH = 180
@@ -38,7 +38,6 @@ function ActivityButton({ active, expanded, icon, label, onClick }: ActivityButt
 
 function SidebarPanel({
   mode,
-  currentUser,
   selectedNode,
   workspace,
   workspaces,
@@ -52,12 +51,9 @@ function SidebarPanel({
   onCreateFolder,
   onCreateDocument,
   onRenameNode,
-  onDeleteNode,
-  onUserChange,
-  onLogout
+  onDeleteNode
 }: {
   mode: SidebarMode
-  currentUser: UserInformation
   selectedNode?: WorkspaceTreeNode
   workspace?: Workspace
   workspaces: Workspace[]
@@ -72,10 +68,8 @@ function SidebarPanel({
   onCreateDocument: (parentNode?: WorkspaceTreeNode) => void
   onRenameNode: (node: WorkspaceTreeNode) => void
   onDeleteNode: (node: WorkspaceTreeNode) => void
-  onUserChange: (user: UserInformation) => void
-  onLogout: () => void
 }) {
-  const { locale, setLocale, t } = useI18n()
+  const { t } = useI18n()
   const selectedName = selectedNode?.name ?? t('sidebar.noDocument')
 
   if (mode === 'files') {
@@ -147,43 +141,24 @@ function SidebarPanel({
     )
   }
 
-  if (mode === 'agent') {
-    return (
-      <section className="sidebar-panel">
-        <header className="sidebar-panel-header">
-          <span>{t('activity.agent')}</span>
-          <strong>{t('sidebar.agentTitle')}</strong>
-        </header>
-        <div className="agent-sidebar-card is-live">
-          <span>{t('sidebar.agentIdle')}</span>
-          <strong>{selectedName}</strong>
-        </div>
-        <div className="agent-sidebar-card">
-          <strong>{t('sidebar.agentReview')}</strong>
-          <span>{t('sidebar.agentReviewDesc')}</span>
-        </div>
-        <div className="agent-sidebar-card">
-          <strong>{t('sidebar.agentApply')}</strong>
-          <span>{t('sidebar.agentApplyDesc')}</span>
-        </div>
-      </section>
-    )
-  }
-
   return (
     <section className="sidebar-panel">
       <header className="sidebar-panel-header">
-        <span>{t('activity.settings')}</span>
-        <strong>{t('sidebar.settingsTitle')}</strong>
+        <span>{t('activity.agent')}</span>
+        <strong>{t('sidebar.agentTitle')}</strong>
       </header>
-      <label className="locale-field">
-        <span>{t('sidebar.languageTitle')}</span>
-        <select value={locale} onChange={(event) => setLocale(event.target.value as Locale)}>
-          <option value="zh-CN">中文</option>
-          <option value="en-US">English</option>
-        </select>
-      </label>
-      <ProfileControls user={currentUser} onUserChange={onUserChange} onLogout={onLogout} />
+      <div className="agent-sidebar-card is-live">
+        <span>{t('sidebar.agentIdle')}</span>
+        <strong>{selectedName}</strong>
+      </div>
+      <div className="agent-sidebar-card">
+        <strong>{t('sidebar.agentReview')}</strong>
+        <span>{t('sidebar.agentReviewDesc')}</span>
+      </div>
+      <div className="agent-sidebar-card">
+        <strong>{t('sidebar.agentApply')}</strong>
+        <span>{t('sidebar.agentApplyDesc')}</span>
+      </div>
     </section>
   )
 }
@@ -192,7 +167,6 @@ export function WorkbenchSidebar({
   mode,
   expanded,
   width,
-  currentUser,
   selectedNode,
   workspace,
   workspaces,
@@ -209,13 +183,11 @@ export function WorkbenchSidebar({
   onCreateDocument,
   onRenameNode,
   onDeleteNode,
-  onUserChange,
-  onLogout
+  onOpenSettings
 }: {
   mode: SidebarMode
   expanded: boolean
   width: number
-  currentUser: UserInformation
   selectedNode?: WorkspaceTreeNode
   workspace?: Workspace
   workspaces: Workspace[]
@@ -232,8 +204,7 @@ export function WorkbenchSidebar({
   onCreateDocument: (parentNode?: WorkspaceTreeNode) => void
   onRenameNode: (node: WorkspaceTreeNode) => void
   onDeleteNode: (node: WorkspaceTreeNode) => void
-  onUserChange: (user: UserInformation) => void
-  onLogout: () => void
+  onOpenSettings: () => void
 }) {
   const { t } = useI18n()
   const startResize = useResizableWidth({
@@ -279,11 +250,11 @@ export function WorkbenchSidebar({
         </div>
         <div className="activity-bar-bottom">
           <ActivityButton
-            active={mode === 'settings'}
-            expanded={expanded}
+            active={false}
+            expanded={false}
             icon={<Settings size={18} />}
             label={t('activity.settings')}
-            onClick={() => onModeChange('settings')}
+            onClick={onOpenSettings}
           />
         </div>
       </aside>
@@ -293,7 +264,6 @@ export function WorkbenchSidebar({
           <>
             <SidebarPanel
               mode={mode}
-              currentUser={currentUser}
               selectedNode={selectedNode}
               workspace={workspace}
               workspaces={workspaces}
@@ -308,8 +278,6 @@ export function WorkbenchSidebar({
               onCreateDocument={onCreateDocument}
               onRenameNode={onRenameNode}
               onDeleteNode={onDeleteNode}
-              onUserChange={onUserChange}
-              onLogout={onLogout}
             />
             <button
               className="resize-handle resize-handle-left"

@@ -11,6 +11,7 @@ import {
   sandboxForHtmlBlock
 } from '../model/htmlBlockPreview'
 import { HtmlSourceEditor } from './HtmlSourceEditor'
+import './HtmlBlockView.css'
 
 function textAttr(attrs: Record<string, unknown>, name: string, fallback: string): string {
   const value = attrs[name]

@@ -1,6 +1,8 @@
 import { Check, CheckCircle2, Copy, MessageCircle, Send, X } from 'lucide-react'
 import { useI18n } from '../../../shared/i18n'
 import { useResizableWidth } from '../../../shared/ui/useResizableWidth'
+import '../../../shared/ui/ResizablePanel.css'
+import './AiReviewPanel.css'
 
 export const AI_REVIEW_PANEL_DEFAULT_WIDTH = 320
 export const AI_REVIEW_PANEL_MIN_WIDTH = 280

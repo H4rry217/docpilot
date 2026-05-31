@@ -26,6 +26,8 @@ import {
   WORKSPACE_SIDEBAR_MIN_WIDTH,
   type SidebarMode
 } from './ui/WorkbenchSidebar'
+import { SettingsDialog } from './ui/SettingsDialog'
+import './App.css'
 
 type AuthStatus = 'checking' | 'anonymous' | 'authenticated'
 
@@ -55,6 +57,7 @@ export function App() {
   const [selectedNode, setSelectedNode] = useState<WorkspaceTreeNode | undefined>()
   const [activeSidebarMode, setActiveSidebarMode] = useState<SidebarMode>('files')
   const [sidebarExpanded, setSidebarExpanded] = useState(true)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [sidebarWidth, setSidebarWidth] = usePersistentNumberState({
     storageKey: 'docpilot.layout.sidebarWidth',
     defaultValue: WORKSPACE_SIDEBAR_DEFAULT_WIDTH,
@@ -361,7 +364,6 @@ export function App() {
         mode={activeSidebarMode}
         expanded={sidebarExpanded}
         width={sidebarWidth}
-        currentUser={currentUser}
         selectedNode={selectedNode}
         workspace={workspaceTree.workspace}
         workspaces={workspaces}
@@ -378,8 +380,7 @@ export function App() {
         onCreateDocument={handleCreateDocument}
         onRenameNode={handleRenameNode}
         onDeleteNode={handleDeleteNode}
-        onUserChange={setCurrentUser}
-        onLogout={clearAuth}
+        onOpenSettings={() => setSettingsOpen(true)}
       />
 
       <DocumentEditor
@@ -387,6 +388,14 @@ export function App() {
         documentNode={selectedNode}
         onRequestText={requestText}
       />
+      {settingsOpen ? (
+        <SettingsDialog
+          user={currentUser}
+          onClose={() => setSettingsOpen(false)}
+          onLogout={clearAuth}
+          onUserChange={setCurrentUser}
+        />
+      ) : null}
       {dialog ? (
         <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => {
           if (event.target === event.currentTarget) handleDialogCancel()

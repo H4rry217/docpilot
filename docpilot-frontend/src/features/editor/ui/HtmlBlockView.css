@@ -1,0 +1,139 @@
+.html-block {
+  margin: 18px 0;
+  border: 1px solid #d7e5f6;
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.html-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 32px;
+  padding: 0 10px;
+  border-bottom: 1px solid #dfebf7;
+  background: #f7fbff;
+  color: #276aa8;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.html-block-title,
+.html-block-controls,
+.html-block-controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.html-block-title {
+  min-width: 0;
+}
+
+.html-block-controls {
+  flex: 0 0 auto;
+  gap: 8px;
+  color: #56677b;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.html-block-controls select,
+.html-block-controls input[type="number"] {
+  height: 24px;
+  border: 1px solid #cbd9e8;
+  border-radius: 5px;
+  background: #fff;
+  color: #334155;
+  font-size: 0.78rem;
+}
+
+.html-block-controls select {
+  width: 76px;
+}
+
+.html-block-controls input[type="number"] {
+  width: 66px;
+  padding: 0 5px;
+}
+
+.html-block-controls input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+}
+
+.html-block-mode-switch {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: 96px;
+  height: 24px;
+  padding: 2px;
+  border: 1px solid #cbd9e8;
+  border-radius: 6px;
+  background: #edf4fb;
+}
+
+.html-block-mode-switch button {
+  min-width: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #607184;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.html-block-mode-switch button.active {
+  background: #fff;
+  color: #1f67aa;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 10%);
+}
+
+.html-block iframe {
+  display: block;
+  width: 100%;
+  min-height: 120px;
+  border: 0;
+  background: #fff;
+}
+
+.html-source-editor {
+  min-height: 260px;
+  background: #fbfdff;
+  text-align: left;
+}
+
+.html-source-editor .cm-editor {
+  min-height: 260px;
+  outline: none;
+  background: #fbfdff;
+  color: #263445;
+  font-size: 0.88rem;
+}
+
+.html-source-editor .cm-focused {
+  outline: none;
+}
+
+.html-source-editor .cm-scroller {
+  font-family: "JetBrains Mono", "Fira Code", Consolas, monospace;
+  line-height: 1.6;
+}
+
+.html-source-editor .cm-gutters {
+  border-right: 1px solid #e0e8f1;
+  background: #f3f7fb;
+  color: #8a98aa;
+}
+
+.html-source-editor .cm-activeLine,
+.html-source-editor .cm-activeLineGutter {
+  background: #edf6ff;
+}
+
+.html-source-editor .cm-content {
+  padding: 10px 0;
+}

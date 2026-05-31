@@ -1,0 +1,36 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.button-primary {
+  border: 1px solid #2f7ed8;
+  background: #2f7ed8;
+  color: #fff;
+}
+
+.button-ghost {
+  border: 1px solid #dfe6ee;
+  background: #fff;
+  color: #4c5b6a;
+}
+
+.button:hover,
+.button:focus-visible {
+  border-color: #9ac0e7;
+  background: #f6fbff;
+  color: #2d6fb5;
+  outline: none;
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}

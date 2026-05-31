@@ -115,6 +115,35 @@ describe('WorkspaceTree', () => {
     expect(document.parentElement).toHaveClass('selected')
   })
 
+  it('renders long file names in a single ellipsis target and exposes the full file name', () => {
+    const longFileName = 'very-long-untitled-document-name.md'
+    const longNameNodes: WorkspaceTreeNode[] = [
+      {
+        ...nodes[0],
+        children: [
+          {
+            ...nodes[0].children[0],
+            nodeId: 'doc-node-long',
+            name: longFileName
+          }
+        ]
+      }
+    ]
+
+    render(
+      <I18nProvider>
+        <WorkspaceTree nodes={longNameNodes} onSelectNode={() => undefined} />
+      </I18nProvider>
+    )
+
+    const document = screen.getByRole('button', { name: longFileName })
+
+    expect(document).toHaveAttribute('title', longFileName)
+    expect(document.querySelector('.tree-row-name')).toHaveTextContent(longFileName)
+    expect(document.querySelector('.tree-row-name-main')).not.toBeInTheDocument()
+    expect(document.querySelector('.tree-row-name-extension')).not.toBeInTheDocument()
+  })
+
   it('switches from the file tree to the workspace list from the workspace card', () => {
     const onSelectWorkspace = vi.fn()
     render(

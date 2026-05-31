@@ -1,0 +1,142 @@
+.json-inspector {
+  position: absolute;
+  top: 56px;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  display: flex;
+  width: min(420px, 42vw);
+  min-width: 340px;
+  flex-direction: column;
+  border-left: 1px solid #dce5ef;
+  background: #fff;
+  box-shadow: -14px 0 28px rgb(15 23 42 / 8%);
+  transform: translateX(100%);
+  transition: transform 180ms ease;
+}
+
+.json-inspector.open {
+  transform: translateX(0);
+}
+
+.json-inspector-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 48px;
+  padding: 0 12px 0 14px;
+  border-bottom: 1px solid #e4ebf2;
+}
+
+.json-inspector-header div,
+.json-inspector-header button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.json-inspector-header strong {
+  color: #172033;
+  font-size: 0.95rem;
+}
+
+.json-inspector-header button {
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #6b7788;
+}
+
+.json-inspector-header button:hover,
+.json-inspector-header button:focus-visible {
+  background: #f1f5f9;
+  outline: none;
+}
+
+.json-inspector-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 8px;
+  border-bottom: 1px solid #e8eef5;
+}
+
+.json-inspector-tabs button {
+  min-height: 30px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #667386;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.json-inspector-tabs button:hover,
+.json-inspector-tabs button:focus-visible,
+.json-inspector-tabs button.active {
+  border-color: #d6e4f2;
+  background: #f2f7fc;
+  color: #225f9f;
+  outline: none;
+}
+
+.json-viewer {
+  flex: 1;
+  margin: 0;
+  overflow: auto;
+  padding: 14px;
+  color: #263445;
+  background: #fbfdff;
+  font-family: "JetBrains Mono", "Fira Code", Consolas, monospace;
+  font-size: 0.78rem;
+  line-height: 1.58;
+  white-space: pre;
+}
+
+.json-paste {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+}
+
+.json-paste textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  resize: none;
+  border: 1px solid #d7e0ea;
+  border-radius: 8px;
+  background: #fbfdff;
+  color: #263445;
+  outline: none;
+  padding: 12px;
+  font-family: "JetBrains Mono", "Fira Code", Consolas, monospace;
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
+.json-paste textarea:focus {
+  border-color: #8dbce8;
+  box-shadow: 0 0 0 3px rgb(47 126 216 / 10%);
+}
+
+.json-paste-error {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #fff1f0;
+  color: #b42318;
+  font-size: 0.82rem;
+}
+
+@media (max-width: 1180px) {
+  .json-inspector {
+    top: 88px;
+  }
+}

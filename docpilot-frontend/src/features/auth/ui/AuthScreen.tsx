@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { useState } from 'react'
 import { Button } from '../../../shared/ui/Button'
 import { login, register, type AuthSession } from '../api/authApi'
+import './AuthScreen.css'
 
 type AuthMode = 'login' | 'register'
 

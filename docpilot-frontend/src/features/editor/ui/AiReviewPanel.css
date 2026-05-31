@@ -1,0 +1,283 @@
+.ai-review-panel {
+  position: relative;
+  display: flex;
+  grid-column: 2;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: auto;
+  border-left: 1px solid #dfe7f1;
+  background: #f8fbff;
+  padding: 10px 12px 14px;
+}
+
+.ai-review-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 40px;
+  border-bottom: 1px solid #e3ebf5;
+  padding-bottom: 8px;
+}
+
+.ai-review-header div {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.ai-review-header span {
+  color: #243246;
+  font-weight: 900;
+}
+
+.ai-review-header strong,
+.ai-review-header small {
+  color: #60708a;
+  font-size: 0.78rem;
+}
+
+.review-card,
+.agent-chat-shell {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  border: 1px solid #dce6f2;
+  border-radius: 8px;
+  background: #fff;
+  padding: 10px;
+}
+
+.review-card-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #243246;
+}
+
+.review-card-title span,
+.agent-session-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #dbe5ef;
+  border-radius: 7px;
+  background: #f8fbff;
+  color: #66778f;
+  padding: 2px 7px;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.review-list {
+  display: grid;
+  gap: 8px;
+}
+
+.review-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  min-height: 48px;
+  overflow: hidden;
+  border: 1px solid #dce6f2;
+  border-radius: 7px;
+  background: #f9fbfe;
+  padding: 9px 9px 22px;
+}
+
+.review-item::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 10px;
+  background: linear-gradient(90deg, rgb(255 99 99 / 10%) 0 45%, rgb(52 211 153 / 12%) 45% 100%);
+  content: "";
+}
+
+.review-item div:first-child {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.review-item strong,
+.review-item span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.review-item strong {
+  color: #253247;
+}
+
+.review-item div:first-child span {
+  color: #6b7b92;
+  font-size: 0.76rem;
+}
+
+.review-status {
+  align-self: start;
+  border-radius: 7px;
+  background: #eef3fb;
+  color: #53657d;
+  padding: 2px 7px;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.review-accepted {
+  border-color: #a8e6bf;
+  background: #f4fcf6;
+}
+
+.review-accepted .review-status {
+  background: #e9f9ef;
+  color: #078a40;
+}
+
+.review-rejected {
+  border-color: #ffc4c4;
+  background: #fff7f7;
+}
+
+.review-rejected .review-status {
+  background: #fff0f0;
+  color: #d12c2c;
+}
+
+.review-pending {
+  border-color: #bdd7ff;
+}
+
+.review-pending .review-status {
+  background: #eef5ff;
+  color: #2e6ed0;
+}
+
+.review-item-actions {
+  position: absolute;
+  right: 7px;
+  bottom: 5px;
+  z-index: 1;
+  display: inline-flex;
+  gap: 4px;
+}
+
+.review-item-actions button,
+.agent-chat-input button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: #7a8797;
+}
+
+.review-item-actions button {
+  width: 22px;
+  height: 22px;
+  border: 1px solid #dbe5ef;
+  border-radius: 7px;
+  background: #fff;
+}
+
+.review-feedback,
+.agent-chat-input textarea {
+  width: 100%;
+  min-width: 0;
+  resize: none;
+  border: 1px solid #d7e0ea;
+  border-radius: 8px;
+  background: #fbfdff;
+  color: #263445;
+  outline: none;
+}
+
+.review-feedback {
+  min-height: 64px;
+  padding: 8px;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.review-feedback:focus,
+.agent-chat-input textarea:focus {
+  border-color: #8dbce8;
+  box-shadow: 0 0 0 3px rgb(47 126 216 / 10%);
+}
+
+.review-batch-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.review-batch-actions button,
+.apply-approved-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 0;
+  min-height: 30px;
+  border-radius: 7px;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.review-batch-actions button {
+  border: 1px solid #dbe5ef;
+  background: #fff;
+  color: #60708a;
+}
+
+.apply-approved-button {
+  border: 1px solid #7bb9f8;
+  background: #8fc4fb;
+  color: #fff;
+}
+
+.agent-chat-shell {
+  margin-top: auto;
+}
+
+.agent-session-pill {
+  justify-self: start;
+}
+
+.agent-chat-input {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 32px;
+  align-items: end;
+  gap: 6px;
+}
+
+.agent-chat-input textarea {
+  min-height: 86px;
+  padding: 10px;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.agent-chat-input button {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #dbe5ef;
+  border-radius: 8px;
+  background: #f6f9fd;
+}
+
+@media (max-width: 1180px) {
+  .ai-review-panel {
+    grid-column: 1;
+    grid-row: 3;
+    border-top: 1px solid #dfe7f1;
+    border-left: 0;
+  }
+}

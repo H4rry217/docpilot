@@ -1,0 +1,240 @@
+.editor-layout {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  background: #fff;
+}
+
+.document-header {
+  z-index: 4;
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 56px;
+  padding: 7px 14px 7px 16px;
+  border-bottom: 1px solid #e4ebf2;
+  background: #fff;
+}
+
+.document-meta {
+  min-width: 0;
+}
+
+.breadcrumb {
+  overflow: hidden;
+  color: #263445;
+  font-size: 0.9rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.document-subtitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-top: 2px;
+  color: #7a8797;
+  font-size: 0.76rem;
+}
+
+.document-subtitle span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.save-indicator {
+  display: inline-flex;
+  align-items: center;
+  min-height: 18px;
+  padding-left: 8px;
+  border-left: 1px solid #e2e8f0;
+}
+
+.save-error {
+  color: #c24135;
+}
+
+.document-side-note {
+  color: #7f8da3;
+}
+
+.document-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+}
+
+.runtime-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  border: 1px solid #bce8ce;
+  border-radius: 7px;
+  background: #f2fbf5;
+  color: #087a3a;
+  padding: 0 9px;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.document-canvas {
+  grid-column: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 54px clamp(40px, 8vw, 120px) 88px;
+  background: #fff;
+}
+
+.editor-content {
+  width: min(760px, 100%);
+  min-height: calc(100vh - 188px);
+  margin: 0 auto;
+  background: #fff;
+}
+
+.prose-editor {
+  min-height: calc(100vh - 190px);
+  outline: none;
+  color: #303b49;
+  font-size: 1.02rem;
+  line-height: 1.9;
+}
+
+.prose-editor :first-child {
+  margin-top: 0;
+}
+
+.prose-editor h1,
+.prose-editor h2,
+.prose-editor h3 {
+  color: #111827;
+  line-height: 1.25;
+  letter-spacing: 0;
+}
+
+.prose-editor h1 {
+  margin: 0 0 26px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid #dce4ee;
+  font-size: 1.75rem;
+  font-weight: 900;
+}
+
+.prose-editor h2 {
+  margin: 30px 0 18px;
+  font-size: 1.42rem;
+  font-weight: 900;
+}
+
+.prose-editor h3 {
+  margin: 24px 0 12px;
+  font-size: 1.1rem;
+}
+
+.prose-editor p {
+  margin: 0.78em 0;
+}
+
+.prose-editor ul,
+.prose-editor ol {
+  margin: 0.8em 0;
+  padding-left: 1.55em;
+}
+
+.prose-editor li {
+  margin: 0.2em 0;
+}
+
+.prose-editor blockquote {
+  margin: 18px 0;
+  padding: 14px 18px;
+  border-left: 3px solid #51a6ee;
+  background: #f0f6fd;
+  color: #3d4d5f;
+}
+
+.prose-editor blockquote p {
+  margin: 0;
+}
+
+.prose-editor hr {
+  height: 1px;
+  margin: 28px 0;
+  border: 0;
+  background: #e6ebf0;
+}
+
+.prose-editor table {
+  width: 100%;
+  margin: 18px 0;
+  border-collapse: collapse;
+}
+
+.prose-editor td,
+.prose-editor th {
+  padding: 8px 10px;
+  border: 1px solid #dfe6ee;
+}
+
+.document-empty {
+  display: grid;
+  min-height: 260px;
+  place-items: center;
+  color: #98a5b5;
+  font-weight: 800;
+}
+
+.right-collapse {
+  position: absolute;
+  top: 66px;
+  right: 326px;
+  z-index: 42;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #dce6f2;
+  border-radius: 8px;
+  background: #fff;
+  color: #64a7e5;
+  box-shadow: 0 8px 18px rgb(31 41 55 / 10%);
+}
+
+@media (max-width: 1180px) {
+  .editor-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) 280px;
+  }
+
+  .document-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .document-actions {
+    justify-content: flex-start;
+  }
+
+  .document-canvas {
+    padding: 34px clamp(28px, 6vw, 64px) 54px;
+  }
+
+  .right-collapse {
+    right: 12px;
+  }
+}

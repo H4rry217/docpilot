@@ -2,6 +2,7 @@ import { ChevronDown, ChevronRight, FilePlus2, FileText, Folder, FolderOpen, Fol
 import { useEffect, useState, type MouseEvent } from 'react'
 import { WORKSPACE_NODE_TYPE, WORKSPACE_TYPE, type Workspace, type WorkspaceTreeNode } from '../../../entities/workspace/types'
 import { useI18n } from '../../../shared/i18n'
+import './WorkspaceTree.css'
 
 export type WorkspaceTreeProps = {
   nodes: WorkspaceTreeNode[]
@@ -54,7 +55,7 @@ function TreeNode({
   const paddingLeft = 12 + depth * 18
 
   return (
-    <div>
+    <div className="tree-node">
       <div
         className={`tree-row-wrap ${isSelected ? 'selected' : ''}`}
         style={{ paddingLeft }}
@@ -79,7 +80,9 @@ function TreeNode({
         <button
           className="tree-row"
           type="button"
+          aria-label={node.name}
           aria-current={isSelected ? 'true' : undefined}
+          title={node.name}
           onClick={() => onSelectNode(node)}
         >
           {isFolder ? (
@@ -87,7 +90,7 @@ function TreeNode({
           ) : (
             <FileText size={14} />
           )}
-          <span>{node.name}</span>
+          <span className="tree-row-name">{node.name}</span>
         </button>
       </div>
       {isFolder && expanded
@@ -237,6 +240,7 @@ export function WorkspaceTree({
                     className="workspace-list-select"
                     type="button"
                     aria-current={isActive ? 'true' : undefined}
+                    title={workspace.name}
                     onClick={() => selectWorkspace(workspace)}
                   >
                     <span className="workspace-list-icon">
@@ -282,6 +286,7 @@ export function WorkspaceTree({
       <button
         className="workspace-card"
         type="button"
+        title={workspaceName ?? t('sidebar.workspace')}
         onClick={() => setShowWorkspaceList(true)}
         onContextMenu={(event) => openContextMenu(event)}
       >

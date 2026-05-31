@@ -1,0 +1,97 @@
+.select-field {
+  position: relative;
+  min-width: 150px;
+}
+
+.select-field-trigger {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 30px;
+  border: 1px solid #d8e2ee;
+  border-radius: 7px;
+  background: #fff;
+  color: #1f2933;
+  padding: 0 8px 0 10px;
+  text-align: left;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    background 120ms ease;
+}
+
+.select-field-trigger span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.select-field-trigger svg {
+  color: #667085;
+  transition: transform 120ms ease;
+}
+
+.select-field-trigger:hover,
+.select-field-trigger:focus-visible,
+.select-field-trigger.open {
+  border-color: #8dbce8;
+  background: #fbfdff;
+  box-shadow: 0 0 0 3px rgb(47 126 216 / 10%);
+  outline: none;
+}
+
+.select-field-trigger.open svg {
+  transform: rotate(180deg);
+}
+
+.select-field-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 260;
+  display: grid;
+  min-width: 100%;
+  overflow: hidden;
+  border: 1px solid #d7e0eb;
+  border-radius: 8px;
+  background: #fff;
+  padding: 4px;
+  box-shadow: 0 14px 34px rgb(15 23 42 / 16%);
+}
+
+.select-field-menu button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #243246;
+  padding: 0 8px;
+  text-align: left;
+}
+
+.select-field-menu button span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.select-field-menu button:hover,
+.select-field-menu button:focus-visible {
+  background: #edf6ff;
+  color: #1f6fbd;
+  outline: none;
+}
+
+.select-field-menu button.selected {
+  background: #eaf4ff;
+  color: #1f6fbd;
+  font-weight: 800;
+}

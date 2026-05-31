@@ -23,6 +23,7 @@ import {
 import { DocumentCanvas } from './DocumentCanvas'
 import { DocumentEditorToolbar } from './DocumentEditorToolbar'
 import { JsonInspector, type InspectorTab } from './JsonInspector'
+import './DocumentEditor.css'
 
 const AUTOSAVE_DELAY_MS = 650
 

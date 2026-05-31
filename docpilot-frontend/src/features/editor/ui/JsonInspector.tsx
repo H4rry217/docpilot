@@ -2,6 +2,7 @@ import type { Dispatch, SetStateAction } from 'react'
 import { Braces, PanelRightClose } from 'lucide-react'
 import { useI18n } from '../../../shared/i18n'
 import { Button } from '../../../shared/ui/Button'
+import './JsonInspector.css'
 
 export type InspectorTab = 'block' | 'editor' | 'paste'
 
