@@ -63,7 +63,7 @@
 
             <dependency>
                 <groupId>io.docpilot</groupId>
-                <artifactId>docpilot-document-service</artifactId>
+                <artifactId>docpilot-workspace-service</artifactId>
                 <version>${docpilot.version}</version>
             </dependency>
 

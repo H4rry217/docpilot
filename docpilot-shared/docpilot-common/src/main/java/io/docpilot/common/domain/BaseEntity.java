@@ -48,6 +48,18 @@ public class BaseEntity {
 
     @PrePersist
     protected void beforeCreate() {
+        markCreated();
+    }
+
+    @PreUpdate
+    protected void beforeUpdate() {
+        markUpdated();
+    }
+
+    /**
+     * Fill audit fields before creating this entity.
+     */
+    public void markCreated() {
         LocalDateTime now = LocalDateTime.now();
         if (createTime == null) {
             createTime = now;
@@ -68,9 +80,12 @@ public class BaseEntity {
         });
     }
 
-    @PreUpdate
-    protected void beforeUpdate() {
-        updateTime = LocalDateTime.now();
+    /**
+     * Fill audit fields before updating this entity.
+     */
+    public void markUpdated() {
+        LocalDateTime now = LocalDateTime.now();
+        updateTime = now;
         if (isDeleted == null) {
             isDeleted = false;
         }

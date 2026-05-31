@@ -3,8 +3,19 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: none
+  data:
+    mongodb:
+      uri: mongodb://127.0.0.1:27017/docpilot-test
 
 docpilot:
+  id:
+    datacenter-id: 1
+    machine-id: 1
+
+  workspace:
+    mongo:
+      init-indexes: false
+
   auth:
     default-user:
       password-iterations: 100000

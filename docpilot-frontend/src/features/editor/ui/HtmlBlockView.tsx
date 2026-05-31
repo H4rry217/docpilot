@@ -1,6 +1,7 @@
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react'
 import { Code2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useI18n } from '../../../shared/i18n'
 import {
   booleanAttr,
   createHtmlPreviewDocument,
@@ -17,6 +18,7 @@ function textAttr(attrs: Record<string, unknown>, name: string, fallback: string
 }
 
 export function HtmlBlockView(props: NodeViewProps) {
+  const { t } = useI18n()
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const [viewMode, setViewMode] = useState<'preview' | 'source'>('preview')
   const attrs = props.node.attrs as Record<string, unknown>
@@ -107,19 +109,19 @@ export function HtmlBlockView(props: NodeViewProps) {
               type="button"
               onClick={() => setViewMode('preview')}
             >
-              预览
+              {t('html.preview')}
             </button>
             <button
               className={viewMode === 'source' ? 'active' : ''}
               type="button"
               onClick={() => setViewMode('source')}
             >
-              源码
+              {t('html.source')}
             </button>
           </div>
           <select value={displayMode} onChange={(event) => updateDisplayMode(event.target.value as 'fixed' | 'auto')}>
-            <option value="fixed">固定</option>
-            <option value="auto">自适应</option>
+            <option value="fixed">{t('html.fixed')}</option>
+            <option value="auto">{t('html.auto')}</option>
           </select>
           {displayMode === 'fixed' ? (
             <input

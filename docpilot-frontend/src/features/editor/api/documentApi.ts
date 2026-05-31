@@ -1,4 +1,5 @@
-import type { DocumentResponse, DocumentVisibility } from '../../../entities/document/types'
+import type { BlockDocument } from '../../../entities/block/types'
+import type { DocumentResponse } from '../../../entities/document/types'
 import { postJson } from '../../../shared/api/http'
 
 export function getDocument(documentId: string): Promise<DocumentResponse> {
@@ -6,17 +7,21 @@ export function getDocument(documentId: string): Promise<DocumentResponse> {
 }
 
 export function createDocument(input: {
+  workspaceId: string
+  parentNodeId?: string
   title: string
-  markdown: string
-  visibility?: DocumentVisibility
+  nodeName?: string
+  blockDocument?: BlockDocument
+  markdown?: string
 }): Promise<DocumentResponse> {
   return postJson('/document/create', input)
 }
 
 export function saveDocumentContent(input: {
   documentId: string
-  markdown: string
-  expectedVersion: number
+  blockDocument: BlockDocument
+  baseVersion: string
+  clientMutationId: string
 }): Promise<DocumentResponse> {
   return postJson('/document/content/save', input)
 }

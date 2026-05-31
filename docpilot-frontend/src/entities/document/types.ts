@@ -1,18 +1,21 @@
 import type { BlockDocument } from '../block/types'
 import type { ProseMirrorNode } from '../prosemirror/types'
 
-export type DocumentVisibility = 'PRIVATE' | 'LINK_READ'
-export type DocumentState = 'ACTIVE' | 'DELETED'
+export type DocumentContent = {
+  blockSchemaVersion: string
+  blockDocument: BlockDocument
+  markdownText: string
+  checksum?: string
+}
 
 export type DocPilotDocument = {
   documentId: string
-  ownerUserId: number
+  ownerUserId: string
+  originWorkspaceId: string
   title: string
-  markdown: string
-  blockDocument: BlockDocument
-  visibility: DocumentVisibility
-  state: DocumentState
-  version: number
+  currentVersion: string
+  currentRevisionId: string
+  content: DocumentContent
   createTime: string
   updateTime: string
   metadata: Record<string, unknown>

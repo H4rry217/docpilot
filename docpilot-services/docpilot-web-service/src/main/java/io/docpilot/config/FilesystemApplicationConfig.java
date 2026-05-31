@@ -1,10 +1,7 @@
 package io.docpilot.config;
 
-import io.docpilot.document.model.Workspace;
-import io.docpilot.filesystem.FilesystemDefaultPaths;
 import io.docpilot.filesystem.FilesystemService;
 import io.docpilot.filesystem.PathMappingService;
-import io.docpilot.filesystem.model.PathMapping;
 import io.docpilot.filesystem.provider.DefaultProviderRegistry;
 import io.docpilot.filesystem.provider.FilesystemProvider;
 import io.docpilot.filesystem.provider.LocalFilesystemProvider;
@@ -19,7 +16,6 @@ import org.springframework.context.annotation.Configuration;
 import org.apache.commons.lang3.StringUtils;
 
 import java.nio.file.Path;
-import java.util.function.Consumer;
 
 @Configuration
 @EnableConfigurationProperties(FilesystemConfig.class)
@@ -60,23 +56,6 @@ public class FilesystemApplicationConfig {
     public FilesystemService filesystemService(PathMappingService pathMappingService,
                                                ProviderRegistry providerRegistry) {
         return new FilesystemService(pathMappingService, providerRegistry);
-    }
-
-    @Bean
-    public Consumer<Workspace> workspacePathMappingInitializer(PathMappingService pathMappingService,
-                                                               ProviderRegistry providerRegistry,
-                                                               FilesystemConfig config) {
-        return workspace -> {
-            String providerId = defaultProviderId(providerRegistry, config);
-            PathMapping mapping = new PathMapping();
-            mapping.setWorkspaceId(workspace.getWorkspaceId());
-            mapping.setVirtualPath(FilesystemDefaultPaths.PROJECT_VIRTUAL_PATH);
-            mapping.setProviderId(providerId);
-            mapping.setProviderRoot(FilesystemDefaultPaths.workspaceProjectProviderRoot(workspace.getWorkspaceId()));
-            mapping.setReadonly(false);
-            mapping.setEnabled(true);
-            pathMappingService.create(mapping);
-        };
     }
 
     private String defaultProviderId(ProviderRegistry providerRegistry, FilesystemConfig config) {

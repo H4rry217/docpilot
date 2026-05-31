@@ -5,12 +5,18 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: none
+  data:
+    mongodb:
+      uri: ${DOCPILOT_MONGODB_URI:mongodb://127.0.0.1:27017/docpilot}
 
 server:
   port: 11451
 
 docpilot:
   version: 1.0-SNAPSHOT
+  id:
+    datacenter-id: ${DOCPILOT_ID_DATACENTER_ID:1}
+    machine-id: ${DOCPILOT_ID_MACHINE_ID:1}
   auth:
     jwt:
       access-token-ttl-seconds: 604800

@@ -1,6 +1,7 @@
 import { KeyRound, LogOut, Save, UserRound } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import type { UserInformation } from '../../../entities/user/types'
+import { useI18n } from '../../../shared/i18n'
 import { Button } from '../../../shared/ui/Button'
 import { changeDisplayName, changePassword } from '../api/authApi'
 
@@ -13,6 +14,7 @@ export function ProfileControls({
   onUserChange: (user: UserInformation) => void
   onLogout: () => void
 }) {
+  const { t } = useI18n()
   const [displayName, setDisplayName] = useState(user.displayName ?? '')
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -29,9 +31,9 @@ export function ProfileControls({
     try {
       const updated = await changeDisplayName({ displayName })
       onUserChange(updated)
-      setMessage('显示名已更新')
+      setMessage(t('profile.nameUpdated'))
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : '更新失败')
+      setError(submitError instanceof Error ? submitError.message : t('profile.updateFailed'))
     } finally {
       setSavingName(false)
     }
@@ -46,30 +48,30 @@ export function ProfileControls({
       await changePassword({ currentPassword, newPassword })
       setCurrentPassword('')
       setNewPassword('')
-      setMessage('密码已更新')
+      setMessage(t('profile.passwordUpdated'))
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : '更新失败')
+      setError(submitError instanceof Error ? submitError.message : t('profile.updateFailed'))
     } finally {
       setSavingPassword(false)
     }
   }
 
   return (
-    <section className="profile-panel" aria-label="当前用户">
+    <section className="profile-panel" aria-label={t('profile.currentUser')}>
       <div className="profile-summary">
         <UserRound size={17} />
         <div>
-          <strong>{user.displayName || user.email || 'DocPilot 用户'}</strong>
+          <strong>{user.displayName || user.email || t('profile.defaultUser')}</strong>
           <span>{user.email}</span>
         </div>
-        <button type="button" aria-label="退出登录" onClick={onLogout}>
+        <button type="button" aria-label={t('profile.logout')} title={t('profile.logout')} onClick={onLogout}>
           <LogOut size={15} />
         </button>
       </div>
 
       <form className="profile-form" onSubmit={submitDisplayName}>
         <label>
-          <span>显示名</span>
+          <span>{t('profile.displayName')}</span>
           <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
         </label>
         <Button
@@ -78,13 +80,13 @@ export function ProfileControls({
           variant="ghost"
           type="submit"
         >
-          保存
+          {t('profile.save')}
         </Button>
       </form>
 
       <form className="profile-form" onSubmit={submitPassword}>
         <label>
-          <span>当前密码</span>
+          <span>{t('profile.currentPassword')}</span>
           <input
             autoComplete="current-password"
             type="password"
@@ -93,7 +95,7 @@ export function ProfileControls({
           />
         </label>
         <label>
-          <span>新密码</span>
+          <span>{t('profile.newPassword')}</span>
           <input
             autoComplete="new-password"
             minLength={8}
@@ -108,7 +110,7 @@ export function ProfileControls({
           variant="ghost"
           type="submit"
         >
-          改密
+          {t('profile.changePassword')}
         </Button>
       </form>
 
