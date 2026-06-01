@@ -44,6 +44,97 @@ public final class FilesystemPath {
         return normalizedRoot + FilesystemPathNames.ROOT + normalizedRelative;
     }
 
+    public static String joinVirtualPath(String root, String relativePath) {
+        String normalizedRoot = normalizeVirtualPath(root);
+        String normalizedRelative = normalizeProviderPath(relativePath);
+
+        if (StringUtils.isEmpty(normalizedRelative)) {
+            return normalizedRoot;
+        }
+
+        if (FilesystemPathNames.ROOT.equals(normalizedRoot)) {
+            return FilesystemPathNames.ROOT + normalizedRelative;
+        }
+
+        return normalizedRoot + FilesystemPathNames.ROOT + normalizedRelative;
+    }
+
+    public static String joinVirtualPattern(String root, String relativePattern) {
+        String normalizedRoot = normalizeVirtualPath(root);
+        String normalizedRelative = normalizeProviderPath(relativePattern);
+
+        if (StringUtils.isEmpty(normalizedRelative)) {
+            return normalizedRoot;
+        }
+
+        if (FilesystemPathNames.ROOT.equals(normalizedRoot)) {
+            return FilesystemPathNames.ROOT + normalizedRelative;
+        }
+
+        return normalizedRoot + FilesystemPathNames.ROOT + normalizedRelative;
+    }
+
+    public static String relativeVirtualPath(String parent, String path) {
+        String normalizedParent = normalizeVirtualPath(parent);
+        String normalizedPath = normalizeVirtualPath(path);
+
+        if (FilesystemPathNames.ROOT.equals(normalizedParent)) {
+            return normalizedPath.substring(1);
+        }
+
+        if (normalizedPath.equals(normalizedParent)) {
+            return FilesystemPathNames.EMPTY_PATH;
+        }
+
+        if (normalizedPath.startsWith(normalizedParent + FilesystemPathNames.ROOT)) {
+            return normalizedPath.substring(normalizedParent.length() + 1);
+        }
+
+        throw new InvalidPathException("Path is not under parent: " + path);
+    }
+
+    public static String relativeVirtualPattern(String parent, String pattern) {
+        String normalizedParent = normalizeVirtualPath(parent);
+        String normalizedPattern = normalizeGlobPattern(pattern);
+
+        if (FilesystemPathNames.ROOT.equals(normalizedParent)) {
+            return normalizedPattern.substring(1);
+        }
+
+        if (normalizedPattern.equals(normalizedParent)) {
+            return FilesystemPathNames.EMPTY_PATH;
+        }
+
+        if (normalizedPattern.startsWith(normalizedParent + FilesystemPathNames.ROOT)) {
+            return normalizedPattern.substring(normalizedParent.length() + 1);
+        }
+
+        throw new InvalidPathException("Pattern is not under parent: " + pattern);
+    }
+
+    /**
+     * Prefix test for mount lookup. Root is considered an ancestor of every virtual path.
+     */
+    public static boolean isSameOrDescendant(String parent, String path) {
+        String normalizedParent = normalizeVirtualPath(parent);
+        String normalizedPath = normalizeVirtualPath(path);
+
+        return FilesystemPathNames.ROOT.equals(normalizedParent)
+                || normalizedPath.equals(normalizedParent)
+                || normalizedPath.startsWith(normalizedParent + FilesystemPathNames.ROOT);
+    }
+
+    public static boolean isStrictAncestor(String parent, String path) {
+        String normalizedParent = normalizeVirtualPath(parent);
+        String normalizedPath = normalizeVirtualPath(path);
+
+        if (normalizedPath.equals(normalizedParent)) {
+            return false;
+        }
+
+        return isSameOrDescendant(normalizedParent, normalizedPath);
+    }
+
     public static String nameOf(String path) {
         String normalized = StringUtils.isBlank(path) ? FilesystemPathNames.EMPTY_PATH : toUnixPath(path);
         if (normalized.endsWith(FilesystemPathNames.ROOT)) {

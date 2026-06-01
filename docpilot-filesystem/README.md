@@ -1,54 +1,90 @@
 # DocPilot Filesystem
 
-`docpilot-filesystem` provides a workspace virtual filesystem for DocPilot. Callers use workspace paths such as `/project/readme.md`; the module resolves those paths through `PathMapping` records and delegates the real work to a `FilesystemProvider`.
+`docpilot-filesystem` provides path-first virtual filesystem building blocks for DocPilot. A filesystem can be a local directory, S3 bucket prefix, workspace document tree, remote drive, or another composed filesystem.
 
 ## Core Concepts
 
-- `FilesystemService` is the main entry point for read, write, list, delete, copy, move, glob, grep, stat, and exists operations.
-- `PathMapping` maps a workspace virtual path to a provider path root. For example, `/project` can map to provider `s3` root `workspaces/ws_001/project`.
-- `PathMappingService` manages mappings and resolves paths by longest prefix. `/project/tmp/a.txt` will match `/project/tmp` before `/project`.
-- `FilesystemProvider` is the storage implementation interface. This module includes `LocalFilesystemProvider` and `S3FilesystemProvider`.
-- `PathMappingStore` stores mappings. Startup currently uses the in-memory implementation, so a database-backed store can be added later without changing callers.
+- `Filesystem` is the stable read-oriented interface for list, read, exists, stat, glob, grep, and readUrl operations.
+- Write-style methods are present on the interface for future expansion, but v1 callers should expect unsupported-operation failures unless a concrete filesystem explicitly enables them.
+- `CompositeFilesystem` is itself a filesystem. It mounts other filesystems by path and delegates requests by longest prefix match.
+- `MountedFilesystem` records one mount: mount path, target filesystem, target root, and `MountOptions`.
+- `MountOptions` controls capabilities such as READ, LIST, STAT, SEARCH, READ_URL, WRITE, DELETE, COPY, and MOVE.
+- `ProviderFilesystem` adapts existing `FilesystemProvider` implementations such as local and S3 into the path-first `Filesystem` interface.
 
 ## Example
 
 ```java
-PathMapping mapping = new PathMapping();
-mapping.setWorkspaceId("ws_001");
-mapping.setVirtualPath("/project");
-mapping.setProviderId("s3");
-mapping.setProviderRoot("workspaces/ws_001/project");
-mapping.setReadonly(false);
-mapping.setEnabled(true);
-pathMappingService.create(mapping);
+Filesystem local = new ProviderFilesystem(new LocalFilesystemProvider("local", Path.of("./data")));
 
-filesystemService.writeText("ws_001", "/project/readme.md", "# Hello");
-String markdown = filesystemService.readText("ws_001", "/project/readme.md");
+CompositeFilesystem project = new CompositeFilesystem()
+        .mount("/project/uploads", local);
+
+String text = project.readText("/project/uploads/readme.md");
+List<GrepMatch> matches = project.grep("/project", "keyword");
 ```
 
-The caller sees `/project/readme.md`; the S3 provider receives `workspaces/ws_001/project/readme.md`.
+Workspace trees are composed the same way. `WorkspaceFilesystem` represents one concrete workspace id; the `/workspace/{workspaceId}` namespace is created by mounting it:
+
+```java
+Long workspaceId = 123L;
+
+Filesystem workspace = new WorkspaceFilesystem(
+        workspaceId,
+        workspaceRepository,
+        nodeRepository,
+        documentRepository
+);
+
+Filesystem workspaceNamespace = new CompositeFilesystem()
+        .mount("/workspace/" + workspaceId, workspace);
+
+CompositeFilesystem aiRoot = new CompositeFilesystem()
+        .mount("/project", workspaceNamespace);
+
+String markdown = aiRoot.readText("/project/workspace/123/docs/a.md");
+```
+
+For multiple readable workspaces, add one mount per authorized workspace before exposing the composed root:
+
+```java
+Filesystem workspaceNamespace = new CompositeFilesystem()
+        .mount("/workspace/123",
+                new WorkspaceFilesystem(123L, workspaceRepository, nodeRepository, documentRepository))
+        .mount("/workspace/456",
+                new WorkspaceFilesystem(456L, workspaceRepository, nodeRepository, documentRepository));
+
+Filesystem aiRoot = new CompositeFilesystem()
+        .mount("/project", workspaceNamespace);
+```
+
+The filesystem object does not need to be a global Spring bean. Callers can assemble a root filesystem per request, per user, per agent session, or per tool sandbox.
+
+## Mount Behavior
+
+- All paths are normalized to Unix-style absolute paths, and `..` traversal is rejected.
+- Duplicate mount paths are rejected.
+- Longest prefix wins, so `/project/tmp` beats `/project`.
+- `list`, `stat`, and `exists` understand synthetic directories created by mounts. If `/project/workspace/ws1` and `/project/workspace/ws2` are mounted, `list("/project/workspace")` returns `ws1` and `ws2`.
+- `read`, `glob`, `grep`, and `readUrl` must resolve to a real mount.
+- Composite mount cycles are rejected.
 
 ## Providers
 
-`LocalFilesystemProvider` stores files under a configured local root and rejects paths that escape that root. It is useful for development and future agent sandbox storage.
+`LocalFilesystemProvider` stores files under a configured local root and rejects paths that escape that root.
 
 `S3FilesystemProvider` uses AWS SDK v2 and supports S3-compatible services such as MinIO. It supports endpoint override, optional region, bucket, access key, secret key, path-style access, checksum settings, and presigned read URLs.
 
+Provider implementations can still expose native write/delete/copy/move behavior. When mounted through `CompositeFilesystem`, those operations are additionally controlled by mount capabilities.
+
 ## Spring Startup Wiring
 
-`docpilot-startup` registers:
-
-- a local provider by default;
-- an S3 provider when `docpilot.filesystem.s3.*` config is complete;
-- an in-memory `PathMappingStore`;
-- a default `/project` mapping whenever a workspace is created.
+`docpilot-web-service` registers local and optional S3 providers in a `ProviderRegistry`. It does not create a required global filesystem root. Application code can build a `CompositeFilesystem` from the registered providers and per-workspace filesystems for the specific user or AI session.
 
 Example config:
 
 ```yaml
 docpilot:
   filesystem:
-    default-provider-id: s3
     local:
       provider-id: local
       root: ./data/filesystem
@@ -62,12 +98,6 @@ docpilot:
       path-style-access: true
       presigned-url-ttl: 10m
 ```
-
-## Notes
-
-- Cross-provider `move` is implemented as copy then delete.
-- Readonly mappings allow read/list/stat operations and reject writes, deletes, and move targets.
-- Glob patterns are resolved through their static prefix, so a single glob operation stays inside one mapping.
 
 ## Real S3 Test
 
@@ -85,17 +115,17 @@ mvn -pl docpilot-filesystem -Dtest=S3FilesystemProviderTest test \
   -Ddocpilot.test.s3.path-style-access=true
 ```
 
-Or use environment variables:
+The S3 + workspace composite live test also needs a real workspace id. In PowerShell, keep the `-D...` arguments on the same Maven command, or use backticks for line continuation:
 
-```bash
-DOCPILOT_TEST_S3_ENDPOINT=http://localhost:9000
-DOCPILOT_TEST_S3_BUCKET=docpilot-test
-DOCPILOT_TEST_S3_REGION=us-east-1
-DOCPILOT_TEST_S3_ACCESS_KEY=minioadmin
-DOCPILOT_TEST_S3_SECRET_KEY=minioadmin
-DOCPILOT_TEST_S3_PATH_STYLE_ACCESS=true
+```powershell
+mvn -pl docpilot-services/docpilot-web-service -am `
+  "-Dtest=S3WorkspaceCompositeFilesystemLiveTest" `
+  "-Dsurefire.failIfNoSpecifiedTests=false" `
+  "-Ddocpilot.test.s3.endpoint=https://oss-cn-guangzhou.aliyuncs.com" `
+  "-Ddocpilot.test.s3.region=cn-guangzhou" `
+  "-Ddocpilot.test.s3.bucket=docpilot-dev" `
+  "-Ddocpilot.test.s3.access-key=<access-key>" `
+  "-Ddocpilot.test.s3.secret-key=<secret-key>" `
+  "-Ddocpilot.test.s3.path-style-access=false" `
+  "-Ddocpilot.test.workspace.id=<workspace-id>"
 ```
-
-Optional values:
-
-- `docpilot.test.s3.provider-id` / `DOCPILOT_TEST_S3_PROVIDER_ID`

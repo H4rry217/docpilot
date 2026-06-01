@@ -12,7 +12,6 @@ import java.time.Duration;
 @Setter
 public class FilesystemConfig {
 
-    private String defaultProviderId;
     private Local local = new Local();
     private S3 s3 = new S3();
 

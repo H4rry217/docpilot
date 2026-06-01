@@ -23,11 +23,11 @@ DocPilot is an open source AI document editor. It follows the Codex idea of lett
   - Maps block documents to ProseMirror JSON DTOs.
   - Renders block documents back to normalized Markdown.
   - Preserves HTML blocks as `docpilotHtmlBlock` data nodes.
-- `docpilot-filesystem`: workspace virtual filesystem module.
-  - Exposes workspace paths through `FilesystemService`.
-  - Maps virtual paths such as `/project` to concrete `FilesystemProvider` instances through `PathMapping`.
-  - Includes local filesystem and S3 provider implementations.
-  - Keeps PathMapping storage behind `PathMappingStore` so startup can use memory first and database later.
+- `docpilot-filesystem`: path-first virtual filesystem module.
+  - Exposes read/search operations through `Filesystem`.
+  - Composes arbitrary filesystems through `CompositeFilesystem` and mount paths.
+  - Includes local filesystem and S3 provider implementations, adapted through `ProviderFilesystem`.
+  - Leaves root filesystem assembly to the caller, so apps can build per-user or per-agent views.
 - `docpilot-ai`: AI model integration infrastructure module.
   - Keeps provider-neutral chat request, response, usage, stream event, response format, and model metadata types.
   - Provides `AiChatModel` and `AiModelRegistry` as the stable service-facing AI boundary.

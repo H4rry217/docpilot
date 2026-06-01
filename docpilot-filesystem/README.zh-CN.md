@@ -1,54 +1,90 @@
 # DocPilot Filesystem
 
-`docpilot-filesystem` 为 DocPilot 提供 workspace 级虚拟文件系统。调用方只使用 `/project/readme.md` 这样的 workspace 路径；模块内部通过 `PathMapping` 找到真实存储位置，再交给对应的 `FilesystemProvider` 执行。
+`docpilot-filesystem` 提供 path-first 的虚拟文件系统构件。一个 filesystem 可以是本地目录、S3 bucket 前缀、workspace 文档树、远程网盘，也可以是另一棵组合 filesystem。
 
 ## 核心概念
 
-- `FilesystemService` 是统一入口，提供 read、write、list、delete、copy、move、glob、grep、stat、exists 等操作。
-- `PathMapping` 表示一条路径映射规则。例如 `/project` 可以映射到 provider `s3` 的 `workspaces/ws_001/project` 根路径。
-- `PathMappingService` 负责管理映射并按最长前缀解析路径。`/project/tmp/a.txt` 会优先命中 `/project/tmp`，而不是 `/project`。
-- `FilesystemProvider` 是真实存储实现接口。当前模块内置 `LocalFilesystemProvider` 和 `S3FilesystemProvider`。
-- `PathMappingStore` 是映射存储接口。startup 当前使用内存实现，后续可以替换为数据库实现，调用方不需要改。
+- `Filesystem` 是稳定的只读能力接口，包含 list、read、exists、stat、glob、grep、readUrl。
+- write/delete/copy/move 已预留在接口上，但 v1 默认不支持，除非具体 filesystem 明确开启。
+- `CompositeFilesystem` 本身也是 filesystem，内部按路径挂载其他 filesystem，并用最长前缀转发请求。
+- `MountedFilesystem` 表示一条挂载记录：mount path、目标 filesystem、目标 root、`MountOptions`。
+- `MountOptions` 控制 READ、LIST、STAT、SEARCH、READ_URL、WRITE、DELETE、COPY、MOVE 等能力。
+- `ProviderFilesystem` 把已有 local、S3 这类 `FilesystemProvider` 适配成 path-first 的 `Filesystem`。
 
 ## 示例
 
 ```java
-PathMapping mapping = new PathMapping();
-mapping.setWorkspaceId("ws_001");
-mapping.setVirtualPath("/project");
-mapping.setProviderId("s3");
-mapping.setProviderRoot("workspaces/ws_001/project");
-mapping.setReadonly(false);
-mapping.setEnabled(true);
-pathMappingService.create(mapping);
+Filesystem local = new ProviderFilesystem(new LocalFilesystemProvider("local", Path.of("./data")));
 
-filesystemService.writeText("ws_001", "/project/readme.md", "# Hello");
-String markdown = filesystemService.readText("ws_001", "/project/readme.md");
+CompositeFilesystem project = new CompositeFilesystem()
+        .mount("/project/uploads", local);
+
+String text = project.readText("/project/uploads/readme.md");
+List<GrepMatch> matches = project.grep("/project", "keyword");
 ```
 
-调用方看到的是 `/project/readme.md`；S3 provider 实际收到的是 `workspaces/ws_001/project/readme.md`。
+workspace 文件树也可以被组合进去：
 
-## Provider
+```java
+Long workspaceId = 123L;
 
-`LocalFilesystemProvider` 把文件存储在配置的本地 root 下面，并拒绝任何逃逸 root 的路径。它适合开发环境，也适合未来 agent sandbox 的临时目录。
+Filesystem workspace = new WorkspaceFilesystem(
+        workspaceId,
+        workspaceRepository,
+        nodeRepository,
+        documentRepository
+);
 
-`S3FilesystemProvider` 使用 AWS SDK v2，支持 S3 兼容服务，例如 MinIO。它支持 endpoint override、可选 region、bucket、access key、secret key、path-style access、checksum 配置和预签名读取 URL。
+Filesystem workspaceNamespace = new CompositeFilesystem()
+        .mount("/workspace/" + workspaceId, workspace);
 
-## Spring Startup 装配
+CompositeFilesystem aiRoot = new CompositeFilesystem()
+        .mount("/project", workspaceNamespace);
 
-`docpilot-startup` 会注册：
+String markdown = aiRoot.readText("/project/workspace/123/docs/a.md");
+```
 
-- 默认 local provider；
-- 当 `docpilot.filesystem.s3.*` 配置完整时注册 S3 provider；
-- 内存版 `PathMappingStore`；
-- 创建 workspace 时自动创建默认 `/project` 映射。
+多个可读 workspace 可以先逐个挂到 `/workspace/{workspaceId}`，再整体挂到 `/project`：
+
+```java
+Filesystem workspaceNamespace = new CompositeFilesystem()
+        .mount("/workspace/123",
+                new WorkspaceFilesystem(123L, workspaceRepository, nodeRepository, documentRepository))
+        .mount("/workspace/456",
+                new WorkspaceFilesystem(456L, workspaceRepository, nodeRepository, documentRepository));
+
+Filesystem aiRoot = new CompositeFilesystem()
+        .mount("/project", workspaceNamespace);
+```
+
+filesystem 对象不需要是全局 Spring Bean。调用方可以按请求、用户、AI 会话或工具沙箱自行组装 root filesystem。
+
+## 挂载行为
+
+- 所有路径都会规范化为 Unix 风格绝对路径，并拒绝 `..` 逃逸。
+- 重复 mount path 会被拒绝。
+- 最长前缀优先，`/project/tmp` 会优先于 `/project`。
+- `list`、`stat`、`exists` 支持由挂载点合成出来的目录。例如只挂了 `/project/workspace/ws1` 和 `/project/workspace/ws2`，`list("/project/workspace")` 会返回 `ws1` 和 `ws2`。
+- `read`、`glob`、`grep`、`readUrl` 必须命中真实 mount。
+- 禁止组合 filesystem 形成循环挂载。
+
+## Providers
+
+`LocalFilesystemProvider` 把文件存储在配置的本地 root 下，并拒绝逃逸 root 的路径。
+
+`S3FilesystemProvider` 使用 AWS SDK v2，支持 MinIO 等 S3 兼容服务，包含 endpoint、region、bucket、access key、secret key、path-style access、checksum 和预签名 URL 配置。
+
+provider 自身可以保留 write/delete/copy/move 能力；通过 `CompositeFilesystem` 挂载后，还会再受到 mount capabilities 控制。
+
+## Spring 启动配置
+
+`docpilot-web-service` 会把 local provider 和可选 S3 provider 注册进 `ProviderRegistry`，但不会强制创建全局 filesystem root。应用代码可以为具体用户或 AI 会话，用 provider 与单个 workspace filesystem 自行组装 `CompositeFilesystem`。
 
 示例配置：
 
 ```yaml
 docpilot:
   filesystem:
-    default-provider-id: s3
     local:
       provider-id: local
       root: ./data/filesystem
@@ -63,17 +99,9 @@ docpilot:
       presigned-url-ttl: 10m
 ```
 
-## 说明
-
-- 跨 provider 的 `move` 会按 copy 再 delete 处理。
-- readonly 映射允许 read/list/stat，拒绝 write/delete/move 目标写入。
-- glob 会先用静态前缀定位 PathMapping，因此一次 glob 操作会留在同一条映射内。
-
 ## 真实 S3 测试
 
-`S3FilesystemProviderTest` 包含一个真实 S3 写入/读取/list/delete 测试。没有提供 S3 测试配置时，这个测试会自动跳过。
-
-使用 Maven system properties 运行：
+`S3FilesystemProviderTest` 包含真实 S3 write/read/list/delete 测试。未提供 S3 测试配置时会自动跳过。
 
 ```bash
 mvn -pl docpilot-filesystem -Dtest=S3FilesystemProviderTest test \
@@ -85,17 +113,17 @@ mvn -pl docpilot-filesystem -Dtest=S3FilesystemProviderTest test \
   -Ddocpilot.test.s3.path-style-access=true
 ```
 
-也可以使用环境变量：
+S3 + workspace 组合式 live test 还需要真实 workspace id。PowerShell 下要把 `-D...` 参数放在同一个 Maven 命令里，或者用反引号续行：
 
-```bash
-DOCPILOT_TEST_S3_ENDPOINT=http://localhost:9000
-DOCPILOT_TEST_S3_BUCKET=docpilot-test
-DOCPILOT_TEST_S3_REGION=us-east-1
-DOCPILOT_TEST_S3_ACCESS_KEY=minioadmin
-DOCPILOT_TEST_S3_SECRET_KEY=minioadmin
-DOCPILOT_TEST_S3_PATH_STYLE_ACCESS=true
+```powershell
+mvn -pl docpilot-services/docpilot-web-service -am `
+  "-Dtest=S3WorkspaceCompositeFilesystemLiveTest" `
+  "-Dsurefire.failIfNoSpecifiedTests=false" `
+  "-Ddocpilot.test.s3.endpoint=https://oss-cn-guangzhou.aliyuncs.com" `
+  "-Ddocpilot.test.s3.region=cn-guangzhou" `
+  "-Ddocpilot.test.s3.bucket=docpilot-dev" `
+  "-Ddocpilot.test.s3.access-key=<access-key>" `
+  "-Ddocpilot.test.s3.secret-key=<secret-key>" `
+  "-Ddocpilot.test.s3.path-style-access=false" `
+  "-Ddocpilot.test.workspace.id=<workspace-id>"
 ```
-
-可选配置：
-
-- `docpilot.test.s3.provider-id` / `DOCPILOT_TEST_S3_PROVIDER_ID`
