@@ -1,7 +1,8 @@
 import { ChevronDown, ChevronRight, FilePlus2, FileText, Folder, FolderOpen, FolderPlus, Pencil, Trash2 } from 'lucide-react'
-import { useEffect, useState, type MouseEvent } from 'react'
+import { useEffect, useState, type DragEvent, type MouseEvent } from 'react'
 import { WORKSPACE_NODE_TYPE, WORKSPACE_TYPE, type Workspace, type WorkspaceTreeNode } from '../../../entities/workspace/types'
 import { useI18n } from '../../../shared/i18n'
+import { isMarkdownFileName } from '../model/markdownUpload'
 import './WorkspaceTree.css'
 
 export type WorkspaceTreeProps = {
@@ -19,8 +20,10 @@ export type WorkspaceTreeProps = {
   onSelectNode: (node: WorkspaceTreeNode) => void
   onCreateFolder?: (parentNode?: WorkspaceTreeNode) => void
   onCreateDocument?: (parentNode?: WorkspaceTreeNode) => void
+  onUploadMarkdownFiles?: (files: File[], parentNode?: WorkspaceTreeNode) => void
   onRenameNode?: (node: WorkspaceTreeNode) => void
   onDeleteNode?: (node: WorkspaceTreeNode) => void
+  uploadMessage?: string
 }
 
 type ContextMenuState = {
@@ -38,7 +41,11 @@ function TreeNode({
   onSelectNode,
   onToggleFolder,
   isFolderExpanded,
-  onOpenContextMenu
+  onOpenContextMenu,
+  dragTargetNodeId,
+  onMarkdownDragOver,
+  onMarkdownDragLeave,
+  onMarkdownDrop
 }: {
   node: WorkspaceTreeNode
   depth: number
@@ -49,17 +56,25 @@ function TreeNode({
   onToggleFolder: (node: WorkspaceTreeNode) => void
   isFolderExpanded: (node: WorkspaceTreeNode) => boolean
   onOpenContextMenu: (event: MouseEvent, node: WorkspaceTreeNode) => void
+  dragTargetNodeId?: string
+  onMarkdownDragOver: (event: DragEvent, node: WorkspaceTreeNode) => void
+  onMarkdownDragLeave: (event: DragEvent, node: WorkspaceTreeNode) => void
+  onMarkdownDrop: (event: DragEvent, node: WorkspaceTreeNode) => void
 }) {
   const isFolder = node.nodeType === WORKSPACE_NODE_TYPE.FOLDER
   const isSelected = node.nodeId === selectedNodeId || Boolean(node.documentId && node.documentId === selectedDocumentId)
+  const isDropTarget = isFolder && dragTargetNodeId === node.nodeId
   const paddingLeft = 12 + depth * 18
 
   return (
     <div className="tree-node">
       <div
-        className={`tree-row-wrap ${isSelected ? 'selected' : ''}`}
+        className={`tree-row-wrap ${isSelected ? 'selected' : ''} ${isDropTarget ? 'drop-target' : ''}`}
         style={{ paddingLeft }}
         onContextMenu={(event) => onOpenContextMenu(event, node)}
+        onDragOver={isFolder ? (event) => onMarkdownDragOver(event, node) : undefined}
+        onDragLeave={isFolder ? (event) => onMarkdownDragLeave(event, node) : undefined}
+        onDrop={isFolder ? (event) => onMarkdownDrop(event, node) : undefined}
       >
         {isFolder ? (
           <button
@@ -106,6 +121,10 @@ function TreeNode({
               onToggleFolder={onToggleFolder}
               isFolderExpanded={isFolderExpanded}
               onOpenContextMenu={onOpenContextMenu}
+              dragTargetNodeId={dragTargetNodeId}
+              onMarkdownDragOver={onMarkdownDragOver}
+              onMarkdownDragLeave={onMarkdownDragLeave}
+              onMarkdownDrop={onMarkdownDrop}
             />
           ))
         : null}
@@ -128,13 +147,17 @@ export function WorkspaceTree({
   onSelectNode,
   onCreateFolder,
   onCreateDocument,
+  onUploadMarkdownFiles,
   onRenameNode,
-  onDeleteNode
+  onDeleteNode,
+  uploadMessage
 }: WorkspaceTreeProps) {
   const { t } = useI18n()
   const [collapsedFolderIds, setCollapsedFolderIds] = useState<Set<string>>(() => new Set())
   const [contextMenu, setContextMenu] = useState<ContextMenuState>()
   const [showWorkspaceList, setShowWorkspaceList] = useState(false)
+  const [dragTargetNodeId, setDragTargetNodeId] = useState<string>()
+  const [rootDropTarget, setRootDropTarget] = useState(false)
 
   useEffect(() => {
     if (!contextMenu) return
@@ -201,9 +224,86 @@ export function WorkspaceTree({
     setShowWorkspaceList(false)
   }
 
+  function hasFileDrag(dataTransfer: DataTransfer) {
+    return Array.from(dataTransfer.types).includes('Files')
+  }
+
+  function markdownFiles(dataTransfer: DataTransfer): File[] {
+    return Array.from(dataTransfer.files).filter((file) => isMarkdownFileName(file.name))
+  }
+
+  function dragStayedInside(event: DragEvent) {
+    const relatedTarget = event.relatedTarget
+    return relatedTarget instanceof Node && event.currentTarget.contains(relatedTarget)
+  }
+
+  function handlePanelDragOver(event: DragEvent) {
+    if (!onUploadMarkdownFiles || !hasFileDrag(event.dataTransfer)) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'none'
+  }
+
+  function handlePanelDragLeave(event: DragEvent) {
+    if (dragStayedInside(event)) return
+    setDragTargetNodeId(undefined)
+    setRootDropTarget(false)
+  }
+
+  function handlePanelDrop(event: DragEvent) {
+    if (!hasFileDrag(event.dataTransfer)) return
+    event.preventDefault()
+    setDragTargetNodeId(undefined)
+    setRootDropTarget(false)
+  }
+
+  function handleRootDragOver(event: DragEvent) {
+    if (!onUploadMarkdownFiles || !hasFileDrag(event.dataTransfer)) return
+    event.preventDefault()
+    event.stopPropagation()
+    event.dataTransfer.dropEffect = 'copy'
+    setRootDropTarget(true)
+    setDragTargetNodeId(undefined)
+  }
+
+  function handleRootDragLeave(event: DragEvent) {
+    if (dragStayedInside(event)) return
+    setRootDropTarget(false)
+  }
+
+  function handleRootDrop(event: DragEvent) {
+    if (!onUploadMarkdownFiles || !hasFileDrag(event.dataTransfer)) return
+    event.preventDefault()
+    event.stopPropagation()
+    setRootDropTarget(false)
+    onUploadMarkdownFiles(markdownFiles(event.dataTransfer))
+  }
+
+  function handleMarkdownDragOver(event: DragEvent, node: WorkspaceTreeNode) {
+    if (!onUploadMarkdownFiles || !hasFileDrag(event.dataTransfer)) return
+    event.preventDefault()
+    event.stopPropagation()
+    event.dataTransfer.dropEffect = 'copy'
+    setDragTargetNodeId(node.nodeId)
+    setRootDropTarget(false)
+  }
+
+  function handleMarkdownDragLeave(event: DragEvent, node: WorkspaceTreeNode) {
+    if (dragStayedInside(event)) return
+    setDragTargetNodeId((current) => (current === node.nodeId ? undefined : current))
+  }
+
+  function handleMarkdownDrop(event: DragEvent, node: WorkspaceTreeNode) {
+    if (!onUploadMarkdownFiles || !hasFileDrag(event.dataTransfer)) return
+    event.preventDefault()
+    event.stopPropagation()
+    setDragTargetNodeId(undefined)
+    onUploadMarkdownFiles(markdownFiles(event.dataTransfer), node)
+  }
+
   const contextNodeIsFolder = !contextMenu?.node || contextMenu.node.nodeType === WORKSPACE_NODE_TYPE.FOLDER
   const contextNodeIsRoot = Boolean(contextMenu?.node && contextMenu.node.nodeId === rootNodeId)
   const showNodeActions = Boolean(contextMenu?.node && !contextNodeIsRoot)
+  const currentWorkspaceName = workspaceName ?? t('sidebar.workspace')
 
   if (showWorkspaceList) {
     return (
@@ -282,19 +382,28 @@ export function WorkspaceTree({
   }
 
   return (
-    <div className="workspace-panel" onContextMenu={(event) => openContextMenu(event)}>
+    <div
+      className="workspace-panel"
+      onContextMenu={(event) => openContextMenu(event)}
+      onDragOver={handlePanelDragOver}
+      onDragLeave={handlePanelDragLeave}
+      onDrop={handlePanelDrop}
+    >
       <button
-        className="workspace-card"
+        className={`workspace-card ${rootDropTarget ? 'drop-target' : ''}`}
         type="button"
-        title={workspaceName ?? t('sidebar.workspace')}
+        title={currentWorkspaceName}
         onClick={() => setShowWorkspaceList(true)}
         onContextMenu={(event) => openContextMenu(event)}
+        onDragOver={handleRootDragOver}
+        onDragLeave={handleRootDragLeave}
+        onDrop={handleRootDrop}
       >
         <span className="workspace-card-icon">
           <FolderOpen size={16} />
         </span>
         <span className="workspace-card-copy">
-          <strong>{workspaceName ?? t('sidebar.workspace')}</strong>
+          <strong>{currentWorkspaceName}</strong>
         </span>
         <ChevronRight size={14} />
       </button>
@@ -313,12 +422,17 @@ export function WorkspaceTree({
               onToggleFolder={toggleFolder}
               isFolderExpanded={isFolderExpanded}
               onOpenContextMenu={openContextMenu}
+              dragTargetNodeId={dragTargetNodeId}
+              onMarkdownDragOver={handleMarkdownDragOver}
+              onMarkdownDragLeave={handleMarkdownDragLeave}
+              onMarkdownDrop={handleMarkdownDrop}
             />
           ))
         ) : (
           <div className="sidebar-empty">{t('workspace.empty')}</div>
         )}
       </div>
+      {uploadMessage ? <div className="workspace-upload-message">{uploadMessage}</div> : null}
       {contextMenu ? (
         <div className="workspace-context-menu" style={{ left: contextMenu.x, top: contextMenu.y }} role="menu">
           {contextNodeIsFolder ? (

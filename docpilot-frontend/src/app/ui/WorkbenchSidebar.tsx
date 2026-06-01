@@ -1,5 +1,6 @@
-import { Bot, Files, ListTree, Search, Settings } from 'lucide-react'
-import { type ReactNode } from 'react'
+import { Bot, ChevronDown, ChevronRight, Files, ListTree, Search, Settings } from 'lucide-react'
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
+import type { DocumentOutlineItem } from '../../entities/block/outline'
 import type { Workspace, WorkspaceTreeNode } from '../../entities/workspace/types'
 import { WorkspaceTree } from '../../features/workspace-tree/ui/WorkspaceTree'
 import { useI18n } from '../../shared/i18n'
@@ -21,6 +22,43 @@ type ActivityButtonProps = {
   onClick: () => void
 }
 
+type OutlineTreeItem = DocumentOutlineItem & {
+  children: OutlineTreeItem[]
+}
+
+function buildOutlineTree(outline: DocumentOutlineItem[]): OutlineTreeItem[] {
+  const roots: OutlineTreeItem[] = []
+  const stack: OutlineTreeItem[] = []
+
+  outline.forEach((item) => {
+    const treeItem: OutlineTreeItem = { ...item, children: [] }
+
+    while (stack.length && stack[stack.length - 1].level >= treeItem.level) {
+      stack.pop()
+    }
+
+    const parent = stack[stack.length - 1]
+    if (parent) {
+      parent.children.push(treeItem)
+    } else {
+      roots.push(treeItem)
+    }
+
+    stack.push(treeItem)
+  })
+
+  return roots
+}
+
+function outlineItemFromTreeItem(item: OutlineTreeItem): DocumentOutlineItem {
+  return {
+    id: item.id,
+    level: item.level,
+    title: item.title,
+    headingIndex: item.headingIndex
+  }
+}
+
 function ActivityButton({ active, expanded, icon, label, onClick }: ActivityButtonProps) {
   return (
     <button
@@ -39,6 +77,8 @@ function ActivityButton({ active, expanded, icon, label, onClick }: ActivityButt
 function SidebarPanel({
   mode,
   selectedNode,
+  outline,
+  activeOutlineId,
   workspace,
   workspaces,
   selectedWorkspaceId,
@@ -50,11 +90,16 @@ function SidebarPanel({
   onSelectNode,
   onCreateFolder,
   onCreateDocument,
+  onUploadMarkdownFiles,
   onRenameNode,
-  onDeleteNode
+  onDeleteNode,
+  onSelectOutlineItem,
+  uploadMessage
 }: {
   mode: SidebarMode
   selectedNode?: WorkspaceTreeNode
+  outline: DocumentOutlineItem[]
+  activeOutlineId?: string
   workspace?: Workspace
   workspaces: Workspace[]
   selectedWorkspaceId?: string
@@ -66,11 +111,78 @@ function SidebarPanel({
   onSelectNode: (node: WorkspaceTreeNode) => void
   onCreateFolder: (parentNode?: WorkspaceTreeNode) => void
   onCreateDocument: (parentNode?: WorkspaceTreeNode) => void
+  onUploadMarkdownFiles: (files: File[], parentNode?: WorkspaceTreeNode) => void
   onRenameNode: (node: WorkspaceTreeNode) => void
   onDeleteNode: (node: WorkspaceTreeNode) => void
+  onSelectOutlineItem: (item: DocumentOutlineItem) => void
+  uploadMessage?: string
 }) {
   const { t } = useI18n()
   const selectedName = selectedNode?.name ?? t('sidebar.noDocument')
+  const hasSelectedDocument = Boolean(selectedNode?.documentId)
+  const [collapsedOutlineIds, setCollapsedOutlineIds] = useState<Set<string>>(() => new Set())
+  const outlineTree = useMemo(() => buildOutlineTree(outline), [outline])
+
+  useEffect(() => {
+    const outlineIds = new Set(outline.map((item) => item.id))
+    setCollapsedOutlineIds((current) => {
+      const next = new Set([...current].filter((id) => outlineIds.has(id)))
+      return next.size === current.size ? current : next
+    })
+  }, [outline])
+
+  function toggleOutlineItem(id: string) {
+    setCollapsedOutlineIds((current) => {
+      const next = new Set(current)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
+
+  function renderOutlineItems(items: OutlineTreeItem[], depth = 0): ReactNode {
+    return items.map((item) => {
+      const title = item.title || t('sidebar.outlineUntitled')
+      const hasChildren = item.children.length > 0
+      const collapsed = collapsedOutlineIds.has(item.id)
+      const active = activeOutlineId === item.id
+
+      return (
+        <Fragment key={`${item.id}-${item.headingIndex}`}>
+          <div
+            className={`outline-row outline-level-${item.level} ${active ? 'active' : ''}`}
+            style={{ paddingLeft: `${2 + depth * 14}px` }}
+            title={title}
+          >
+            {hasChildren ? (
+              <button
+                type="button"
+                className="outline-toggle"
+                aria-label={collapsed ? t('sidebar.outlineExpand', { title }) : t('sidebar.outlineCollapse', { title })}
+                aria-expanded={!collapsed}
+                onClick={() => toggleOutlineItem(item.id)}
+              >
+                {collapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+              </button>
+            ) : (
+              <span className="outline-toggle-spacer" />
+            )}
+            <button
+              type="button"
+              className="outline-title"
+              onClick={() => onSelectOutlineItem(outlineItemFromTreeItem(item))}
+            >
+              {title}
+            </button>
+          </div>
+          {hasChildren && !collapsed ? renderOutlineItems(item.children, depth + 1) : null}
+        </Fragment>
+      )
+    })
+  }
 
   if (mode === 'files') {
     return (
@@ -89,8 +201,10 @@ function SidebarPanel({
         onSelectNode={onSelectNode}
         onCreateFolder={onCreateFolder}
         onCreateDocument={onCreateDocument}
+        onUploadMarkdownFiles={onUploadMarkdownFiles}
         onRenameNode={onRenameNode}
         onDeleteNode={onDeleteNode}
+        uploadMessage={uploadMessage}
       />
     )
   }
@@ -98,29 +212,15 @@ function SidebarPanel({
   if (mode === 'outline') {
     return (
       <section className="sidebar-panel">
-        <header className="sidebar-panel-header">
-          <span>{t('activity.outline')}</span>
-          <strong>{t('sidebar.outlineTitle')}</strong>
-        </header>
-        <div className="outline-list">
-          <button type="button" className="outline-row active">
-            <span>H1</span>
-            <strong>{selectedName}</strong>
-          </button>
-          <button type="button" className="outline-row">
-            <span>H2</span>
-            <strong>{t('sidebar.outlineHeading')}</strong>
-          </button>
-          <button type="button" className="outline-row">
-            <span>¶</span>
-            <strong>{t('sidebar.outlineParagraph')}</strong>
-          </button>
-          <button type="button" className="outline-row">
-            <span>{'{}'}</span>
-            <strong>{t('sidebar.outlineHtml')}</strong>
-          </button>
-        </div>
-        <p className="sidebar-note">{t('sidebar.outlineIntro')}</p>
+        {outlineTree.length ? (
+          <div className="outline-list" aria-label={t('sidebar.outlineTitle')}>
+            {renderOutlineItems(outlineTree)}
+          </div>
+        ) : (
+          <p className="sidebar-note">
+            {hasSelectedDocument ? t('sidebar.outlineEmpty') : t('sidebar.outlineIntro')}
+          </p>
+        )}
       </section>
     )
   }
@@ -168,6 +268,8 @@ export function WorkbenchSidebar({
   expanded,
   width,
   selectedNode,
+  outline,
+  activeOutlineId,
   workspace,
   workspaces,
   selectedWorkspaceId,
@@ -181,14 +283,19 @@ export function WorkbenchSidebar({
   onSelectNode,
   onCreateFolder,
   onCreateDocument,
+  onUploadMarkdownFiles,
   onRenameNode,
   onDeleteNode,
+  onSelectOutlineItem,
+  uploadMessage,
   onOpenSettings
 }: {
   mode: SidebarMode
   expanded: boolean
   width: number
   selectedNode?: WorkspaceTreeNode
+  outline: DocumentOutlineItem[]
+  activeOutlineId?: string
   workspace?: Workspace
   workspaces: Workspace[]
   selectedWorkspaceId?: string
@@ -202,8 +309,11 @@ export function WorkbenchSidebar({
   onSelectNode: (node: WorkspaceTreeNode) => void
   onCreateFolder: (parentNode?: WorkspaceTreeNode) => void
   onCreateDocument: (parentNode?: WorkspaceTreeNode) => void
+  onUploadMarkdownFiles: (files: File[], parentNode?: WorkspaceTreeNode) => void
   onRenameNode: (node: WorkspaceTreeNode) => void
   onDeleteNode: (node: WorkspaceTreeNode) => void
+  onSelectOutlineItem: (item: DocumentOutlineItem) => void
+  uploadMessage?: string
   onOpenSettings: () => void
 }) {
   const { t } = useI18n()
@@ -265,6 +375,8 @@ export function WorkbenchSidebar({
             <SidebarPanel
               mode={mode}
               selectedNode={selectedNode}
+              outline={outline}
+              activeOutlineId={activeOutlineId}
               workspace={workspace}
               workspaces={workspaces}
               selectedWorkspaceId={selectedWorkspaceId}
@@ -276,8 +388,11 @@ export function WorkbenchSidebar({
               onSelectNode={onSelectNode}
               onCreateFolder={onCreateFolder}
               onCreateDocument={onCreateDocument}
+              onUploadMarkdownFiles={onUploadMarkdownFiles}
               onRenameNode={onRenameNode}
               onDeleteNode={onDeleteNode}
+              onSelectOutlineItem={onSelectOutlineItem}
+              uploadMessage={uploadMessage}
             />
             <button
               className="resize-handle resize-handle-left"

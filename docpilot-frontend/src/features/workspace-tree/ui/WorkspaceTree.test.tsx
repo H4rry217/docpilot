@@ -195,4 +195,55 @@ describe('WorkspaceTree', () => {
     expect(onRenameWorkspace).toHaveBeenCalledWith(workspaces[1])
     expect(onDeleteWorkspace).toHaveBeenCalledWith(workspaces[1])
   })
+
+  it('drops markdown files onto folders', () => {
+    const onUploadMarkdownFiles = vi.fn()
+    const markdownFile = new File(['# Hello'], 'hello.md', { type: 'text/markdown' })
+    const ignoredFile = new File(['nope'], 'image.png', { type: 'image/png' })
+    render(
+      <I18nProvider>
+        <WorkspaceTree
+          nodes={nodes}
+          onSelectNode={() => undefined}
+          onUploadMarkdownFiles={onUploadMarkdownFiles}
+        />
+      </I18nProvider>
+    )
+
+    const folderDropTarget = screen.getByRole('button', { name: 'New Folder' }).parentElement as HTMLElement
+    fireEvent.drop(folderDropTarget, {
+      dataTransfer: {
+        types: ['Files'],
+        files: [markdownFile, ignoredFile],
+        dropEffect: 'move'
+      }
+    })
+
+    expect(onUploadMarkdownFiles).toHaveBeenCalledWith([markdownFile], nodes[0])
+  })
+
+  it('drops markdown files onto the workspace root card', () => {
+    const onUploadMarkdownFiles = vi.fn()
+    const markdownFile = new File(['# Root'], 'root.markdown', { type: 'text/markdown' })
+    render(
+      <I18nProvider>
+        <WorkspaceTree
+          nodes={nodes}
+          workspaceName="Alice Workspace"
+          onSelectNode={() => undefined}
+          onUploadMarkdownFiles={onUploadMarkdownFiles}
+        />
+      </I18nProvider>
+    )
+
+    fireEvent.drop(screen.getByRole('button', { name: 'Alice Workspace' }), {
+      dataTransfer: {
+        types: ['Files'],
+        files: [markdownFile],
+        dropEffect: 'move'
+      }
+    })
+
+    expect(onUploadMarkdownFiles).toHaveBeenCalledWith([markdownFile])
+  })
 })

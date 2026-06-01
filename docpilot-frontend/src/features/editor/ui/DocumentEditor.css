@@ -120,10 +120,14 @@
 
 .prose-editor h1,
 .prose-editor h2,
-.prose-editor h3 {
+.prose-editor h3,
+.prose-editor h4,
+.prose-editor h5,
+.prose-editor h6 {
   color: #111827;
   line-height: 1.25;
   letter-spacing: 0;
+  scroll-margin-top: 24px;
 }
 
 .prose-editor h1 {
@@ -143,6 +147,22 @@
 .prose-editor h3 {
   margin: 24px 0 12px;
   font-size: 1.1rem;
+}
+
+.prose-editor h4,
+.prose-editor h5,
+.prose-editor h6 {
+  margin: 20px 0 10px;
+  font-weight: 850;
+}
+
+.prose-editor h4 {
+  font-size: 1rem;
+}
+
+.prose-editor h5,
+.prose-editor h6 {
+  font-size: 0.94rem;
 }
 
 .prose-editor p {
@@ -188,6 +208,73 @@
 .prose-editor th {
   padding: 8px 10px;
   border: 1px solid #dfe6ee;
+}
+
+.prose-editor .docpilot-block {
+  margin: 16px 0;
+  border: 1px solid #dfe7ef;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #334155;
+}
+
+.prose-editor .docpilot-leaf-block {
+  padding: 10px 12px;
+}
+
+.prose-editor .docpilot-block-label {
+  display: block;
+  margin-bottom: 6px;
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.prose-editor .docpilot-block-source {
+  overflow: auto;
+  margin: 0;
+  border-radius: 6px;
+  background: #eef3f8;
+  padding: 8px;
+  color: #1f2937;
+  font-size: 0.84rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.prose-editor .docpilot-callout,
+.prose-editor .docpilot-footnote-definition,
+.prose-editor .docpilot-extension-block {
+  padding: 10px 14px;
+}
+
+.prose-editor .docpilot-definition-list {
+  margin: 16px 0;
+  padding: 0;
+}
+
+.prose-editor .docpilot-definition-term {
+  margin-top: 8px;
+  font-weight: 800;
+}
+
+.prose-editor .docpilot-definition-item {
+  margin: 2px 0 10px 18px;
+}
+
+.prose-editor .docpilot-inline-token,
+.prose-editor .docpilot-footnote-ref {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.35em;
+  border-radius: 5px;
+  background: #edf5ff;
+  padding: 0 5px;
+  color: #1769aa;
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+  font-size: 0.86em;
+  line-height: 1.35;
 }
 
 .document-empty {

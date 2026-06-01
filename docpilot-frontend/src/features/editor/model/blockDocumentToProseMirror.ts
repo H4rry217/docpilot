@@ -52,7 +52,7 @@ function blockToProseMirrorJson(block: BlockNode): JSONContent {
     case 'TABLE_ROW':
       return node('tableRow', attrs, childContent(block))
     case 'TABLE_CELL':
-      return node('tableCell', attrs, inlineContent(block))
+      return node(attrs.header === true ? 'tableHeader' : 'tableCell', attrs, tableCellContent(block))
     case 'FRONT_MATTER':
       return { type: 'docpilotFrontMatter', attrs }
     case 'MATH_BLOCK':
@@ -97,17 +97,17 @@ function inlineToProseMirrorJson(inline: InlineNode): JSONContent {
     case 'HARD_BREAK':
       return { type: 'hardBreak' }
     case 'IMAGE':
-      return { type: 'image', attrs: inline.attrs }
+      return { type: 'image', attrs: withInlineSource(inline, inline.attrs) }
     case 'MATH_INLINE':
-      return { type: 'docpilotMathInline', attrs: withInlineSource(inline, inline.attrs) }
+      return { type: 'docpilotMathInline', attrs: withInlineText(inline, inline.attrs) }
     case 'FOOTNOTE_REF':
       return { type: 'docpilotFootnoteRef', attrs: withInlineSource(inline, inline.attrs) }
     case 'EMOJI':
-      return { type: 'docpilotEmoji', attrs: withInlineSource(inline, inline.attrs) }
+      return { type: 'docpilotEmoji', attrs: withInlineText(inline, inline.attrs) }
     case 'HTML_INLINE':
-      return { type: 'docpilotHtmlInline', attrs: withInlineSource(inline, inline.attrs) }
+      return { type: 'docpilotHtmlInline', attrs: withInlineSourceAttr(inline, inline.attrs) }
     case 'EXTENSION_INLINE':
-      return { type: 'docpilotExtensionInline', attrs: withInlineSource(inline, inline.attrs) }
+      return { type: 'docpilotExtensionInline', attrs: withInlineSourceAttr(inline, inline.attrs) }
     case 'UNSUPPORTED_INLINE':
       return textNode(inline.text ?? '')
     default:
@@ -125,6 +125,14 @@ function textNode(text: string, marks: ProseMirrorMark[] = []): JSONContent {
 
 function inlineContent(block: BlockNode): JSONContent[] {
   return block.inlines.map(inlineToProseMirrorJson).filter((node) => node.type !== 'text' || Boolean(node.text))
+}
+
+function tableCellContent(block: BlockNode): JSONContent[] {
+  const children = childContent(block)
+  if (children.length) {
+    return children
+  }
+  return [node('paragraph', {}, inlineContent(block))]
 }
 
 function childContent(block: BlockNode): JSONContent[] {
@@ -165,7 +173,25 @@ function withInlineSource(inline: InlineNode, attrs: JsonObject): JsonObject {
   }
 }
 
+function withInlineText(inline: InlineNode, attrs: JsonObject): JsonObject {
+  return withInlineSource(inline, {
+    ...attrs,
+    text: inline.text ?? ''
+  })
+}
+
+function withInlineSourceAttr(inline: InlineNode, attrs: JsonObject): JsonObject {
+  return withInlineSource(inline, {
+    ...attrs,
+    source: stringAttr(attrs.source, inline.text ?? '')
+  })
+}
+
 function textAttr(block: BlockNode, name: string): string {
   const value = block.attrs[name]
   return typeof value === 'string' ? value : ''
+}
+
+function stringAttr(value: unknown, fallback: string): string {
+  return typeof value === 'string' ? value : fallback
 }

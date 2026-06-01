@@ -40,7 +40,11 @@ function blockFromNode(node: JSONContent, path: string): BlockNode {
     return block(path, 'THEMATIC_BREAK', attrs)
   }
 
-  if (type === 'PARAGRAPH' || type === 'HEADING' || type === 'TABLE_CELL' || type === 'DEFINITION_TERM') {
+  if (node.type === 'tableCell' || node.type === 'tableHeader') {
+    return block(path, type, { ...attrs, header: node.type === 'tableHeader' }, inlineContent(node), childBlocks(node, path))
+  }
+
+  if (type === 'PARAGRAPH' || type === 'HEADING' || type === 'DEFINITION_TERM') {
     return block(path, type, attrs, inlineContent(node), childBlocks(node, path))
   }
 

@@ -2,6 +2,11 @@ import type { JSONContent } from '@tiptap/core'
 import { PanelRightClose, PanelRightOpen } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  documentOutlineFromBlockDocument,
+  type DocumentOutlineItem,
+  type DocumentOutlineJumpRequest
+} from '../../../entities/block/outline'
 import type { BlockDocument } from '../../../entities/block/types'
 import type { Workspace, WorkspaceTreeNode } from '../../../entities/workspace/types'
 import { useI18n, type Locale } from '../../../shared/i18n'
@@ -39,7 +44,9 @@ type TextDialogRequest = {
 export type DocumentEditorProps = {
   workspace?: Workspace
   documentNode?: WorkspaceTreeNode
+  outlineJumpRequest?: DocumentOutlineJumpRequest
   onRequestText?: (input: TextDialogRequest) => Promise<string | undefined>
+  onOutlineChange?: (outline: DocumentOutlineItem[]) => void
 }
 
 const EMPTY_PROSEMIRROR_DOC: JSONContent = { type: 'doc', content: [] }
@@ -90,7 +97,13 @@ function saveStateKey(saveState: SaveState) {
   }
 }
 
-export function DocumentEditor({ workspace, documentNode, onRequestText }: DocumentEditorProps) {
+export function DocumentEditor({
+  workspace,
+  documentNode,
+  outlineJumpRequest,
+  onRequestText,
+  onOutlineChange
+}: DocumentEditorProps) {
   const { locale, t } = useI18n()
   const [reviewPanelWidth, setReviewPanelWidth] = usePersistentNumberState({
     storageKey: 'docpilot.layout.reviewPanelWidth',
@@ -169,6 +182,7 @@ export function DocumentEditor({ workspace, documentNode, onRequestText }: Docum
     (snapshot: BlockDocumentEditorSnapshot, source: BlockDocumentEditorSnapshotSource) => {
       latestSnapshotRef.current = snapshot
       setEditorSnapshot(snapshot)
+      onOutlineChange?.(documentOutlineFromBlockDocument(snapshot.blockDocument))
 
       if (source === 'load') return
 
@@ -176,7 +190,7 @@ export function DocumentEditor({ workspace, documentNode, onRequestText }: Docum
       setSaveState('dirty')
       queueAutosave(snapshot.blockDocument)
     },
-    [queueAutosave]
+    [onOutlineChange, queueAutosave]
   )
 
   function saveNow() {
@@ -234,9 +248,10 @@ export function DocumentEditor({ workspace, documentNode, onRequestText }: Docum
   useEffect(() => {
     latestSnapshotRef.current = null
     setEditorSnapshot(EMPTY_EDITOR_SNAPSHOT)
+    onOutlineChange?.([])
     setSaveError(null)
     setSaveState(documentId ? 'idle' : 'idle')
-  }, [documentId])
+  }, [documentId, onOutlineChange])
 
   useEffect(() => {
     if (!documentQuery.data) return
@@ -244,6 +259,11 @@ export function DocumentEditor({ workspace, documentNode, onRequestText }: Docum
     setSaveError(null)
     setSaveState('saved')
   }, [documentQuery.data])
+
+  useEffect(() => {
+    if (!outlineJumpRequest) return
+    blockEditorRef.current?.scrollToOutlineItem(outlineJumpRequest)
+  }, [outlineJumpRequest])
 
   const title = documentQuery.data?.document.title ?? documentNode?.name ?? t('editor.noDocument')
   const pathText = useMemo(() => {

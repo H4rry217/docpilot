@@ -1,4 +1,5 @@
 .workspace-panel {
+  position: relative;
   display: flex;
   height: 100%;
   min-width: 0;
@@ -21,6 +22,18 @@
   color: #253247;
   padding: 6px 8px;
   text-align: left;
+}
+
+.workspace-card.drop-target,
+.tree-row-wrap.drop-target {
+  background: #eef6ff;
+  box-shadow:
+    inset 0 0 0 1px #79afe8,
+    inset 3px 0 0 #2f7ed8;
+}
+
+.workspace-card.drop-target {
+  border-color: #79afe8;
 }
 
 .workspace-card-icon {
@@ -301,6 +314,11 @@
   color: #256fc5;
 }
 
+.tree-row-wrap.drop-target .tree-row,
+.tree-row-wrap.drop-target .tree-toggle {
+  color: #1f6fbd;
+}
+
 .workspace-context-menu {
   position: fixed;
   z-index: 90;
@@ -355,5 +373,16 @@
   color: #8492a6;
   font-size: 0.82rem;
   padding: 16px 12px;
+  font-weight: 700;
+}
+
+.workspace-upload-message {
+  margin: 8px 10px 0;
+  border: 1px solid #cfe0f5;
+  border-radius: 6px;
+  background: #f4f9ff;
+  color: #486681;
+  padding: 7px 8px;
+  font-size: 0.78rem;
   font-weight: 700;
 }

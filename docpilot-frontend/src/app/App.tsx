@@ -1,5 +1,6 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import type { DocumentOutlineItem, DocumentOutlineJumpRequest } from '../entities/block/outline'
 import type { UserInformation } from '../entities/user/types'
 import { WORKSPACE_NODE_TYPE, WORKSPACE_RESOURCE_TYPE, WORKSPACE_TYPE, type Workspace, type WorkspaceTreeNode } from '../entities/workspace/types'
 import { getCurrentUser, type AuthSession } from '../features/auth/api/authApi'
@@ -7,6 +8,11 @@ import { AuthScreen } from '../features/auth/ui/AuthScreen'
 import { DocumentEditor } from '../features/editor/ui/DocumentEditor'
 import { createDocument } from '../features/editor/api/documentApi'
 import { useWorkspaceTree } from '../features/workspace-tree/model/useWorkspaceTree'
+import {
+  documentTitleFromMarkdownFileName,
+  isMarkdownFileName,
+  uniqueMarkdownNodeName
+} from '../features/workspace-tree/model/markdownUpload'
 import {
   createFolder,
   createWorkspace,
@@ -55,6 +61,10 @@ export function App() {
   const { t } = useI18n()
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | undefined>()
   const [selectedNode, setSelectedNode] = useState<WorkspaceTreeNode | undefined>()
+  const [documentOutline, setDocumentOutline] = useState<DocumentOutlineItem[]>([])
+  const [activeOutlineId, setActiveOutlineId] = useState<string | undefined>()
+  const [outlineJumpRequest, setOutlineJumpRequest] = useState<DocumentOutlineJumpRequest | undefined>()
+  const [workspaceUploadMessage, setWorkspaceUploadMessage] = useState<string | undefined>()
   const [activeSidebarMode, setActiveSidebarMode] = useState<SidebarMode>('files')
   const [sidebarExpanded, setSidebarExpanded] = useState(true)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -67,6 +77,7 @@ export function App() {
   const [authStatus, setAuthStatus] = useState<AuthStatus>('checking')
   const [currentUser, setCurrentUser] = useState<UserInformation | undefined>()
   const [dialog, setDialog] = useState<AppDialogState | undefined>()
+  const uploadMessageTimerRef = useRef<number | undefined>(undefined)
   const queryClient = useQueryClient()
   const workspaceTree = useWorkspaceTree(selectedWorkspaceId, selectedNode?.documentId, authStatus === 'authenticated')
   const workspaceListQuery = useQuery({
@@ -184,10 +195,19 @@ export function App() {
   })
 
   useEffect(() => {
+    return () => window.clearTimeout(uploadMessageTimerRef.current)
+  }, [])
+
+  useEffect(() => {
     if (!selectedNode && workspaceTree.selectedDocumentNode) {
       setSelectedNode(workspaceTree.selectedDocumentNode)
     }
   }, [selectedNode, workspaceTree.selectedDocumentNode])
+
+  useEffect(() => {
+    setActiveOutlineId(undefined)
+    setOutlineJumpRequest(undefined)
+  }, [selectedNode?.documentId])
 
   async function refreshWorkspaceQueries() {
     await Promise.all([
@@ -309,6 +329,75 @@ export function App() {
     await queryClient.invalidateQueries({ queryKey: ['workspace-tree'] })
   }
 
+  function showWorkspaceUploadMessage(message: string) {
+    window.clearTimeout(uploadMessageTimerRef.current)
+    setWorkspaceUploadMessage(message)
+    uploadMessageTimerRef.current = window.setTimeout(() => {
+      setWorkspaceUploadMessage(undefined)
+    }, 3600)
+  }
+
+  async function handleUploadMarkdownFiles(files: File[], parentNode?: WorkspaceTreeNode) {
+    const workspace = workspaceTree.workspace
+    if (!workspace) return
+
+    const markdownFiles = files.filter((file) => isMarkdownFileName(file.name))
+    if (!markdownFiles.length) {
+      showWorkspaceUploadMessage(t('workspace.uploadMarkdownOnly'))
+      return
+    }
+
+    const rootNode = workspaceTree.tree.find((node) => node.nodeId === workspace.rootNodeId)
+    const targetChildren = parentNode?.children ?? rootNode?.children ?? workspaceTree.tree
+    const usedNames = new Set(targetChildren.map((child) => child.name.toLowerCase()))
+    const parentNodeId = parentNode?.nodeId ?? workspace.rootNodeId
+    const parentAncestors = parentNode ? [...parentNode.ancestors, parentNode.nodeId] : [workspace.rootNodeId]
+    let uploadedNode: WorkspaceTreeNode | undefined
+    let uploadedCount = 0
+
+    showWorkspaceUploadMessage(t('workspace.uploadingMarkdown', { count: String(markdownFiles.length) }))
+
+    try {
+      for (const file of markdownFiles) {
+        const nodeName = uniqueMarkdownNodeName(file.name, usedNames)
+        const markdown = await file.text()
+        const response = await createDocument({
+          workspaceId: workspace.workspaceId,
+          parentNodeId,
+          title: documentTitleFromMarkdownFileName(nodeName),
+          nodeName,
+          markdown
+        })
+
+        uploadedCount += 1
+        uploadedNode = {
+          nodeId: `pending-${response.document.documentId}`,
+          workspaceId: workspace.workspaceId,
+          parentNodeId,
+          ancestors: parentAncestors,
+          nodeType: WORKSPACE_NODE_TYPE.RESOURCE,
+          resourceType: WORKSPACE_RESOURCE_TYPE.DOCUMENT,
+          name: nodeName,
+          documentId: response.document.documentId,
+          createTime: response.document.createTime,
+          updateTime: response.document.updateTime,
+          metadata: {},
+          children: []
+        }
+      }
+
+      if (uploadedNode) {
+        setSelectedNode(uploadedNode)
+      }
+      await queryClient.invalidateQueries({ queryKey: ['workspace-tree'] })
+      showWorkspaceUploadMessage(t('workspace.uploadMarkdownDone', { count: String(uploadedCount) }))
+    } catch (error) {
+      await queryClient.invalidateQueries({ queryKey: ['workspace-tree'] })
+      const message = error instanceof Error ? error.message : t('workspace.uploadMarkdownFailed')
+      showWorkspaceUploadMessage(t('workspace.uploadMarkdownFailedWithReason', { reason: message }))
+    }
+  }
+
   async function handleRenameNode(node: WorkspaceTreeNode) {
     const name = await requestText({
       title: t('workspace.rename'),
@@ -346,6 +435,15 @@ export function App() {
     setSidebarExpanded(true)
   }
 
+  function handleSelectOutlineItem(item: DocumentOutlineItem) {
+    setActiveOutlineId(item.id)
+    setOutlineJumpRequest((current) => ({
+      id: item.id,
+      headingIndex: item.headingIndex,
+      requestId: (current?.requestId ?? 0) + 1
+    }))
+  }
+
   if (authStatus === 'checking') {
     return (
       <main className="auth-shell">
@@ -365,6 +463,8 @@ export function App() {
         expanded={sidebarExpanded}
         width={sidebarWidth}
         selectedNode={selectedNode}
+        outline={documentOutline}
+        activeOutlineId={activeOutlineId}
         workspace={workspaceTree.workspace}
         workspaces={workspaces}
         selectedWorkspaceId={activeWorkspaceId}
@@ -378,15 +478,20 @@ export function App() {
         onSelectNode={setSelectedNode}
         onCreateFolder={handleCreateFolder}
         onCreateDocument={handleCreateDocument}
+        onUploadMarkdownFiles={handleUploadMarkdownFiles}
         onRenameNode={handleRenameNode}
         onDeleteNode={handleDeleteNode}
+        onSelectOutlineItem={handleSelectOutlineItem}
+        uploadMessage={workspaceUploadMessage}
         onOpenSettings={() => setSettingsOpen(true)}
       />
 
       <DocumentEditor
         workspace={workspaceTree.workspace}
         documentNode={selectedNode}
+        outlineJumpRequest={outlineJumpRequest}
         onRequestText={requestText}
+        onOutlineChange={setDocumentOutline}
       />
       {settingsOpen ? (
         <SettingsDialog

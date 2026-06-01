@@ -99,19 +99,38 @@ public class MarkdownBlockRenderer {
     }
 
     private String renderGenericBlock(GenericTypedBlock block, int depth) {
-        return switch (block.type()) {
-            case BLOCK_QUOTE -> prefixLines(renderChildren(block.children(), depth), "> ");
-            case BULLET_LIST -> renderList(block.children(), depth, false, 1);
-            case LIST_ITEM -> renderListItem(block, depth, false, 1);
-            case THEMATIC_BREAK -> "---";
-            case TABLE -> renderTable(block.children());
-            case TABLE_ROW -> renderInlines(block.children().stream().flatMap(child -> inlinesOf(child).stream()).toList());
-            case DEFINITION_LIST -> renderChildren(block.children(), depth);
-            case DEFINITION_TERM -> renderInlines(block.inlines());
-            case DEFINITION_ITEM -> ": " + renderChildren(block.children(), depth + 1);
-            case DOCUMENT -> renderChildren(block.children(), depth);
-            default -> "";
-        };
+        BlockType type = block.type();
+        if (type == BlockType.BLOCK_QUOTE) {
+            return prefixLines(renderChildren(block.children(), depth), "> ");
+        }
+        if (type == BlockType.BULLET_LIST) {
+            return renderList(block.children(), depth, false, 1);
+        }
+        if (type == BlockType.LIST_ITEM) {
+            return renderListItem(block, depth, false, 1);
+        }
+        if (type == BlockType.THEMATIC_BREAK) {
+            return "---";
+        }
+        if (type == BlockType.TABLE) {
+            return renderTable(block.children());
+        }
+        if (type == BlockType.TABLE_ROW) {
+            return renderInlines(block.children().stream().flatMap(child -> inlinesOf(child).stream()).toList());
+        }
+        if (type == BlockType.DEFINITION_LIST) {
+            return renderChildren(block.children(), depth);
+        }
+        if (type == BlockType.DEFINITION_TERM) {
+            return renderInlines(block.inlines());
+        }
+        if (type == BlockType.DEFINITION_ITEM) {
+            return ": " + renderChildren(block.children(), depth + 1);
+        }
+        if (type == BlockType.DOCUMENT) {
+            return renderChildren(block.children(), depth);
+        }
+        return "";
     }
 
     private String renderList(List<TypedBlockNode> items, int depth, boolean ordered, int start) {
@@ -253,17 +272,7 @@ public class MarkdownBlockRenderer {
     }
 
     private String renderInline(InlineNode inline) {
-        String text = switch (inline.getType()) {
-            case TEXT -> inline.getText();
-            case SOFT_BREAK -> "\n";
-            case HARD_BREAK -> "  \n";
-            case IMAGE -> "![" + inline.getAttrs().getOrDefault("alt", inline.getText()) + "](" + inline.getAttrs().getOrDefault("src", "") + ")";
-            case MATH_INLINE -> "$" + inline.getText() + "$";
-            case FOOTNOTE_REF -> "[^" + inline.getAttrs().getOrDefault(BlockAttrs.LABEL.key(), inline.getText()) + "]";
-            case EMOJI -> String.valueOf(inline.getAttrs().getOrDefault("shortcut", inline.getText()));
-            case HTML_INLINE -> String.valueOf(inline.getAttrs().getOrDefault(BlockAttrs.SOURCE.key(), inline.getText()));
-            case EXTENSION_INLINE, UNSUPPORTED_INLINE -> String.valueOf(inline.getAttrs().getOrDefault(BlockAttrs.SOURCE.key(), inline.getText()));
-        };
+        String text = renderInlineText(inline);
 
         if (inline.getType() == InlineType.IMAGE || inline.getType() == InlineType.HTML_INLINE) {
             return text;
@@ -283,22 +292,72 @@ public class MarkdownBlockRenderer {
             text = "`" + text + "`";
         } else {
             for (InlineMark mark : inline.getMarks()) {
-                text = switch (mark.getType()) {
-                    case BOLD -> "**" + text + "**";
-                    case ITALIC -> "*" + text + "*";
-                    case STRIKE -> "~~" + text + "~~";
-                    case UNDERLINE -> "<u>" + text + "</u>";
-                    case INSERT -> "++" + text + "++";
-                    case SUBSCRIPT -> "~" + text + "~";
-                    case SUPERSCRIPT -> "^" + text + "^";
-                    case HIGHLIGHT -> "==" + text + "==";
-                    case CODE, LINK -> text;
-                };
+                text = applyMark(text, mark.getType());
             }
         }
 
         if (link != null) {
             text = "[" + text + "](" + link.getAttrs().getOrDefault(BlockAttrs.HREF.key(), "") + ")";
+        }
+        return text;
+    }
+
+    private String renderInlineText(InlineNode inline) {
+        InlineType type = inline.getType();
+        if (type == InlineType.TEXT) {
+            return inline.getText();
+        }
+        if (type == InlineType.SOFT_BREAK) {
+            return "\n";
+        }
+        if (type == InlineType.HARD_BREAK) {
+            return "  \n";
+        }
+        if (type == InlineType.IMAGE) {
+            return "![" + inline.getAttrs().getOrDefault("alt", inline.getText()) + "](" + inline.getAttrs().getOrDefault("src", "") + ")";
+        }
+        if (type == InlineType.MATH_INLINE) {
+            return "$" + inline.getText() + "$";
+        }
+        if (type == InlineType.FOOTNOTE_REF) {
+            return "[^" + inline.getAttrs().getOrDefault(BlockAttrs.LABEL.key(), inline.getText()) + "]";
+        }
+        if (type == InlineType.EMOJI) {
+            return String.valueOf(inline.getAttrs().getOrDefault("shortcut", inline.getText()));
+        }
+        if (type == InlineType.HTML_INLINE) {
+            return String.valueOf(inline.getAttrs().getOrDefault(BlockAttrs.SOURCE.key(), inline.getText()));
+        }
+        if (type == InlineType.EXTENSION_INLINE || type == InlineType.UNSUPPORTED_INLINE) {
+            return String.valueOf(inline.getAttrs().getOrDefault(BlockAttrs.SOURCE.key(), inline.getText()));
+        }
+        return "";
+    }
+
+    private String applyMark(String text, MarkType type) {
+        if (type == MarkType.BOLD) {
+            return "**" + text + "**";
+        }
+        if (type == MarkType.ITALIC) {
+            return "*" + text + "*";
+        }
+        if (type == MarkType.STRIKE) {
+            return "~~" + text + "~~";
+        }
+        if (type == MarkType.UNDERLINE) {
+            return "<u>" + text + "</u>";
+        }
+        if (type == MarkType.INSERT) {
+            return "++" + text + "++";
+        }
+        if (type == MarkType.SUBSCRIPT) {
+            return "~" + text + "~";
+        }
+        if (type == MarkType.SUPERSCRIPT) {
+            return "^" + text + "^";
+        }
+        if (type == MarkType.HIGHLIGHT) {
+            return "==" + text + "==";
         }
         return text;
     }

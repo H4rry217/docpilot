@@ -7,6 +7,7 @@ import {
   useImperativeHandle,
   useRef
 } from 'react'
+import type { DocumentOutlineJumpRequest } from '../../../entities/block/outline'
 import type { BlockDocument } from '../../../entities/block/types'
 import { blockDocumentToProseMirrorJson } from '../model/blockDocumentToProseMirror'
 import { editorExtensions } from '../model/extensions'
@@ -31,6 +32,7 @@ export type InsertHtmlBlockInput = {
 export type BlockDocumentEditorHandle = {
   getSnapshot: () => BlockDocumentEditorSnapshot | null
   insertHtmlBlock: (input: InsertHtmlBlockInput) => BlockDocumentEditorSnapshot | null
+  scrollToOutlineItem: (request: DocumentOutlineJumpRequest) => void
   setBlockDocument: (blockDocument: BlockDocument) => BlockDocumentEditorSnapshot | null
   setProseMirrorJson: (proseMirrorJson: JSONContent) => BlockDocumentEditorSnapshot | null
 }
@@ -51,6 +53,10 @@ function snapshotFromEditor(editor: Editor): BlockDocumentEditorSnapshot {
     proseMirrorJson,
     blockDocument: proseMirrorJsonToBlockDocument(proseMirrorJson)
   }
+}
+
+function blockIdSelector(blockId: string): string {
+  return `[data-block-id="${blockId.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"]`
 }
 
 export const BlockDocumentEditor = forwardRef<BlockDocumentEditorHandle, BlockDocumentEditorProps>(
@@ -110,6 +116,13 @@ export const BlockDocumentEditor = forwardRef<BlockDocumentEditorHandle, BlockDo
             })
             .run()
           return snapshotFromEditor(editor)
+        },
+        scrollToOutlineItem: (request) => {
+          if (!editor) return
+          const headings = editor.view.dom.querySelectorAll<HTMLElement>('h1, h2, h3, h4, h5, h6')
+          const target = editor.view.dom.querySelector<HTMLElement>(blockIdSelector(request.id))
+            ?? headings.item(request.headingIndex)
+          target?.scrollIntoView({ behavior: 'smooth', block: 'start' })
         },
         setBlockDocument: (nextBlockDocument) => {
           if (!editor) return null
