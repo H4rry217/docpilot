@@ -2,6 +2,8 @@ package io.docpilot.workspace.filesystem;
 
 import io.docpilot.filesystem.CompositeFilesystem;
 import io.docpilot.filesystem.Filesystem;
+import io.docpilot.filesystem.model.GrepOptions;
+import io.docpilot.filesystem.model.GrepResult;
 import io.docpilot.filesystem.model.FileEntry;
 import io.docpilot.workspace.enums.WorkspaceNodeType;
 import io.docpilot.workspace.enums.WorkspaceResourceType;
@@ -74,6 +76,32 @@ class WorkspaceFilesystemTest {
         assertThat(projectFilesystem.grep("/project/workspace/1", "alpha"))
                 .extracting("path")
                 .containsExactly("/project/workspace/1/docs/a.md");
+        assertThat(projectFilesystem.grep("/project/workspace", "alpha"))
+                .extracting("path")
+                .containsExactly("/project/workspace/1/docs/a.md");
+        assertThat(projectFilesystem.grep("/project", "alpha"))
+                .extracting("path")
+                .containsExactly("/project/workspace/1/docs/a.md");
+    }
+
+    @Test
+    void workspaceFilesystemGrepHonorsLimits() {
+        addDocument(1L, "b.md", "alpha beta", 3L);
+
+        GrepResult fileLimited = workspaceFilesystem.grep("/", "alpha", new GrepOptions(1, null));
+        assertThat(fileLimited.matches())
+                .extracting("path")
+                .containsExactly("/docs/a.md");
+        assertThat(fileLimited.truncated()).isTrue();
+        assertThat(fileLimited.truncationReason()).isEqualTo(GrepResult.TRUNCATED_BY_MAX_FILES);
+        assertThat(fileLimited.searchedFiles()).isEqualTo(1);
+
+        GrepResult matchLimited = workspaceFilesystem.grep("/", "alpha", new GrepOptions(null, 1));
+        assertThat(matchLimited.matches())
+                .extracting("path")
+                .containsExactly("/docs/a.md");
+        assertThat(matchLimited.truncated()).isTrue();
+        assertThat(matchLimited.truncationReason()).isEqualTo(GrepResult.TRUNCATED_BY_MAX_MATCHES);
     }
 
     private void addWorkspace(Long workspaceId, Long ownerUserId, String name, String markdown) {
@@ -106,6 +134,33 @@ class WorkspaceFilesystemTest {
         document.setOwnerUserId(ownerUserId);
         document.setOriginWorkspaceId(workspaceId);
         document.setTitle("A");
+        WorkspaceDocument.DocumentContent content = new WorkspaceDocument.DocumentContent();
+        content.setMarkdownText(markdown);
+        document.setContent(content);
+        document.markCreated();
+        documentRepository.save(document);
+    }
+
+    private void addDocument(Long workspaceId, String name, String markdown, Long suffix) {
+        Workspace workspace = workspaceRepository.findById(workspaceId).orElseThrow();
+
+        WorkspaceNode documentNode = new WorkspaceNode();
+        documentNode.setId(workspaceId * 100 + suffix);
+        documentNode.setWorkspaceId(workspaceId);
+        documentNode.setParentNodeId(workspaceId * 100 + 1);
+        documentNode.setAncestors(List.of(workspace.getRootNodeId(), workspaceId * 100 + 1));
+        documentNode.setNodeType(WorkspaceNodeType.RESOURCE);
+        documentNode.setResourceType(WorkspaceResourceType.DOCUMENT);
+        documentNode.setDocumentId(workspaceId * 1000 + suffix);
+        documentNode.setName(name);
+        documentNode.markCreated();
+        nodeRepository.save(documentNode);
+
+        WorkspaceDocument document = new WorkspaceDocument();
+        document.setId(documentNode.getDocumentId());
+        document.setOwnerUserId(workspace.getOwnerUserId());
+        document.setOriginWorkspaceId(workspaceId);
+        document.setTitle(name);
         WorkspaceDocument.DocumentContent content = new WorkspaceDocument.DocumentContent();
         content.setMarkdownText(markdown);
         document.setContent(content);

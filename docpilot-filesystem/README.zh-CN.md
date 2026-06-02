@@ -65,7 +65,8 @@ filesystem 对象不需要是全局 Spring Bean。调用方可以按请求、用
 - 重复 mount path 会被拒绝。
 - 最长前缀优先，`/project/tmp` 会优先于 `/project`。
 - `list`、`stat`、`exists` 支持由挂载点合成出来的目录。例如只挂了 `/project/workspace/ws1` 和 `/project/workspace/ws2`，`list("/project/workspace")` 会返回 `ws1` 和 `ws2`。
-- `read`、`glob`、`grep`、`readUrl` 必须命中真实 mount。
+- `glob`、`grep` 可以递归穿过由挂载点合成出来的目录。`read`、`readUrl` 仍然必须命中真实 mount。
+- `grep(path, text, GrepOptions)` 可以限制搜索文件数和返回匹配数，并通过 `GrepResult` 返回 `truncated`、`truncationReason`、`searchedMounts`、`searchedFiles` 元数据。
 - 禁止组合 filesystem 形成循环挂载。
 
 ## Providers

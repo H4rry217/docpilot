@@ -5,6 +5,8 @@ import io.docpilot.filesystem.exception.FileNotFoundException;
 import io.docpilot.filesystem.model.FileEntry;
 import io.docpilot.filesystem.model.FileEntryType;
 import io.docpilot.filesystem.model.GrepMatch;
+import io.docpilot.filesystem.model.GrepOptions;
+import io.docpilot.filesystem.model.GrepResult;
 import io.docpilot.filesystem.path.FilesystemPath;
 import io.docpilot.filesystem.path.FilesystemPathNames;
 import io.docpilot.filesystem.path.GlobMatcher;
@@ -15,6 +17,8 @@ import io.docpilot.workspace.model.entity.WorkspaceNode;
 import io.docpilot.workspace.repository.WorkspaceDocumentRepository;
 import io.docpilot.workspace.repository.WorkspaceNodeRepository;
 import io.docpilot.workspace.repository.WorkspaceRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -32,6 +36,8 @@ import java.util.Map;
  * backed by the current WorkspaceDocument snapshot.</p>
  */
 public class WorkspaceFilesystem implements Filesystem {
+
+    private static final Logger log = LoggerFactory.getLogger(WorkspaceFilesystem.class);
 
     private final Long workspaceId;
     private final WorkspaceRepository workspaceRepository;
@@ -54,87 +60,153 @@ public class WorkspaceFilesystem implements Filesystem {
 
     @Override
     public List<FileEntry> list(String path) {
+        log.debug("workspace filesystem list start workspaceId={} path={}", workspaceId, path);
         WorkspaceNode node = resolveNode(path);
 
         if (!node.isFolder()) {
-            return List.of(toEntry(pathOf(node), node));
+            List<FileEntry> entries = List.of(toEntry(pathOf(node), node));
+            log.debug("workspace filesystem list done workspaceId={} path={} nodeId={} folder=false entries={}",
+                    workspaceId, path, node.getId(), entries.size());
+            return entries;
         }
 
-        return nodeRepository.findActiveByWorkspaceId(workspaceId).stream()
+        List<FileEntry> entries = nodeRepository.findActiveByWorkspaceId(workspaceId).stream()
                 .filter(child -> node.getId().equals(child.getParentNodeId()))
                 .sorted(Comparator.comparing(WorkspaceNode::getName))
                 .map(child -> toEntry(pathOf(child), child))
                 .toList();
+        log.debug("workspace filesystem list done workspaceId={} path={} nodeId={} folder=true entries={}",
+                workspaceId, path, node.getId(), entries.size());
+        return entries;
     }
 
     @Override
     public byte[] read(String path) {
+        log.debug("workspace filesystem read start workspaceId={} path={}", workspaceId, path);
         WorkspaceNode node = resolveNode(path);
 
         if (!node.isDocumentResource()) {
             throw new FileNotFoundException("Workspace path is not a document: " + path);
         }
 
-        return markdown(node).getBytes(StandardCharsets.UTF_8);
+        byte[] content = markdown(node).getBytes(StandardCharsets.UTF_8);
+        log.debug("workspace filesystem read done workspaceId={} path={} nodeId={} documentId={} bytes={}",
+                workspaceId, path, node.getId(), node.getDocumentId(), content.length);
+        return content;
     }
 
     @Override
     public boolean exists(String path) {
+        log.debug("workspace filesystem exists start workspaceId={} path={}", workspaceId, path);
         try {
             stat(path);
+            log.debug("workspace filesystem exists done workspaceId={} path={} exists=true", workspaceId, path);
             return true;
         } catch (FileNotFoundException exception) {
+            log.debug("workspace filesystem exists done workspaceId={} path={} exists=false", workspaceId, path);
             return false;
         }
     }
 
     @Override
     public FileEntry stat(String path) {
+        log.debug("workspace filesystem stat start workspaceId={} path={}", workspaceId, path);
         WorkspaceNode node = resolveNode(path);
-        return toEntry(pathOf(node), node);
+        FileEntry entry = toEntry(pathOf(node), node);
+        log.debug("workspace filesystem stat done workspaceId={} path={} nodeId={} type={} size={}",
+                workspaceId, path, node.getId(), entry.type(), entry.size());
+        return entry;
     }
 
     @Override
     public List<FileEntry> glob(String pathPattern) {
         String normalizedPattern = FilesystemPath.normalizeGlobPattern(pathPattern);
+        log.debug("workspace filesystem glob start workspaceId={} pattern={} normalizedPattern={}",
+                workspaceId, pathPattern, normalizedPattern);
 
-        return files().stream()
+        List<FileEntry> entries = files().stream()
                 .filter(entry -> GlobMatcher.matches(normalizedPattern, entry.path()))
                 .toList();
+        log.debug("workspace filesystem glob done workspaceId={} pattern={} normalizedPattern={} entries={}",
+                workspaceId, pathPattern, normalizedPattern, entries.size());
+        return entries;
     }
 
     public List<FileEntry> files() {
-        return workspacePaths().entrySet().stream()
+        log.debug("workspace filesystem files start workspaceId={}", workspaceId);
+        List<FileEntry> entries = workspacePaths().entrySet().stream()
                 .filter(entry -> entry.getValue().isDocumentResource())
                 .map(entry -> toEntry(entry.getKey(), entry.getValue()))
                 .sorted(Comparator.comparing(FileEntry::path))
                 .toList();
+        log.debug("workspace filesystem files done workspaceId={} entries={}", workspaceId, entries.size());
+        return entries;
     }
 
     @Override
     public List<GrepMatch> grep(String path, String text) {
+        return grep(path, text, GrepOptions.unlimited()).matches();
+    }
+
+    @Override
+    public GrepResult grep(String path, String text, GrepOptions options) {
+        GrepOptions grepOptions = GrepOptions.effective(options);
         String normalizedPath = FilesystemPath.normalizeVirtualPath(path);
+        log.debug("workspace filesystem grep start workspaceId={} path={} normalizedPath={} textLength={} maxFiles={} maxMatches={}",
+                workspaceId, path, normalizedPath, text == null ? 0 : text.length(),
+                grepOptions.maxFiles(), grepOptions.maxMatches());
         Map<String, WorkspaceNode> paths = workspacePaths();
         WorkspaceNode root = resolveNode(normalizedPath);
         List<GrepMatch> matches = new ArrayList<>();
+        long searchedFiles = 0L;
+        String truncationReason = null;
 
-        paths.entrySet().stream()
+        // A workspace document resource is the file-equivalent unit for grep budgeting.
+        List<Map.Entry<String, WorkspaceNode>> candidates = paths.entrySet().stream()
                 .filter(entry -> entry.getValue().isDocumentResource())
                 .filter(entry -> root.isDocumentResource()
                         ? entry.getKey().equals(normalizedPath)
                         : FilesystemPath.isSameOrDescendant(normalizedPath, entry.getKey()))
-                .forEach(entry -> grepDocument(entry.getKey(), entry.getValue(), text, matches));
-        return matches;
+                .sorted(Map.Entry.comparingByKey())
+                .toList();
+
+        for (Map.Entry<String, WorkspaceNode> entry : candidates) {
+            if (grepOptions.isMaxFilesReached(searchedFiles)) {
+                truncationReason = GrepResult.TRUNCATED_BY_MAX_FILES;
+                break;
+            }
+            if (grepOptions.isMaxMatchesReached(matches.size())) {
+                truncationReason = GrepResult.TRUNCATED_BY_MAX_MATCHES;
+                break;
+            }
+
+            searchedFiles++;
+            if (grepDocument(entry.getKey(), entry.getValue(), text, matches, grepOptions)) {
+                truncationReason = GrepResult.TRUNCATED_BY_MAX_MATCHES;
+                break;
+            }
+        }
+
+        GrepResult result = new GrepResult(matches, truncationReason != null, truncationReason, 0L, searchedFiles);
+        log.debug("workspace filesystem grep done workspaceId={} path={} normalizedPath={} candidates={} matches={} truncated={} reason={} searchedFiles={}",
+                workspaceId, path, normalizedPath, candidates.size(), result.matches().size(), result.truncated(),
+                result.truncationReason(), result.searchedFiles());
+        return result;
     }
 
-    private void grepDocument(String path, WorkspaceNode node, String text, List<GrepMatch> matches) {
+    private boolean grepDocument(String path, WorkspaceNode node, String text, List<GrepMatch> matches, GrepOptions options) {
         String[] lines = markdown(node).split("\\R", -1);
 
         for (int index = 0; index < lines.length; index++) {
             if (lines[index].contains(text)) {
                 matches.add(new GrepMatch(path, index + 1L, lines[index]));
+                if (options.isMaxMatchesReached(matches.size())) {
+                    return true;
+                }
             }
         }
+
+        return false;
     }
 
     private WorkspaceNode resolveNode(String path) {

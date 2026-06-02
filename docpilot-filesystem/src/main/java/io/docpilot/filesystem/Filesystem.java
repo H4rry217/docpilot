@@ -3,6 +3,8 @@ package io.docpilot.filesystem;
 import io.docpilot.filesystem.exception.UnsupportedFilesystemOperationException;
 import io.docpilot.filesystem.model.FileEntry;
 import io.docpilot.filesystem.model.GrepMatch;
+import io.docpilot.filesystem.model.GrepOptions;
+import io.docpilot.filesystem.model.GrepResult;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -54,6 +56,10 @@ public interface Filesystem {
     List<FileEntry> glob(String pathPattern);
 
     List<GrepMatch> grep(String path, String text);
+
+    default GrepResult grep(String path, String text, GrepOptions options) {
+        return GrepResult.complete(grep(path, text));
+    }
 
     default Optional<String> readUrl(String path) {
         return Optional.empty();

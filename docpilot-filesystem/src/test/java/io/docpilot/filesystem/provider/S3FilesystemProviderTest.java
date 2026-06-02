@@ -1,5 +1,7 @@
 package io.docpilot.filesystem.provider;
 
+import io.docpilot.filesystem.model.GrepOptions;
+import io.docpilot.filesystem.model.GrepResult;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
@@ -9,8 +11,13 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectResponse;
+import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.services.s3.model.S3Object;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 import java.nio.charset.StandardCharsets;
@@ -21,6 +28,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -47,6 +55,34 @@ class S3FilesystemProviderTest {
         verify(s3Client).getObjectAsBytes(getCaptor.capture());
         assertThat(getCaptor.getValue().key()).isEqualTo("workspaces/ws1/project/a.md");
         assertThat(new String(bytes)).isEqualTo("hello");
+    }
+
+    @Test
+    void grepStopsReadingObjectsWhenFileLimitIsReached() {
+        S3Client s3Client = mock(S3Client.class);
+        S3Presigner presigner = mock(S3Presigner.class);
+        when(s3Client.headObject(any(HeadObjectRequest.class)))
+                .thenThrow(S3Exception.builder().statusCode(404).build());
+        when(s3Client.listObjectsV2(any(ListObjectsV2Request.class)))
+                .thenReturn(ListObjectsV2Response.builder()
+                        .contents(
+                                S3Object.builder().key("root/a.txt").size(6L).build(),
+                                S3Object.builder().key("root/b.txt").size(6L).build()
+                        )
+                        .build());
+        when(s3Client.getObjectAsBytes(any(GetObjectRequest.class)))
+                .thenReturn(ResponseBytes.fromByteArray(GetObjectResponse.builder().build(), "needle".getBytes()));
+        S3FilesystemProvider provider = new S3FilesystemProvider(config(), s3Client, presigner);
+
+        GrepResult result = provider.grep("root", "needle", new GrepOptions(1, null));
+
+        assertThat(result.matches())
+                .extracting("path")
+                .containsExactly("root/a.txt");
+        assertThat(result.truncated()).isTrue();
+        assertThat(result.truncationReason()).isEqualTo(GrepResult.TRUNCATED_BY_MAX_FILES);
+        assertThat(result.searchedFiles()).isEqualTo(1);
+        verify(s3Client, times(1)).getObjectAsBytes(any(GetObjectRequest.class));
     }
 
     @Test

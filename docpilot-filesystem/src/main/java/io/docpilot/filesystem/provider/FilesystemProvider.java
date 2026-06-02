@@ -2,6 +2,8 @@ package io.docpilot.filesystem.provider;
 
 import io.docpilot.filesystem.model.FileEntry;
 import io.docpilot.filesystem.model.GrepMatch;
+import io.docpilot.filesystem.model.GrepOptions;
+import io.docpilot.filesystem.model.GrepResult;
 
 import java.util.List;
 import java.util.Optional;
@@ -34,6 +36,10 @@ public interface FilesystemProvider {
     List<FileEntry> glob(String pathPattern);
 
     List<GrepMatch> grep(String path, String text);
+
+    default GrepResult grep(String path, String text, GrepOptions options) {
+        return GrepResult.complete(grep(path, text));
+    }
 
     default Optional<String> readUrl(String path) {
         return Optional.empty();

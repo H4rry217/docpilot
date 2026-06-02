@@ -100,37 +100,22 @@ public class MarkdownBlockRenderer {
 
     private String renderGenericBlock(GenericTypedBlock block, int depth) {
         BlockType type = block.type();
-        if (type == BlockType.BLOCK_QUOTE) {
-            return prefixLines(renderChildren(block.children(), depth), "> ");
+        if (type == null) {
+            return "";
         }
-        if (type == BlockType.BULLET_LIST) {
-            return renderList(block.children(), depth, false, 1);
-        }
-        if (type == BlockType.LIST_ITEM) {
-            return renderListItem(block, depth, false, 1);
-        }
-        if (type == BlockType.THEMATIC_BREAK) {
-            return "---";
-        }
-        if (type == BlockType.TABLE) {
-            return renderTable(block.children());
-        }
-        if (type == BlockType.TABLE_ROW) {
-            return renderInlines(block.children().stream().flatMap(child -> inlinesOf(child).stream()).toList());
-        }
-        if (type == BlockType.DEFINITION_LIST) {
-            return renderChildren(block.children(), depth);
-        }
-        if (type == BlockType.DEFINITION_TERM) {
-            return renderInlines(block.inlines());
-        }
-        if (type == BlockType.DEFINITION_ITEM) {
-            return ": " + renderChildren(block.children(), depth + 1);
-        }
-        if (type == BlockType.DOCUMENT) {
-            return renderChildren(block.children(), depth);
-        }
-        return "";
+
+        return switch (type) {
+            case BLOCK_QUOTE -> prefixLines(renderChildren(block.children(), depth), "> ");
+            case BULLET_LIST -> renderList(block.children(), depth, false, 1);
+            case LIST_ITEM -> renderListItem(block, depth, false, 1);
+            case THEMATIC_BREAK -> "---";
+            case TABLE -> renderTable(block.children());
+            case TABLE_ROW -> renderInlines(block.children().stream().flatMap(child -> inlinesOf(child).stream()).toList());
+            case DEFINITION_LIST, DOCUMENT -> renderChildren(block.children(), depth);
+            case DEFINITION_TERM -> renderInlines(block.inlines());
+            case DEFINITION_ITEM -> ": " + renderChildren(block.children(), depth + 1);
+            default -> "";
+        };
     }
 
     private String renderList(List<TypedBlockNode> items, int depth, boolean ordered, int start) {

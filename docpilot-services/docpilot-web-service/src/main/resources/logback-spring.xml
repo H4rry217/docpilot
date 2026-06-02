@@ -2,6 +2,9 @@
 <configuration>
 
     <springProperty scope="context" name="ROOT_LOG_LEVEL" source="logging.level.root" defaultValue="INFO"/>
+    <springProperty scope="context" name="DOCPILOT_LOG_LEVEL" source="logging.level.io.docpilot" defaultValue="INFO"/>
+    <springProperty scope="context" name="FILESYSTEM_LOG_LEVEL" source="logging.level.io.docpilot.filesystem" defaultValue="${DOCPILOT_LOG_LEVEL}"/>
+    <springProperty scope="context" name="WORKSPACE_FILESYSTEM_LOG_LEVEL" source="logging.level.io.docpilot.workspace.filesystem" defaultValue="${DOCPILOT_LOG_LEVEL}"/>
     <springProperty scope="context" name="LOG_DIR" source="logging.file.path" defaultValue="./logs"/>
 
     <property name="LOG_CHARSET" value="UTF-8"/>
@@ -26,7 +29,7 @@
             <maxFileSize>30MB</maxFileSize>
         </rollingPolicy>
         <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
-            <level>INFO</level>
+            <level>DEBUG</level>
         </filter>
     </appender>
 
@@ -91,6 +94,8 @@
 
     <logger name="ch.qos.logback" level="WARN"/>
     <logger name="org.springframework" level="INFO"/>
-    <logger name="io.docpilot" level="INFO"/>
+    <logger name="io.docpilot" level="${DOCPILOT_LOG_LEVEL}"/>
+    <logger name="io.docpilot.filesystem" level="${FILESYSTEM_LOG_LEVEL}"/>
+    <logger name="io.docpilot.workspace.filesystem" level="${WORKSPACE_FILESYSTEM_LOG_LEVEL}"/>
 
 </configuration>

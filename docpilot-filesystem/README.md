@@ -65,7 +65,8 @@ The filesystem object does not need to be a global Spring bean. Callers can asse
 - Duplicate mount paths are rejected.
 - Longest prefix wins, so `/project/tmp` beats `/project`.
 - `list`, `stat`, and `exists` understand synthetic directories created by mounts. If `/project/workspace/ws1` and `/project/workspace/ws2` are mounted, `list("/project/workspace")` returns `ws1` and `ws2`.
-- `read`, `glob`, `grep`, and `readUrl` must resolve to a real mount.
+- `glob` and `grep` can traverse synthetic directories created by mounts. `read` and `readUrl` still must resolve to a real mount.
+- `grep(path, text, GrepOptions)` can cap searched files and returned matches. It returns `GrepResult` with `truncated`, `truncationReason`, `searchedMounts`, and `searchedFiles` metadata.
 - Composite mount cycles are rejected.
 
 ## Providers

@@ -1,5 +1,7 @@
 package io.docpilot.filesystem;
 
+import io.docpilot.filesystem.model.GrepOptions;
+import io.docpilot.filesystem.model.GrepResult;
 import io.docpilot.filesystem.provider.LocalFilesystemProvider;
 import org.junit.jupiter.api.Test;
 
@@ -29,6 +31,14 @@ class ProviderFilesystemTest {
         assertThat(filesystem.grep("/project", "world"))
                 .extracting("path")
                 .containsExactly("/project/docs/a.md");
+
+        GrepResult result = filesystem.grep("/project", "world", new GrepOptions(1, 1));
+        assertThat(result.matches())
+                .extracting("path")
+                .containsExactly("/project/docs/a.md");
+        assertThat(result.truncated()).isTrue();
+        assertThat(result.truncationReason()).isEqualTo(GrepResult.TRUNCATED_BY_MAX_MATCHES);
+        assertThat(result.searchedFiles()).isEqualTo(1);
     }
 
 }

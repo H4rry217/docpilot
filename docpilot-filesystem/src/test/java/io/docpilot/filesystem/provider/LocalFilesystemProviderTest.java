@@ -1,6 +1,8 @@
 package io.docpilot.filesystem.provider;
 
 import io.docpilot.filesystem.exception.InvalidPathException;
+import io.docpilot.filesystem.model.GrepOptions;
+import io.docpilot.filesystem.model.GrepResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -39,6 +41,25 @@ class LocalFilesystemProviderTest {
                     assertThat(match.path()).isEqualTo("project/docs/a.md");
                     assertThat(match.lineNumber()).isEqualTo(2);
                 });
+    }
+
+    @Test
+    void grepStopsWhenLimitsAreReached() {
+        LocalFilesystemProvider provider = new LocalFilesystemProvider("local", tempDir);
+
+        provider.write("project/docs/a.md", "needle".getBytes());
+        provider.write("project/docs/b.md", "needle".getBytes());
+
+        GrepResult fileLimited = provider.grep("project", "needle", new GrepOptions(1, null));
+        assertThat(fileLimited.matches()).hasSize(1);
+        assertThat(fileLimited.truncated()).isTrue();
+        assertThat(fileLimited.truncationReason()).isEqualTo(GrepResult.TRUNCATED_BY_MAX_FILES);
+        assertThat(fileLimited.searchedFiles()).isEqualTo(1);
+
+        GrepResult matchLimited = provider.grep("project", "needle", new GrepOptions(null, 1));
+        assertThat(matchLimited.matches()).hasSize(1);
+        assertThat(matchLimited.truncated()).isTrue();
+        assertThat(matchLimited.truncationReason()).isEqualTo(GrepResult.TRUNCATED_BY_MAX_MATCHES);
     }
 
     @Test
