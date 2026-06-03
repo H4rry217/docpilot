@@ -1,11 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
-import { WORKSPACE_NODE_TYPE, WORKSPACE_RESOURCE_TYPE, type Workspace, type WorkspaceNode, type WorkspaceTreeNode } from '../../../entities/workspace/types'
+import { WORKSPACE_NODE_TYPE, type Workspace, type WorkspaceNode, type WorkspaceTreeNode } from '../../../entities/workspace/types'
 import { ensureDefaultWorkspace, getWorkspaceTree } from '../api/workspaceApi'
 
 export type WorkspaceTreeState = {
   workspace?: Workspace
   tree: WorkspaceTreeNode[]
-  selectedDocumentNode?: WorkspaceTreeNode
   isLoading: boolean
   error?: Error
 }
@@ -36,16 +35,7 @@ function buildTree(nodes: WorkspaceNode[], workspace?: Workspace): WorkspaceTree
   return workspace ? hydrate(workspace.rootNodeId) : []
 }
 
-function flatten(nodes: WorkspaceTreeNode[]): WorkspaceTreeNode[] {
-  return nodes.flatMap((node) => [node, ...flatten(node.children)])
-}
-
-function findDefaultDocument(nodes: WorkspaceTreeNode[], selectedDocumentId?: string): WorkspaceTreeNode | undefined {
-  const documents = flatten(nodes).filter((node) => node.resourceType === WORKSPACE_RESOURCE_TYPE.DOCUMENT && node.documentId)
-  return documents.find((node) => node.documentId === selectedDocumentId) ?? documents[0]
-}
-
-export function useWorkspaceTree(workspaceId?: string, selectedDocumentId?: string, enabled = true): WorkspaceTreeState {
+export function useWorkspaceTree(workspaceId?: string, enabled = true): WorkspaceTreeState {
   const query = useQuery({
     queryKey: ['workspace-tree', workspaceId ?? 'default'],
     enabled,
@@ -63,7 +53,6 @@ export function useWorkspaceTree(workspaceId?: string, selectedDocumentId?: stri
   return {
     workspace: query.data?.workspace,
     tree,
-    selectedDocumentNode: findDefaultDocument(tree, selectedDocumentId),
     isLoading: query.isLoading,
     error: query.error instanceof Error ? query.error : undefined
   }

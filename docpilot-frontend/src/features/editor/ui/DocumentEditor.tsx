@@ -1,6 +1,6 @@
 import type { JSONContent } from '@tiptap/core'
 import { PanelRightClose, PanelRightOpen } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   documentOutlineFromBlockDocument,
@@ -27,10 +27,12 @@ import {
 } from './BlockDocumentEditor'
 import { DocumentCanvas } from './DocumentCanvas'
 import { DocumentEditorToolbar } from './DocumentEditorToolbar'
+import { DocumentOutlineNav } from './DocumentOutlineNav'
 import { JsonInspector, type InspectorTab } from './JsonInspector'
 import './DocumentEditor.css'
 
 const AUTOSAVE_DELAY_MS = 650
+const OUTLINE_AUTO_COLLAPSE_CANVAS_WIDTH = 1230
 
 type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error'
 
@@ -44,9 +46,12 @@ type TextDialogRequest = {
 export type DocumentEditorProps = {
   workspace?: Workspace
   documentNode?: WorkspaceTreeNode
+  outline: DocumentOutlineItem[]
+  activeOutlineId?: string
   outlineJumpRequest?: DocumentOutlineJumpRequest
   onRequestText?: (input: TextDialogRequest) => Promise<string | undefined>
   onOutlineChange?: (outline: DocumentOutlineItem[]) => void
+  onSelectOutlineItem: (item: DocumentOutlineItem) => void
 }
 
 const EMPTY_PROSEMIRROR_DOC: JSONContent = { type: 'doc', content: [] }
@@ -100,9 +105,12 @@ function saveStateKey(saveState: SaveState) {
 export function DocumentEditor({
   workspace,
   documentNode,
+  outline,
+  activeOutlineId,
   outlineJumpRequest,
   onRequestText,
-  onOutlineChange
+  onOutlineChange,
+  onSelectOutlineItem
 }: DocumentEditorProps) {
   const { locale, t } = useI18n()
   const [reviewPanelWidth, setReviewPanelWidth] = usePersistentNumberState({
@@ -115,10 +123,13 @@ export function DocumentEditor({
   const [saveError, setSaveError] = useState<string | null>(null)
   const [inspectorOpen, setInspectorOpen] = useState(false)
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>('block')
+  const [outlineCollapsed, setOutlineCollapsed] = useState(false)
+  const [outlineCompact, setOutlineCompact] = useState(false)
   const [editorSnapshot, setEditorSnapshot] = useState<BlockDocumentEditorSnapshot>(EMPTY_EDITOR_SNAPSHOT)
   const [pastedJson, setPastedJson] = useState('')
   const [pasteError, setPasteError] = useState<string | null>(null)
   const queryClient = useQueryClient()
+  const editorLayoutRef = useRef<HTMLElement | null>(null)
   const blockEditorRef = useRef<BlockDocumentEditorHandle | null>(null)
   const latestSnapshotRef = useRef<BlockDocumentEditorSnapshot | null>(null)
   const documentIdRef = useRef<string | undefined>(undefined)
@@ -126,6 +137,7 @@ export function DocumentEditor({
   const autosaveTimerRef = useRef<number | undefined>(undefined)
 
   const documentId = documentNode?.documentId
+  const hasDocument = Boolean(documentId)
   documentIdRef.current = documentId
 
   const documentQuery = useQuery({
@@ -248,9 +260,12 @@ export function DocumentEditor({
   useEffect(() => {
     latestSnapshotRef.current = null
     setEditorSnapshot(EMPTY_EDITOR_SNAPSHOT)
-    onOutlineChange?.([])
     setSaveError(null)
     setSaveState(documentId ? 'idle' : 'idle')
+
+    if (!documentId) {
+      onOutlineChange?.([])
+    }
   }, [documentId, onOutlineChange])
 
   useEffect(() => {
@@ -258,12 +273,41 @@ export function DocumentEditor({
     versionRef.current = documentQuery.data.document.currentVersion
     setSaveError(null)
     setSaveState('saved')
-  }, [documentQuery.data])
+    onOutlineChange?.(documentOutlineFromBlockDocument(documentQuery.data.document.content.blockDocument))
+  }, [documentQuery.data, onOutlineChange])
 
   useEffect(() => {
     if (!outlineJumpRequest) return
     blockEditorRef.current?.scrollToOutlineItem(outlineJumpRequest)
   }, [outlineJumpRequest])
+
+  useEffect(() => {
+    if (!hasDocument) return
+    const canvas = editorLayoutRef.current?.querySelector<HTMLElement>('.document-main')
+    if (!canvas) return
+
+    function updateOutlineLayout(width: number) {
+      const compact = width < OUTLINE_AUTO_COLLAPSE_CANVAS_WIDTH
+      setOutlineCompact(compact)
+      if (compact) {
+        setOutlineCollapsed(true)
+      }
+    }
+
+    updateOutlineLayout(canvas.getBoundingClientRect().width)
+
+    if (typeof ResizeObserver === 'undefined') {
+      const handleResize = () => updateOutlineLayout(canvas.getBoundingClientRect().width)
+      window.addEventListener('resize', handleResize)
+      return () => window.removeEventListener('resize', handleResize)
+    }
+
+    const observer = new ResizeObserver((entries) => {
+      updateOutlineLayout(entries[0]?.contentRect.width ?? canvas.getBoundingClientRect().width)
+    })
+    observer.observe(canvas)
+    return () => observer.disconnect()
+  }, [hasDocument, documentId])
 
   const title = documentQuery.data?.document.title ?? documentNode?.name ?? t('editor.noDocument')
   const pathText = useMemo(() => {
@@ -281,75 +325,98 @@ export function DocumentEditor({
     [editorSnapshot.proseMirrorJson]
   )
   const contentKey = documentQuery.data?.document.documentId
+  const editorLayoutStyle = {
+    '--review-panel-width': `${reviewPanelWidth}px`
+  } as CSSProperties
 
   return (
     <main
-      className="editor-layout"
-      style={{ gridTemplateColumns: `minmax(0, 1fr) ${reviewPanelWidth}px` }}
+      ref={editorLayoutRef}
+      className={`editor-layout ${hasDocument ? '' : 'is-empty'} ${outlineCompact ? 'outline-compact' : ''}`}
+      style={editorLayoutStyle}
     >
-      <header className="document-header">
-        <div className="document-meta">
-          <div className="breadcrumb">{pathText}</div>
-          <div className="document-subtitle">
-            <span>{t('editor.updated', { time: updatedAt })}</span>
-            <span className={`save-indicator save-${saveState}`}>{saveMessage}</span>
-            <span className="document-side-note">{t('editor.sideNote')}</span>
+      {hasDocument ? (
+        <header className="document-header">
+          <div className="document-meta">
+            <div className="breadcrumb">{pathText}</div>
+            <div className="document-subtitle">
+              <span>{t('editor.updated', { time: updatedAt })}</span>
+              <span className={`save-indicator save-${saveState}`}>{saveMessage}</span>
+              <span className="document-side-note">{t('editor.sideNote')}</span>
+            </div>
           </div>
-        </div>
-        <DocumentEditorToolbar
-          canSave={Boolean(documentId && latestSnapshotRef.current)}
-          isSaving={saveMutation.isPending}
-          inspectorOpen={inspectorOpen}
-          onSave={saveNow}
-          onInsertHtmlBlock={insertHtmlBlock}
-          onToggleInspector={() => setInspectorOpen((open) => !open)}
-        />
-      </header>
+          <DocumentEditorToolbar
+            canSave={Boolean(documentId && latestSnapshotRef.current)}
+            isSaving={saveMutation.isPending}
+            inspectorOpen={inspectorOpen}
+            onSave={saveNow}
+            onInsertHtmlBlock={insertHtmlBlock}
+            onToggleInspector={() => setInspectorOpen((open) => !open)}
+          />
+        </header>
+      ) : null}
 
-      <DocumentCanvas
-        emptyMessage={t('editor.selectOrCreate')}
-        loadingMessage={t('editor.opening')}
-        errorMessage={t('editor.loadFailed')}
-        hasDocument={Boolean(documentId)}
-        isLoading={documentQuery.isLoading}
-        hasError={Boolean(documentQuery.error)}
-      >
-        <BlockDocumentEditor
-          ref={blockEditorRef}
-          contentKey={contentKey}
-          blockDocument={documentQuery.data?.document.content.blockDocument}
-          proseMirrorFallback={documentQuery.data?.prosemirror as JSONContent | undefined}
-          onSnapshotChange={handleSnapshotChange}
-        />
-      </DocumentCanvas>
+      <div className="document-main">
+        {hasDocument ? (
+          <DocumentOutlineNav
+            title={title}
+            outline={outline}
+            activeOutlineId={activeOutlineId}
+            collapsed={outlineCollapsed}
+            onToggleCollapsed={() => setOutlineCollapsed((value) => !value)}
+            onSelectOutlineItem={onSelectOutlineItem}
+          />
+        ) : null}
 
-      <AiReviewPanel width={reviewPanelWidth} onWidthChange={setReviewPanelWidth} />
+        <DocumentCanvas
+          emptyMessage={t('editor.selectOrCreate')}
+          loadingMessage={t('editor.opening')}
+          errorMessage={t('editor.loadFailed')}
+          hasDocument={hasDocument}
+          isLoading={documentQuery.isLoading}
+          hasError={Boolean(documentQuery.error)}
+        >
+          <BlockDocumentEditor
+            ref={blockEditorRef}
+            contentKey={contentKey}
+            blockDocument={documentQuery.data?.document.content.blockDocument}
+            proseMirrorFallback={documentQuery.data?.prosemirror as JSONContent | undefined}
+            onSnapshotChange={handleSnapshotChange}
+          />
+        </DocumentCanvas>
+      </div>
 
-      <button
-        className="right-collapse"
-        type="button"
-        style={{ right: `${reviewPanelWidth + 6}px` }}
-        aria-label={inspectorOpen ? t('json.hide') : t('json.show')}
-        title={inspectorOpen ? t('json.hide') : t('json.show')}
-        onClick={() => setInspectorOpen((open) => !open)}
-      >
-        {inspectorOpen ? <PanelRightClose size={15} /> : <PanelRightOpen size={15} />}
-      </button>
-      <JsonInspector
-        open={inspectorOpen}
-        activeTab={inspectorTab}
-        blockJsonText={blockJsonText}
-        editorJsonText={editorJsonText}
-        pastedJson={pastedJson}
-        pasteError={pasteError}
-        onClose={() => setInspectorOpen(false)}
-        onTabChange={setInspectorTab}
-        onPastedJsonChange={(value) => {
-          setPastedJson(value)
-          setPasteError(null)
-        }}
-        onRenderPastedJson={renderPastedJson}
-      />
+      {hasDocument ? (
+        <>
+          <AiReviewPanel width={reviewPanelWidth} onWidthChange={setReviewPanelWidth} />
+
+          <button
+            className="right-collapse"
+            type="button"
+            style={{ right: `${reviewPanelWidth + 6}px` }}
+            aria-label={inspectorOpen ? t('json.hide') : t('json.show')}
+            title={inspectorOpen ? t('json.hide') : t('json.show')}
+            onClick={() => setInspectorOpen((open) => !open)}
+          >
+            {inspectorOpen ? <PanelRightClose size={15} /> : <PanelRightOpen size={15} />}
+          </button>
+          <JsonInspector
+            open={inspectorOpen}
+            activeTab={inspectorTab}
+            blockJsonText={blockJsonText}
+            editorJsonText={editorJsonText}
+            pastedJson={pastedJson}
+            pasteError={pasteError}
+            onClose={() => setInspectorOpen(false)}
+            onTabChange={setInspectorTab}
+            onPastedJsonChange={(value) => {
+              setPastedJson(value)
+              setPasteError(null)
+            }}
+            onRenderPastedJson={renderPastedJson}
+          />
+        </>
+      ) : null}
     </main>
   )
 }

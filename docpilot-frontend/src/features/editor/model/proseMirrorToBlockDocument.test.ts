@@ -39,6 +39,17 @@ describe('proseMirrorJsonToBlockDocument', () => {
           type: 'paragraph',
           content: [
             {
+              type: 'image',
+              attrs: {
+                src: 'https://example.com/photo.png',
+                alt: 'photo',
+                caption: 'A quiet field',
+                width: 280,
+                alignment: 'center'
+              },
+              marks: [{ type: 'link', attrs: { href: 'https://example.com' } }]
+            },
+            {
               type: 'docpilotMathInline',
               attrs: { text: 'x^2', notation: 'latex', delimiter: '$' }
             },
@@ -54,6 +65,18 @@ describe('proseMirrorJsonToBlockDocument', () => {
     expect(blockDocument.blocks[0]).toMatchObject({
       type: 'PARAGRAPH',
       inlines: [
+        {
+          type: 'IMAGE',
+          text: 'photo',
+          attrs: {
+            src: 'https://example.com/photo.png',
+            alt: 'photo',
+            caption: 'A quiet field',
+            width: 280,
+            alignment: 'center'
+          },
+          marks: [{ type: 'LINK', attrs: { href: 'https://example.com' } }]
+        },
         { type: 'MATH_INLINE', text: 'x^2' },
         { type: 'FOOTNOTE_REF', attrs: { label: 'one' } }
       ]
@@ -87,6 +110,33 @@ describe('proseMirrorJsonToBlockDocument', () => {
         allowScripts: false
       }
     })
+  })
+
+  it('keeps code block language and drops removed wrapping attrs', () => {
+    const blockDocument = proseMirrorJsonToBlockDocument({
+      type: 'doc',
+      content: [
+        {
+          type: 'codeBlock',
+          attrs: {
+            blockId: 'code1',
+            language: 'java',
+            wrapLines: true
+          },
+          content: [{ type: 'text', text: 'System.out.println("Hello");' }]
+        }
+      ]
+    })
+
+    expect(blockDocument.blocks[0]).toMatchObject({
+      id: 'code1',
+      type: 'CODE_BLOCK',
+      attrs: {
+        language: 'java',
+        text: 'System.out.println("Hello");'
+      }
+    })
+    expect(blockDocument.blocks[0].attrs).not.toHaveProperty('wrapLines')
   })
 
   it('normalizes html attrs from editor json', () => {

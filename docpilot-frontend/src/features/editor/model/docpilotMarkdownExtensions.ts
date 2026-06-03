@@ -1,5 +1,7 @@
 import { Mark, mergeAttributes, Node } from '@tiptap/core'
+import { ReactNodeViewRenderer } from '@tiptap/react'
 import type { DOMOutputSpec } from '@tiptap/pm/model'
+import { ImageNodeView } from '../ui/ImageNodeView'
 
 type HtmlAttrs = Record<string, unknown>
 
@@ -48,9 +50,49 @@ function renderedAttrs(attributes: HtmlAttrs, extra: HtmlAttrs = {}) {
   )
 }
 
+function renderedHiddenBlockAttrs(attributes: HtmlAttrs, extra: HtmlAttrs = {}) {
+  const blockId = attributes.blockId
+
+  return mergeAttributes(
+    typeof blockId === 'string' && blockId ? { 'data-block-id': blockId } : {},
+    extra
+  )
+}
+
 function stringAttr(attributes: HtmlAttrs, key: string, fallback = ''): string {
   const value = attributes[key]
   return typeof value === 'string' ? value : fallback
+}
+
+function imageAlignmentAttr(value: unknown): 'left' | 'center' | 'right' {
+  return value === 'center' || value === 'right' ? value : 'left'
+}
+
+function imageDimensionAttr(value: unknown): number | null {
+  const number = typeof value === 'number' ? value : typeof value === 'string' ? Number.parseInt(value, 10) : Number.NaN
+  if (!Number.isFinite(number)) return null
+  const rounded = Math.trunc(number)
+  return rounded > 0 ? rounded : null
+}
+
+function renderedImageAttrs(attributes: HtmlAttrs): HtmlAttrs {
+  const src = stringAttr(attributes, 'src')
+  const alt = stringAttr(attributes, 'alt')
+  const title = stringAttr(attributes, 'title')
+  const caption = stringAttr(attributes, 'caption')
+  const alignment = imageAlignmentAttr(attributes.alignment)
+  const width = imageDimensionAttr(attributes.width)
+
+  return mergeAttributes(
+    {
+      src,
+      alt,
+      ...(title ? { title } : {}),
+      ...(caption ? { 'data-caption': caption } : {}),
+      'data-alignment': alignment,
+      ...(width ? { width: String(width), 'data-width': String(width) } : {})
+    }
+  )
 }
 
 function renderLeafBlock(label: string, attributes: HtmlAttrs): DOMOutputSpec {
@@ -79,19 +121,49 @@ export const DocpilotImage = Node.create({
   group: 'inline',
   inline: true,
   atom: true,
+  selectable: true,
   draggable: true,
 
   addAttributes() {
     return {
-      src: { default: '' },
-      alt: { default: '' },
-      title: { default: '' },
+      src: {
+        default: '',
+        parseHTML: (element) => element.getAttribute('src') ?? ''
+      },
+      alt: {
+        default: '',
+        parseHTML: (element) => element.getAttribute('alt') ?? ''
+      },
+      title: {
+        default: '',
+        parseHTML: (element) => element.getAttribute('title') ?? ''
+      },
+      caption: {
+        default: '',
+        parseHTML: (element) => element.getAttribute('data-caption') ?? ''
+      },
+      width: {
+        default: null,
+        parseHTML: (element) => imageDimensionAttr(element.getAttribute('data-width') ?? element.getAttribute('width'))
+      },
+      alignment: {
+        default: 'left',
+        parseHTML: (element) => imageAlignmentAttr(element.getAttribute('data-alignment'))
+      },
       sourceRange: { default: null }
     }
   },
 
+  parseHTML() {
+    return [{ tag: 'img[src]' }]
+  },
+
   renderHTML({ HTMLAttributes }) {
-    return ['img', renderedAttrs(HTMLAttributes, { src: stringAttr(HTMLAttributes, 'src'), alt: stringAttr(HTMLAttributes, 'alt') })]
+    return ['img', renderedImageAttrs(HTMLAttributes)]
+  },
+
+  addNodeView() {
+    return ReactNodeViewRenderer(ImageNodeView, { as: 'span' })
   }
 })
 
@@ -231,7 +303,14 @@ export const DocpilotLinkReferenceDefinition = Node.create({
   },
 
   renderHTML({ HTMLAttributes }) {
-    return renderLeafBlock('Link reference', HTMLAttributes)
+    return [
+      'div',
+      renderedHiddenBlockAttrs(HTMLAttributes, {
+        class: 'docpilot-link-reference-definition',
+        hidden: 'hidden',
+        'aria-hidden': 'true'
+      })
+    ]
   }
 })
 

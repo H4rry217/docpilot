@@ -1,0 +1,1 @@
+export const TABLE_DEFAULT_COLUMN_WIDTH_PX = 96

@@ -14,7 +14,10 @@ export function normalizeBlockAttrsForProseMirror(type: BlockType, attrs: JsonAt
     case 'TASK_LIST_ITEM':
       return { ...extraAttrs(attrs, ['checked']), checked: booleanAttr(attrs.checked, false) }
     case 'CODE_BLOCK':
-      return { ...extraAttrs(attrs, ['language', 'text']), language: stringAttr(attrs.language, '') }
+      return {
+        ...extraAttrs(attrs, ['language', 'text', 'wrapLines']),
+        language: stringAttr(attrs.language, '')
+      }
     case 'TABLE_CELL':
       return {
         ...extraAttrs(attrs, ['header', 'alignment']),
@@ -39,7 +42,7 @@ export function normalizeBlockAttrsForCanonical(type: BlockType, attrs: JsonAttr
       return { ...extraAttrs(attrs, ['checked']), checked: booleanAttr(attrs.checked, false) }
     case 'CODE_BLOCK':
       return {
-        ...extraAttrs(attrs, ['language', 'text']),
+        ...extraAttrs(attrs, ['language', 'text', 'wrapLines']),
         language: stringAttr(attrs.language, ''),
         text: stringAttr(attrs.text, '')
       }

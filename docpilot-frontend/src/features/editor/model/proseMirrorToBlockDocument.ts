@@ -79,6 +79,16 @@ function inlineFromNode(node: JSONContent): InlineNode {
     return { type: 'HARD_BREAK', attrs: {}, marks: [] }
   }
 
+  if (node.type === 'image') {
+    const attrs = stripInternalAttrs(node.attrs ?? {})
+    return {
+      type: 'IMAGE',
+      text: stringAttr(attrs, 'alt', ''),
+      attrs,
+      marks: markTypes(node)
+    }
+  }
+
   if (node.type === 'docpilotMathInline') {
     return { type: 'MATH_INLINE', text: stringAttr(node.attrs, 'text', ''), attrs: node.attrs ?? {}, marks: [] }
   }

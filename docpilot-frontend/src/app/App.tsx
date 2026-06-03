@@ -79,7 +79,7 @@ export function App() {
   const [dialog, setDialog] = useState<AppDialogState | undefined>()
   const uploadMessageTimerRef = useRef<number | undefined>(undefined)
   const queryClient = useQueryClient()
-  const workspaceTree = useWorkspaceTree(selectedWorkspaceId, selectedNode?.documentId, authStatus === 'authenticated')
+  const workspaceTree = useWorkspaceTree(selectedWorkspaceId, authStatus === 'authenticated')
   const workspaceListQuery = useQuery({
     queryKey: ['workspaces'],
     enabled: authStatus === 'authenticated',
@@ -197,12 +197,6 @@ export function App() {
   useEffect(() => {
     return () => window.clearTimeout(uploadMessageTimerRef.current)
   }, [])
-
-  useEffect(() => {
-    if (!selectedNode && workspaceTree.selectedDocumentNode) {
-      setSelectedNode(workspaceTree.selectedDocumentNode)
-    }
-  }, [selectedNode, workspaceTree.selectedDocumentNode])
 
   useEffect(() => {
     setActiveOutlineId(undefined)
@@ -463,8 +457,6 @@ export function App() {
         expanded={sidebarExpanded}
         width={sidebarWidth}
         selectedNode={selectedNode}
-        outline={documentOutline}
-        activeOutlineId={activeOutlineId}
         workspace={workspaceTree.workspace}
         workspaces={workspaces}
         selectedWorkspaceId={activeWorkspaceId}
@@ -481,7 +473,6 @@ export function App() {
         onUploadMarkdownFiles={handleUploadMarkdownFiles}
         onRenameNode={handleRenameNode}
         onDeleteNode={handleDeleteNode}
-        onSelectOutlineItem={handleSelectOutlineItem}
         uploadMessage={workspaceUploadMessage}
         onOpenSettings={() => setSettingsOpen(true)}
       />
@@ -489,9 +480,12 @@ export function App() {
       <DocumentEditor
         workspace={workspaceTree.workspace}
         documentNode={selectedNode}
+        outline={documentOutline}
+        activeOutlineId={activeOutlineId}
         outlineJumpRequest={outlineJumpRequest}
         onRequestText={requestText}
         onOutlineChange={setDocumentOutline}
+        onSelectOutlineItem={handleSelectOutlineItem}
       />
       {settingsOpen ? (
         <SettingsDialog

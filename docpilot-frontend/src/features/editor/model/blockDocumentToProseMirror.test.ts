@@ -1,7 +1,9 @@
 import { Editor } from '@tiptap/core'
 import { describe, expect, it } from 'vitest'
 import type { BlockDocument } from '../../../entities/block/types'
+import { deleteBlocksByIds } from './blockSelection'
 import { blockDocumentToProseMirrorJson, isBlockDocument, isProseMirrorDoc } from './blockDocumentToProseMirror'
+import { deleteAdjacentCodeBlock } from './docpilotCodeBlock'
 import { editorExtensions } from './extensions'
 
 describe('blockDocumentToProseMirrorJson', () => {
@@ -108,6 +110,203 @@ describe('blockDocumentToProseMirrorJson', () => {
         }
       }
     ])
+  })
+
+  it('keeps editable image layout attrs in editor json', () => {
+    const blockDocument: BlockDocument = {
+      schemaVersion: 'docpilot-block/2',
+      metadata: {},
+      blocks: [
+        {
+          id: 'p1',
+          type: 'PARAGRAPH',
+          attrs: {},
+          inlines: [
+            {
+              type: 'IMAGE',
+              text: 'photo',
+              attrs: {
+                src: 'https://example.com/photo.png',
+                alt: 'photo',
+                caption: 'A quiet field',
+                width: 280,
+                alignment: 'right'
+              },
+              marks: []
+            }
+          ],
+          children: []
+        }
+      ]
+    }
+
+    expect(blockDocumentToProseMirrorJson(blockDocument).content?.[0].content?.[0]).toMatchObject({
+      type: 'image',
+      attrs: {
+        src: 'https://example.com/photo.png',
+        alt: 'photo',
+        caption: 'A quiet field',
+        width: 280,
+        alignment: 'right'
+      }
+    })
+  })
+
+  it('renders inline code marks as TipTap code marks', () => {
+    const blockDocument: BlockDocument = {
+      schemaVersion: 'docpilot-block/2',
+      metadata: {},
+      blocks: [
+        {
+          id: 'p1',
+          type: 'PARAGRAPH',
+          attrs: {},
+          inlines: [
+            { type: 'TEXT', text: '使用 ', attrs: {}, marks: [] },
+            {
+              type: 'TEXT',
+              text: 'System.out.println("Hello")',
+              attrs: {},
+              marks: [{ type: 'CODE', attrs: {} }]
+            },
+            { type: 'TEXT', text: ' 输出内容。', attrs: {}, marks: [] }
+          ],
+          children: []
+        }
+      ]
+    }
+
+    const proseMirrorJson = blockDocumentToProseMirrorJson(blockDocument)
+    expect(proseMirrorJson.content?.[0].content?.[1]).toEqual({
+      type: 'text',
+      text: 'System.out.println("Hello")',
+      marks: [{ type: 'code', attrs: {} }]
+    })
+
+    const editor = new Editor({
+      extensions: editorExtensions,
+      content: proseMirrorJson
+    })
+
+    expect(editor.getHTML()).toContain('<code>System.out.println("Hello")</code>')
+    expect(editor.getHTML()).not.toContain('`System.out.println')
+    editor.destroy()
+  })
+
+  it('keeps code blocks selectable and deletable as a block node', () => {
+    const blockDocument: BlockDocument = {
+      schemaVersion: 'docpilot-block/2',
+      metadata: {},
+      blocks: [
+        {
+          id: 'code1',
+          type: 'CODE_BLOCK',
+          attrs: { language: 'java', text: 'System.out.println("Hello");' },
+          inlines: [],
+          children: []
+        },
+        {
+          id: 'p1',
+          type: 'PARAGRAPH',
+          attrs: {},
+          inlines: [{ type: 'TEXT', text: 'after', attrs: {}, marks: [] }],
+          children: []
+        }
+      ]
+    }
+
+    const editor = new Editor({
+      extensions: editorExtensions,
+      content: blockDocumentToProseMirrorJson(blockDocument)
+    })
+
+    expect(editor.getJSON().content?.[0].attrs).toMatchObject({
+      language: 'java'
+    })
+    editor.commands.setNodeSelection(0)
+    editor.commands.deleteSelection()
+
+    expect(editor.getJSON().content?.map((node) => node.type)).toEqual(['paragraph'])
+    editor.destroy()
+  })
+
+  it('deletes adjacent code blocks from text cursor block boundaries', () => {
+    const editorAfterCode = new Editor({
+      extensions: editorExtensions,
+      content: {
+        type: 'doc',
+        content: [
+          {
+            type: 'codeBlock',
+            attrs: { language: 'sql' },
+            content: [{ type: 'text', text: 'SELECT * FROM user WHERE id = 1;' }]
+          },
+          { type: 'paragraph' }
+        ]
+      }
+    })
+    const paragraphStart = editorAfterCode.state.doc.child(0).nodeSize
+    editorAfterCode.commands.setTextSelection(paragraphStart + 1)
+
+    expect(deleteAdjacentCodeBlock(editorAfterCode, 'backward')).toBe(true)
+    expect(editorAfterCode.getJSON().content?.map((node) => node.type)).toEqual(['paragraph'])
+    editorAfterCode.destroy()
+
+    const editorBeforeCode = new Editor({
+      extensions: editorExtensions,
+      content: {
+        type: 'doc',
+        content: [
+          { type: 'paragraph' },
+          {
+            type: 'codeBlock',
+            attrs: { language: 'json' },
+            content: [{ type: 'text', text: '{"ok": true}' }]
+          }
+        ]
+      }
+    })
+    editorBeforeCode.commands.setTextSelection(1)
+
+    expect(deleteAdjacentCodeBlock(editorBeforeCode, 'forward')).toBe(true)
+    expect(editorBeforeCode.getJSON().content?.map((node) => node.type)).toEqual(['paragraph'])
+    editorBeforeCode.destroy()
+  })
+
+  it('deletes multiple selected block ids as a single block selection', () => {
+    const editor = new Editor({
+      extensions: editorExtensions,
+      content: {
+        type: 'doc',
+        content: [
+          {
+            type: 'heading',
+            attrs: { level: 1, blockId: 'heading1' },
+            content: [{ type: 'text', text: 'Title' }]
+          },
+          {
+            type: 'paragraph',
+            attrs: { blockId: 'paragraph1' },
+            content: [{ type: 'text', text: 'Keep me' }]
+          },
+          {
+            type: 'codeBlock',
+            attrs: { blockId: 'code1', language: 'sql' },
+            content: [{ type: 'text', text: 'SELECT 1;' }]
+          }
+        ]
+      }
+    })
+
+    expect(deleteBlocksByIds(editor, ['heading1', 'code1'])).toBe(true)
+    expect(editor.getJSON().content).toMatchObject([
+      {
+        type: 'paragraph',
+        attrs: { blockId: 'paragraph1' },
+        content: [{ type: 'text', text: 'Keep me' }]
+      }
+    ])
+    editor.destroy()
   })
 
   it('builds TipTap-renderable json for rich imported markdown elements', () => {
@@ -217,6 +416,33 @@ describe('blockDocumentToProseMirrorJson', () => {
     })
 
     expect(editor.getJSON().content).toHaveLength(blockDocument.blocks.length)
+    editor.destroy()
+  })
+
+  it('keeps link reference definitions hidden from rendered editor content', () => {
+    const blockDocument: BlockDocument = {
+      schemaVersion: 'docpilot-block/2',
+      metadata: {},
+      blocks: [
+        {
+          id: 'ref1',
+          type: 'LINK_REFERENCE_DEFINITION',
+          attrs: { label: 'github', href: 'https://github.com', raw: '[github]: https://github.com' },
+          inlines: [],
+          children: []
+        }
+      ]
+    }
+
+    const editor = new Editor({
+      extensions: editorExtensions,
+      content: blockDocumentToProseMirrorJson(blockDocument)
+    })
+
+    expect(editor.getJSON().content).toHaveLength(1)
+    expect(editor.getHTML()).toContain('docpilot-link-reference-definition')
+    expect(editor.getHTML()).not.toContain('Link reference')
+    expect(editor.getHTML()).not.toContain('[github]: https://github.com')
     editor.destroy()
   })
 })

@@ -17,9 +17,11 @@ export function DocumentCanvas({
   hasError: boolean
   children: ReactNode
 }) {
+  const isEmpty = !hasDocument
+
   return (
-    <section className="document-canvas">
-      {!hasDocument ? (
+    <section className={`document-canvas ${isEmpty ? 'is-empty' : ''}`}>
+      {isEmpty ? (
         <div className="document-empty">{emptyMessage}</div>
       ) : isLoading ? (
         <div className="document-empty">{loadingMessage}</div>

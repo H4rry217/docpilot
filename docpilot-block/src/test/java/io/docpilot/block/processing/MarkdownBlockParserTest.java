@@ -49,6 +49,21 @@ class MarkdownBlockParserTest {
     }
 
     @Test
+    void parseInlineCodeMark() {
+        BlockDocument document = parser.parse("使用 `System.out.println(\"Hello\")` 输出内容。");
+
+        assertThat(document.getBlocks()).hasSize(1);
+        BlockNode paragraph = document.getBlocks().getFirst();
+        assertThat(paragraph.getType()).isEqualTo(BlockType.PARAGRAPH);
+        assertThat(paragraph.getInlines())
+                .noneSatisfy(inline -> assertThat(inline.getText()).contains("`"))
+                .anySatisfy(inline -> {
+                    assertThat(inline.getText()).isEqualTo("System.out.println(\"Hello\")");
+                    assertThat(hasMark(inline.getMarks(), MarkType.CODE)).isTrue();
+                });
+    }
+
+    @Test
     void parseGfmTablesAndTaskListItems() {
         BlockDocument document = parser.parse("""
                 - [x] Done

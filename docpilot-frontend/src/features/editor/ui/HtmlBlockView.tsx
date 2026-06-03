@@ -84,6 +84,7 @@ export function HtmlBlockView(props: NodeViewProps) {
   return (
     <NodeViewWrapper
       className="html-block"
+      data-block-id={blockId}
       data-docpilot-html-block=""
       data-html-source={source}
       data-html-title={title}
