@@ -1,9 +1,10 @@
 import { Editor } from '@tiptap/core'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { BlockDocument } from '../../../entities/block/types'
 import { deleteBlocksByIds } from './blockSelection'
 import { blockDocumentToProseMirrorJson, isBlockDocument, isProseMirrorDoc } from './blockDocumentToProseMirror'
 import { deleteAdjacentCodeBlock } from './docpilotCodeBlock'
+import { handleFootnoteReferenceClick } from './docpilotFootnoteNavigation'
 import { editorExtensions } from './extensions'
 
 describe('blockDocumentToProseMirrorJson', () => {
@@ -771,5 +772,121 @@ describe('blockDocumentToProseMirrorJson', () => {
     expect(editor.getHTML()).not.toContain('Link reference')
     expect(editor.getHTML()).not.toContain('[github]: https://github.com')
     editor.destroy()
+  })
+
+  it('links footnote references to their definitions in rendered editor html', () => {
+    const editor = new Editor({
+      extensions: editorExtensions,
+      content: blockDocumentToProseMirrorJson({
+        schemaVersion: 'docpilot-block/2',
+        metadata: {},
+        blocks: [
+          {
+            id: 'paragraph1',
+            type: 'PARAGRAPH',
+            attrs: {},
+            inlines: [
+              { type: 'TEXT', text: 'Footnote here', attrs: {}, marks: [] },
+              { type: 'FOOTNOTE_REF', attrs: { label: 'one' }, marks: [] }
+            ],
+            children: []
+          },
+          {
+            id: 'footnote1',
+            type: 'FOOTNOTE_DEFINITION',
+            attrs: { label: 'one' },
+            inlines: [],
+            children: [
+              {
+                id: 'footnoteParagraph',
+                type: 'PARAGRAPH',
+                attrs: {},
+                inlines: [{ type: 'TEXT', text: 'Footnote body', attrs: {}, marks: [] }],
+                children: []
+              }
+            ]
+          }
+        ]
+      })
+    })
+
+    const html = editor.getHTML()
+
+    expect(html).toContain('id="docpilot-footnote-ref-one"')
+    expect(html).toContain('href="#docpilot-footnote-one"')
+    expect(html).toContain('id="docpilot-footnote-one"')
+    editor.destroy()
+  })
+
+  it('handles footnote reference clicks inside the editor instead of opening a new window', () => {
+    const editor = new Editor({
+      extensions: editorExtensions,
+      content: blockDocumentToProseMirrorJson({
+        schemaVersion: 'docpilot-block/2',
+        metadata: {},
+        blocks: [
+          {
+            id: 'paragraph1',
+            type: 'PARAGRAPH',
+            attrs: {},
+            inlines: [
+              { type: 'TEXT', text: 'Footnote here', attrs: {}, marks: [] },
+              { type: 'FOOTNOTE_REF', attrs: { label: 'one' }, marks: [] }
+            ],
+            children: []
+          },
+          {
+            id: 'footnote1',
+            type: 'FOOTNOTE_DEFINITION',
+            attrs: { label: 'one' },
+            inlines: [],
+            children: [
+              {
+                id: 'footnoteParagraph',
+                type: 'PARAGRAPH',
+                attrs: {},
+                inlines: [{ type: 'TEXT', text: 'Footnote body', attrs: {}, marks: [] }],
+                children: []
+              }
+            ]
+          }
+        ]
+      })
+    })
+    const anchor = editor.view.dom.querySelector<HTMLAnchorElement>('.docpilot-footnote-ref a')
+    const definition = editor.view.dom.querySelector<HTMLElement>('#docpilot-footnote-one')
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
+    const scrollSpy = vi.fn()
+
+    expect(anchor).toBeInstanceOf(HTMLAnchorElement)
+    expect(definition).toBeInstanceOf(HTMLElement)
+    Object.defineProperty(definition as HTMLElement, 'scrollIntoView', {
+      configurable: true,
+      value: scrollSpy
+    })
+    const event = new MouseEvent('click', { bubbles: true, button: 0, cancelable: true })
+    Object.defineProperty(event, 'target', {
+      configurable: true,
+      value: anchor as HTMLAnchorElement
+    })
+
+    expect(handleFootnoteReferenceClick(editor.view, event)).toBe(true)
+    expect(event.defaultPrevented).toBe(true)
+    expect(openSpy).not.toHaveBeenCalled()
+    expect(scrollSpy).toHaveBeenCalledWith({ block: 'center', behavior: 'smooth' })
+    expect(definition?.classList.contains('is-footnote-target')).toBe(true)
+    openSpy.mockRestore()
+    editor.destroy()
+  })
+
+  it('handles footnote clicks before the generic link click opener', () => {
+    const footnoteExtension = editorExtensions.find((extension) => extension.name === 'docpilotFootnoteNavigation')
+    const linkExtension = editorExtensions.find((extension) => extension.name === 'link')
+    const footnotePriority = (footnoteExtension as { config?: { priority?: number } } | undefined)?.config?.priority ?? 100
+    const linkPriority = (linkExtension as { config?: { priority?: number } } | undefined)?.config?.priority ?? 100
+
+    expect(footnoteExtension).toBeDefined()
+    expect(linkExtension).toBeDefined()
+    expect(footnotePriority).toBeGreaterThan(linkPriority)
   })
 })

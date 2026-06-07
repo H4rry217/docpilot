@@ -24,7 +24,7 @@ import {
   rectFromPoints,
   rectsOverlap,
   selectableBlockTargets,
-  shouldRenderBlockOverlay,
+  visualBlockSelectionTargets,
   type Point,
   type SelectableBlockTarget
 } from './blockSelectionGeometry'
@@ -78,8 +78,8 @@ export function useBlockMarqueeSelection({
   }
 
   function applySelectedBlockTargets(targets: SelectableBlockTarget[]) {
-    selectedBlockIdsRef.current = new Set(targets.map((target) => target.id))
-    const visualTargets = targets.filter((candidate) => shouldRenderBlockOverlay(candidate, targets))
+    const visualTargets = visualBlockSelectionTargets(targets)
+    selectedBlockIdsRef.current = new Set(visualTargets.map((target) => target.id))
     applyVisualBlockSelection(
       blockSelectionDecorationsFromTargets(visualTargets)
     )

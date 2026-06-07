@@ -483,7 +483,6 @@ export function App() {
         outline={documentOutline}
         activeOutlineId={activeOutlineId}
         outlineJumpRequest={outlineJumpRequest}
-        onRequestText={requestText}
         onOutlineChange={setDocumentOutline}
         onSelectOutlineItem={handleSelectOutlineItem}
       />

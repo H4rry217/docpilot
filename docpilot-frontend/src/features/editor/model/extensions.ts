@@ -7,6 +7,7 @@ import StarterKit from '@tiptap/starter-kit'
 import { DocpilotBlockSelection } from './blockSelection'
 import { DocpilotBlockIdentity } from './docpilotBlockIdentity'
 import { DocpilotCodeBlock } from './docpilotCodeBlock'
+import { DocpilotFootnoteNavigation } from './docpilotFootnoteNavigation'
 import { DocpilotHtmlBlock } from './docpilotHtmlBlock'
 import { DocpilotTableCellSelection } from './docpilotTableCellSelection'
 import {
@@ -46,6 +47,7 @@ export const editorExtensions = [
   DocpilotTableCellSelection,
   DocpilotBlockIdentity,
   DocpilotBlockSelection,
+  DocpilotFootnoteNavigation,
   DocpilotCodeBlock,
   Link.configure({
     autolink: true,

@@ -72,6 +72,27 @@ function booleanAttr(value: unknown, fallback = false): boolean {
   return fallback
 }
 
+function footnoteAnchorToken(label: string): string {
+  const value = label.trim() || 'fn'
+  const token = Array.from(value)
+    .map((character) => (/^[A-Za-z0-9_-]$/.test(character)
+      ? character
+      : `-${character.codePointAt(0)?.toString(16) ?? 'x'}-`))
+    .join('')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+
+  return token || 'fn'
+}
+
+function footnoteDefinitionId(label: string): string {
+  return `docpilot-footnote-${footnoteAnchorToken(label)}`
+}
+
+function footnoteReferenceId(label: string): string {
+  return `docpilot-footnote-ref-${footnoteAnchorToken(label)}`
+}
+
 function renderedCalloutAttrs(attributes: HtmlAttrs, extra: HtmlAttrs = {}) {
   const attrs = { ...attributes }
   delete attrs.kind
@@ -460,7 +481,16 @@ export const DocpilotFootnoteDefinition = Node.create({
   },
 
   renderHTML({ HTMLAttributes }) {
-    return ['section', renderedAttrs(HTMLAttributes, { class: 'docpilot-block docpilot-footnote-definition' }), 0]
+    const label = stringAttr(HTMLAttributes, 'label', 'fn') || 'fn'
+    return [
+      'section',
+      renderedAttrs(HTMLAttributes, {
+        class: 'docpilot-block docpilot-footnote-definition',
+        id: footnoteDefinitionId(label),
+        'data-footnote-label': label
+      }),
+      0
+    ]
   }
 })
 
@@ -581,7 +611,22 @@ export const DocpilotFootnoteRef = Node.create({
   },
 
   renderHTML({ HTMLAttributes }) {
-    return ['sup', renderedAttrs(HTMLAttributes, { class: 'docpilot-footnote-ref' }), stringAttr(HTMLAttributes, 'label', 'fn')] as DOMOutputSpec
+    const label = stringAttr(HTMLAttributes, 'label', 'fn') || 'fn'
+    return [
+      'sup',
+      renderedAttrs(HTMLAttributes, {
+        class: 'docpilot-footnote-ref',
+        id: footnoteReferenceId(label)
+      }),
+      [
+        'a',
+        {
+          'aria-label': `Footnote ${label}`,
+          href: `#${footnoteDefinitionId(label)}`
+        },
+        label
+      ]
+    ] as DOMOutputSpec
   }
 })
 

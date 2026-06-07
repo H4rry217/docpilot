@@ -24,21 +24,9 @@ export type BlockDocumentEditorSnapshot = {
 
 export type BlockDocumentEditorSnapshotSource = 'load' | 'edit' | 'programmatic'
 
-export type InsertHtmlBlockInput = {
-  id: string
-  title: string
-  source: string
-  displayMode: 'fixed' | 'auto'
-  fixedHeightPx: number
-  allowScripts: boolean
-}
-
 export type BlockDocumentEditorHandle = {
   getSnapshot: () => BlockDocumentEditorSnapshot | null
-  insertHtmlBlock: (input: InsertHtmlBlockInput) => BlockDocumentEditorSnapshot | null
   scrollToOutlineItem: (request: DocumentOutlineJumpRequest) => void
-  setBlockDocument: (blockDocument: BlockDocument) => BlockDocumentEditorSnapshot | null
-  setProseMirrorJson: (proseMirrorJson: JSONContent) => BlockDocumentEditorSnapshot | null
 }
 
 export type BlockDocumentEditorProps = {
@@ -134,35 +122,15 @@ export const BlockDocumentEditor = forwardRef<BlockDocumentEditorHandle, BlockDo
       ref,
       () => ({
         getSnapshot: () => (editor ? snapshotFromEditor(editor) : null),
-        insertHtmlBlock: (input) => {
-          if (!editor) return null
-          editor
-            .chain()
-            .focus()
-            .insertContent({
-              type: 'docpilotHtmlBlock',
-              attrs: input
-            })
-            .run()
-          return snapshotFromEditor(editor)
-        },
         scrollToOutlineItem: (request) => {
           if (!editor) return
           const headings = editor.view.dom.querySelectorAll<HTMLElement>('h1, h2, h3, h4, h5, h6')
           const target = editor.view.dom.querySelector<HTMLElement>(blockIdSelector(request.id))
             ?? headings.item(request.headingIndex)
           target?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-        },
-        setBlockDocument: (nextBlockDocument) => {
-          if (!editor) return null
-          return applyProseMirrorJson(editor, blockDocumentToProseMirrorJson(nextBlockDocument), 'programmatic')
-        },
-        setProseMirrorJson: (nextProseMirrorJson) => {
-          if (!editor) return null
-          return applyProseMirrorJson(editor, nextProseMirrorJson, 'programmatic')
         }
       }),
-      [applyProseMirrorJson, editor]
+      [editor]
     )
 
     useEffect(() => {

@@ -5,6 +5,7 @@ import {
   rectFromPoints,
   rectsOverlap,
   shouldRenderBlockOverlay,
+  visualBlockSelectionTargets,
   type SelectableBlockTarget
 } from './blockSelectionGeometry'
 
@@ -53,6 +54,17 @@ describe('block selection geometry', () => {
 
     expect(shouldRenderBlockOverlay(container, [container, child])).toBe(true)
     expect(shouldRenderBlockOverlay(child, [container, child])).toBe(false)
+  })
+
+  it('treats collapsible callouts as selectable visual containers', () => {
+    const details = document.createElement('details')
+    details.className = 'docpilot-callout docpilot-callout-collapsible'
+    const paragraph = document.createElement('p')
+    details.append(paragraph)
+    const container = target(details, 'details')
+    const child = target(paragraph, 'child')
+
+    expect(visualBlockSelectionTargets([container, child]).map((item) => item.id)).toEqual(['details'])
   })
 
   it('creates stable selection signatures', () => {

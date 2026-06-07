@@ -83,18 +83,10 @@
   flex-wrap: wrap;
 }
 
-.runtime-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-height: 28px;
-  border: 1px solid #bce8ce;
-  border-radius: 7px;
-  background: #f2fbf5;
-  color: #087a3a;
-  padding: 0 9px;
-  font-size: 0.8rem;
-  font-weight: 800;
+.block-debug-toggle.is-active {
+  border-color: #7cb2eb;
+  background: #eef7ff;
+  color: #2168ad;
 }
 
 .document-main {
@@ -315,6 +307,15 @@
   color: #303b49;
   font-size: 1.02rem;
   line-height: 1.9;
+}
+
+.editor-layout.block-debug-mode .prose-editor [data-block-id] {
+  outline: 2px solid rgb(37 111 197 / 86%);
+  outline-offset: 4px;
+}
+
+.editor-layout.block-debug-mode .prose-editor table [data-block-id] {
+  outline: 0;
 }
 
 .prose-editor :first-child {
@@ -644,6 +645,16 @@
   padding: 10px 14px;
 }
 
+.prose-editor .docpilot-footnote-definition {
+  scroll-margin-top: 72px;
+}
+
+.prose-editor .docpilot-footnote-definition:target,
+.prose-editor .docpilot-footnote-definition.is-footnote-target {
+  border-color: #9cc7ff;
+  box-shadow: 0 0 0 3px rgb(51 112 255 / 12%);
+}
+
 .prose-editor .docpilot-front-matter {
   overflow: hidden;
   padding: 0;
@@ -764,6 +775,11 @@
   line-height: 1.35;
 }
 
+.prose-editor .docpilot-footnote-ref a {
+  color: inherit;
+  text-decoration: none;
+}
+
 .prose-editor .docpilot-math-inline,
 .prose-editor .docpilot-math-block {
   font-family: "Cambria Math", "STIX Two Math", "Times New Roman", serif;
@@ -783,13 +799,14 @@
 
 .prose-editor .docpilot-math-block {
   display: flex;
+  align-items: center;
   justify-content: center;
   min-width: 0;
   margin: 18px 0;
   border: 0;
   border-radius: 0;
   background: transparent;
-  overflow-x: auto;
+  overflow: visible;
   padding: 8px 0;
 }
 
@@ -799,8 +816,17 @@
   justify-content: center;
   gap: 0.03em;
   max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
   line-height: 1.2;
+  padding: 2px 0;
   white-space: nowrap;
+}
+
+.prose-editor .docpilot-math-rendered::-webkit-scrollbar {
+  display: none;
 }
 
 .prose-editor .docpilot-math-symbol,
@@ -992,23 +1018,6 @@
   color: #8b98a9;
 }
 
-.right-collapse {
-  position: absolute;
-  top: 66px;
-  right: 326px;
-  z-index: 42;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: 1px solid #dce6f2;
-  border-radius: 8px;
-  background: #fff;
-  color: #64a7e5;
-  box-shadow: 0 8px 18px rgb(31 41 55 / 10%);
-}
-
 .editor-layout.outline-compact .document-outline-nav {
   top: 0;
   bottom: 0;
@@ -1095,7 +1104,4 @@
     padding: 0;
   }
 
-  .right-collapse {
-    right: 12px;
-  }
 }

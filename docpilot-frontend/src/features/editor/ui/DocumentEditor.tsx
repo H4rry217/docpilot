@@ -1,5 +1,4 @@
 import type { JSONContent } from '@tiptap/core'
-import { PanelRightClose, PanelRightOpen } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -12,7 +11,6 @@ import type { Workspace, WorkspaceTreeNode } from '../../../entities/workspace/t
 import { useI18n, type Locale } from '../../../shared/i18n'
 import { usePersistentNumberState } from '../../../shared/ui/usePersistentNumberState'
 import { getDocument, saveDocumentContent } from '../api/documentApi'
-import { isBlockDocument, isProseMirrorDoc } from '../model/blockDocumentToProseMirror'
 import {
   AiReviewPanel,
   AI_REVIEW_PANEL_DEFAULT_WIDTH,
@@ -28,7 +26,6 @@ import {
 import { DocumentCanvas } from './DocumentCanvas'
 import { DocumentEditorToolbar } from './DocumentEditorToolbar'
 import { DocumentOutlineNav } from './DocumentOutlineNav'
-import { JsonInspector, type InspectorTab } from './JsonInspector'
 import './DocumentEditor.css'
 
 const AUTOSAVE_DELAY_MS = 650
@@ -36,37 +33,14 @@ const OUTLINE_AUTO_COLLAPSE_CANVAS_WIDTH = 1230
 
 type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error'
 
-type TextDialogRequest = {
-  title: string
-  label: string
-  defaultValue: string
-  confirmLabel: string
-}
-
 export type DocumentEditorProps = {
   workspace?: Workspace
   documentNode?: WorkspaceTreeNode
   outline: DocumentOutlineItem[]
   activeOutlineId?: string
   outlineJumpRequest?: DocumentOutlineJumpRequest
-  onRequestText?: (input: TextDialogRequest) => Promise<string | undefined>
   onOutlineChange?: (outline: DocumentOutlineItem[]) => void
   onSelectOutlineItem: (item: DocumentOutlineItem) => void
-}
-
-const EMPTY_PROSEMIRROR_DOC: JSONContent = { type: 'doc', content: [] }
-
-const EMPTY_BLOCK_DOCUMENT: BlockDocument = {
-  schemaVersion: 'docpilot-block/2',
-  blocks: [],
-  metadata: {
-    source: 'frontend-empty'
-  }
-}
-
-const EMPTY_EDITOR_SNAPSHOT: BlockDocumentEditorSnapshot = {
-  proseMirrorJson: EMPTY_PROSEMIRROR_DOC,
-  blockDocument: EMPTY_BLOCK_DOCUMENT
 }
 
 function formatUpdatedAt(value: string | undefined, locale: Locale): string | null {
@@ -80,10 +54,6 @@ function formatUpdatedAt(value: string | undefined, locale: Locale): string | nu
     minute: '2-digit',
     hour12: false
   }).format(date)
-}
-
-function makeHtmlBlockId(): string {
-  return `html${crypto.randomUUID().replaceAll('-', '')}`
 }
 
 function saveStateKey(saveState: SaveState) {
@@ -108,7 +78,6 @@ export function DocumentEditor({
   outline,
   activeOutlineId,
   outlineJumpRequest,
-  onRequestText,
   onOutlineChange,
   onSelectOutlineItem
 }: DocumentEditorProps) {
@@ -121,13 +90,9 @@ export function DocumentEditor({
   })
   const [saveState, setSaveState] = useState<SaveState>('idle')
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [inspectorOpen, setInspectorOpen] = useState(false)
-  const [inspectorTab, setInspectorTab] = useState<InspectorTab>('block')
+  const [blockDebugMode, setBlockDebugMode] = useState(false)
   const [outlineCollapsed, setOutlineCollapsed] = useState(false)
   const [outlineCompact, setOutlineCompact] = useState(false)
-  const [editorSnapshot, setEditorSnapshot] = useState<BlockDocumentEditorSnapshot>(EMPTY_EDITOR_SNAPSHOT)
-  const [pastedJson, setPastedJson] = useState('')
-  const [pasteError, setPasteError] = useState<string | null>(null)
   const queryClient = useQueryClient()
   const editorLayoutRef = useRef<HTMLElement | null>(null)
   const blockEditorRef = useRef<BlockDocumentEditorHandle | null>(null)
@@ -193,7 +158,6 @@ export function DocumentEditor({
   const handleSnapshotChange = useCallback(
     (snapshot: BlockDocumentEditorSnapshot, source: BlockDocumentEditorSnapshotSource) => {
       latestSnapshotRef.current = snapshot
-      setEditorSnapshot(snapshot)
       onOutlineChange?.(documentOutlineFromBlockDocument(snapshot.blockDocument))
 
       if (source === 'load') return
@@ -212,54 +176,12 @@ export function DocumentEditor({
     saveBlockDocument(snapshot.blockDocument)
   }
 
-  async function insertHtmlBlock() {
-    if (!onRequestText) return
-    const source = await onRequestText({
-      title: t('editor.htmlBlock'),
-      label: t('editor.htmlPrompt'),
-      defaultValue: '<div class="docpilot-html-block">hello</div>',
-      confirmLabel: t('dialog.confirm')
-    })
-    if (!source) return
-    const snapshot = blockEditorRef.current?.insertHtmlBlock({
-      id: makeHtmlBlockId(),
-      title: 'HTML',
-      source,
-      displayMode: 'fixed',
-      fixedHeightPx: 320,
-      allowScripts: false
-    })
-    if (snapshot) handleSnapshotChange(snapshot, 'programmatic')
-  }
-
-  function renderPastedJson() {
-    try {
-      const parsed: unknown = JSON.parse(pastedJson)
-      const snapshot = isBlockDocument(parsed)
-        ? blockEditorRef.current?.setBlockDocument(parsed)
-        : isProseMirrorDoc(parsed)
-          ? blockEditorRef.current?.setProseMirrorJson(parsed as JSONContent)
-          : null
-
-      if (!snapshot) {
-        setPasteError(t('json.invalidShape'))
-        return
-      }
-
-      setPasteError(null)
-      handleSnapshotChange(snapshot, 'programmatic')
-    } catch (error) {
-      setPasteError(error instanceof Error ? error.message : t('json.parseFailed'))
-    }
-  }
-
   useEffect(() => {
     return () => window.clearTimeout(autosaveTimerRef.current)
   }, [])
 
   useEffect(() => {
     latestSnapshotRef.current = null
-    setEditorSnapshot(EMPTY_EDITOR_SNAPSHOT)
     setSaveError(null)
     setSaveState(documentId ? 'idle' : 'idle')
 
@@ -316,14 +238,6 @@ export function DocumentEditor({
   }, [title, t, workspace?.name])
   const updatedAt = formatUpdatedAt(documentQuery.data?.document.updateTime, locale) ?? t('editor.notSaved')
   const saveMessage = saveState === 'error' && saveError ? saveError : t(saveStateKey(saveState))
-  const blockJsonText = useMemo(
-    () => JSON.stringify(editorSnapshot.blockDocument, null, 2),
-    [editorSnapshot.blockDocument]
-  )
-  const editorJsonText = useMemo(
-    () => JSON.stringify(editorSnapshot.proseMirrorJson, null, 2),
-    [editorSnapshot.proseMirrorJson]
-  )
   const contentKey = documentQuery.data?.document.documentId
   const editorLayoutStyle = {
     '--review-panel-width': `${reviewPanelWidth}px`
@@ -332,7 +246,7 @@ export function DocumentEditor({
   return (
     <main
       ref={editorLayoutRef}
-      className={`editor-layout ${hasDocument ? '' : 'is-empty'} ${outlineCompact ? 'outline-compact' : ''}`}
+      className={`editor-layout ${hasDocument ? '' : 'is-empty'} ${outlineCompact ? 'outline-compact' : ''} ${blockDebugMode ? 'block-debug-mode' : ''}`}
       style={editorLayoutStyle}
     >
       {hasDocument ? (
@@ -346,12 +260,11 @@ export function DocumentEditor({
             </div>
           </div>
           <DocumentEditorToolbar
+            blockDebugMode={blockDebugMode}
             canSave={Boolean(documentId && latestSnapshotRef.current)}
             isSaving={saveMutation.isPending}
-            inspectorOpen={inspectorOpen}
             onSave={saveNow}
-            onInsertHtmlBlock={insertHtmlBlock}
-            onToggleInspector={() => setInspectorOpen((open) => !open)}
+            onToggleBlockDebugMode={() => setBlockDebugMode((enabled) => !enabled)}
           />
         </header>
       ) : null}
@@ -387,35 +300,7 @@ export function DocumentEditor({
       </div>
 
       {hasDocument ? (
-        <>
-          <AiReviewPanel width={reviewPanelWidth} onWidthChange={setReviewPanelWidth} />
-
-          <button
-            className="right-collapse"
-            type="button"
-            style={{ right: `${reviewPanelWidth + 6}px` }}
-            aria-label={inspectorOpen ? t('json.hide') : t('json.show')}
-            title={inspectorOpen ? t('json.hide') : t('json.show')}
-            onClick={() => setInspectorOpen((open) => !open)}
-          >
-            {inspectorOpen ? <PanelRightClose size={15} /> : <PanelRightOpen size={15} />}
-          </button>
-          <JsonInspector
-            open={inspectorOpen}
-            activeTab={inspectorTab}
-            blockJsonText={blockJsonText}
-            editorJsonText={editorJsonText}
-            pastedJson={pastedJson}
-            pasteError={pasteError}
-            onClose={() => setInspectorOpen(false)}
-            onTabChange={setInspectorTab}
-            onPastedJsonChange={(value) => {
-              setPastedJson(value)
-              setPasteError(null)
-            }}
-            onRenderPastedJson={renderPastedJson}
-          />
-        </>
+        <AiReviewPanel width={reviewPanelWidth} onWidthChange={setReviewPanelWidth} />
       ) : null}
     </main>
   )

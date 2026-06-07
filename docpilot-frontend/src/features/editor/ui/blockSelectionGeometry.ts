@@ -211,7 +211,10 @@ export function isPastDragStartDistance(origin: Point, current: Point): boolean 
 }
 
 export function isVisualContainerTarget(target: SelectableBlockTarget): boolean {
-  return target.element.tagName === 'BLOCKQUOTE' || target.element.tagName === 'LI'
+  return target.element.tagName === 'BLOCKQUOTE'
+    || target.element.tagName === 'LI'
+    || target.element.tagName === 'DETAILS'
+    || target.element.matches('aside.docpilot-callout')
 }
 
 export function shouldRenderBlockOverlay(target: SelectableBlockTarget, targets: SelectableBlockTarget[]): boolean {
@@ -228,6 +231,10 @@ export function shouldRenderBlockOverlay(target: SelectableBlockTarget, targets:
     otherTarget !== target
     && target.element.contains(otherTarget.element)
   ))
+}
+
+export function visualBlockSelectionTargets(targets: SelectableBlockTarget[]): SelectableBlockTarget[] {
+  return targets.filter((target) => shouldRenderBlockOverlay(target, targets))
 }
 
 export function selectionDecorationFromTarget(target: SelectableBlockTarget): BlockSelectionDecoration {
