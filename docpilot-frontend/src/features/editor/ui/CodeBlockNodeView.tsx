@@ -1,19 +1,3 @@
-import { history, historyKeymap, indentWithTab, defaultKeymap } from '@codemirror/commands'
-import { Compartment, EditorState, type Extension } from '@codemirror/state'
-import {
-  Decoration,
-  EditorView,
-  MatchDecorator,
-  ViewPlugin,
-  type DecorationSet,
-  type ViewUpdate,
-  drawSelection,
-  highlightActiveLine,
-  highlightActiveLineGutter,
-  highlightSpecialChars,
-  keymap,
-  lineNumbers
-} from '@codemirror/view'
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react'
 import { Captions, Check, ChevronDown, Code2, Copy, Eye, WandSparkles } from 'lucide-react'
 import {
@@ -29,14 +13,10 @@ import {
 } from 'react'
 import { formatCodeBlockText } from '../model/codeBlockFormatter'
 import './CodeBlockNodeView.css'
+import { codeLanguage, LANGUAGE_OPTIONS } from './codeLanguages'
 import { MermaidPreview } from './MermaidPreview'
-
-type CodeLanguage = {
-  value: string
-  label: string
-  keywords: string[]
-  special?: boolean
-}
+import { svgToPngBlob } from './svgToPngBlob'
+import { useCodeMirrorNodeView } from './useCodeMirrorNodeView'
 
 type ResizeCorner = {
   x: -1 | 1
@@ -46,98 +26,6 @@ type ResizeCorner = {
 const MIN_SPECIAL_BLOCK_WIDTH = 240
 const MAX_SPECIAL_BLOCK_WIDTH = 720
 
-const LANGUAGE_OPTIONS: CodeLanguage[] = [
-  {
-    value: 'java',
-    label: 'Java',
-    keywords: [
-      'abstract', 'assert', 'boolean', 'break', 'byte', 'case', 'catch', 'char', 'class', 'const', 'continue',
-      'default', 'double', 'else', 'enum', 'extends', 'final', 'finally', 'float', 'for', 'if', 'implements',
-      'import', 'instanceof', 'int', 'interface', 'long', 'new', 'package', 'private', 'protected', 'public',
-      'return', 'short', 'static', 'strictfp', 'super', 'switch', 'synchronized', 'this', 'throw', 'throws',
-      'transient', 'try', 'void', 'volatile', 'while', 'true', 'false', 'null', 'String'
-    ]
-  },
-  {
-    value: 'javascript',
-    label: 'JavaScript',
-    keywords: [
-      'async', 'await', 'break', 'case', 'catch', 'class', 'const', 'continue', 'debugger', 'default', 'delete',
-      'do', 'else', 'export', 'extends', 'finally', 'for', 'from', 'function', 'if', 'import', 'in', 'instanceof',
-      'let', 'new', 'of', 'return', 'static', 'super', 'switch', 'this', 'throw', 'try', 'typeof', 'undefined',
-      'var', 'void', 'while', 'yield', 'true', 'false', 'null'
-    ]
-  },
-  {
-    value: 'typescript',
-    label: 'TypeScript',
-    keywords: [
-      'abstract', 'as', 'async', 'await', 'boolean', 'break', 'case', 'catch', 'class', 'const', 'continue',
-      'declare', 'default', 'delete', 'do', 'else', 'enum', 'export', 'extends', 'finally', 'for', 'from',
-      'function', 'if', 'implements', 'import', 'in', 'interface', 'let', 'module', 'namespace', 'new', 'number',
-      'of', 'private', 'protected', 'public', 'readonly', 'return', 'static', 'string', 'super', 'switch', 'this',
-      'throw', 'try', 'type', 'typeof', 'undefined', 'var', 'void', 'while', 'yield', 'true', 'false', 'null'
-    ]
-  },
-  {
-    value: 'python',
-    label: 'Python',
-    keywords: [
-      'and', 'as', 'assert', 'async', 'await', 'break', 'class', 'continue', 'def', 'del', 'elif', 'else',
-      'except', 'False', 'finally', 'for', 'from', 'global', 'if', 'import', 'in', 'is', 'lambda', 'None',
-      'nonlocal', 'not', 'or', 'pass', 'raise', 'return', 'True', 'try', 'while', 'with', 'yield'
-    ]
-  },
-  {
-    value: 'html',
-    label: 'HTML',
-    keywords: ['html', 'head', 'body', 'div', 'section', 'article', 'main', 'span', 'a', 'img', 'button', 'script', 'style']
-  },
-  {
-    value: 'css',
-    label: 'CSS',
-    keywords: ['align-items', 'background', 'border', 'color', 'display', 'flex', 'font-size', 'grid', 'height', 'margin', 'padding', 'position', 'width']
-  },
-  {
-    value: 'json',
-    label: 'JSON',
-    keywords: ['true', 'false', 'null']
-  },
-  {
-    value: 'yaml',
-    label: 'YAML',
-    keywords: ['true', 'false', 'null', 'yes', 'no', 'on', 'off']
-  },
-  {
-    value: 'markdown',
-    label: 'Markdown',
-    keywords: []
-  },
-  {
-    value: 'mermaid',
-    label: 'Mermaid',
-    keywords: ['graph', 'flowchart', 'TD', 'TB', 'BT', 'LR', 'RL', 'subgraph', 'end', 'classDef', 'class', 'style', 'linkStyle', 'click'],
-    special: true
-  },
-  {
-    value: 'text',
-    label: 'Text',
-    keywords: []
-  }
-]
-
-const LANGUAGE_ALIASES: Record<string, string> = {
-  js: 'javascript',
-  ts: 'typescript',
-  md: 'markdown',
-  yml: 'yaml'
-}
-
-const CODE_KEYMAP = [...defaultKeymap, ...historyKeymap, indentWithTab]
-
-function textFromNode(props: NodeViewProps): string {
-  return props.node.textContent
-}
 
 function stringAttr(attrs: Record<string, unknown>, name: string, fallback = ''): string {
   const value = attrs[name]
@@ -152,26 +40,6 @@ function numberAttr(value: unknown): number | null {
 
 function clampSpecialBlockWidth(width: number): number {
   return Math.max(MIN_SPECIAL_BLOCK_WIDTH, Math.min(MAX_SPECIAL_BLOCK_WIDTH, Math.round(width)))
-}
-
-const SVG_STYLE_PROPERTIES = [
-  'color',
-  'dominant-baseline',
-  'fill',
-  'font-family',
-  'font-size',
-  'font-style',
-  'font-weight',
-  'letter-spacing',
-  'stroke',
-  'stroke-linecap',
-  'stroke-width',
-  'text-anchor'
-]
-
-function codeLanguage(value: string): CodeLanguage {
-  const normalized = LANGUAGE_ALIASES[value.toLowerCase()] ?? value.toLowerCase()
-  return LANGUAGE_OPTIONS.find((option) => option.value === normalized) ?? LANGUAGE_OPTIONS[LANGUAGE_OPTIONS.length - 1]
 }
 
 function decorationAttrs(decoration: NodeViewProps['decorations'][number]): Record<string, unknown> {
@@ -216,188 +84,10 @@ function blockSelectionDecoration(decorations: NodeViewProps['decorations']): {
   return { isSelected, style }
 }
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
-function syntaxPattern(language: CodeLanguage): RegExp {
-  const keywords = language.keywords.length ? language.keywords.map(escapeRegExp).join('|') : '$.'
-
-  if (language.value === 'yaml') {
-    return new RegExp(
-      [
-        '(^|\\n)(\\s*-\\s*)?([A-Za-z_][\\w.-]*)(?=\\s*:)',
-        '(^|\\n)(\\s*-)(?=\\s+)',
-        '#[^\\n]*',
-        '"(?:\\\\.|[^"\\\\])*"',
-        "'(?:\\\\.|[^'\\\\])*'",
-        '\\b(?:' + keywords + ')\\b',
-        '\\b\\d+(?:\\.\\d+)?\\b'
-      ].join('|'),
-      'g'
-    )
-  }
-
-  return new RegExp(
-    [
-      '//[^\\n]*',
-      '#[^\\n]*',
-      '/\\*[^]*?\\*/',
-      '"(?:\\\\.|[^"\\\\])*"',
-      "'(?:\\\\.|[^'\\\\])*'",
-      '`(?:\\\\.|[^`\\\\])*`',
-      '</?[A-Za-z][\\w:-]*',
-      '\\b(?:' + keywords + ')\\b',
-      '\\b\\d+(?:\\.\\d+)?\\b'
-    ].join('|'),
-    'g'
-  )
-}
-
-function syntaxExtension(languageValue: string): Extension {
-  const language = codeLanguage(languageValue)
-  const matcher = new MatchDecorator({
-    regexp: syntaxPattern(language),
-    decorate(add, from, to, match) {
-      const token = match[0]
-      let className = 'cm-dp-token-keyword'
-
-      if (language.value === 'yaml' && match[3]) {
-        const offset = token.lastIndexOf(match[3])
-        add(from + offset, from + offset + match[3].length, Decoration.mark({ class: 'cm-dp-token-key' }))
-        return
-      }
-
-      if (language.value === 'yaml' && match[5]) {
-        const offset = token.lastIndexOf(match[5])
-        add(from + offset, from + offset + match[5].length, Decoration.mark({ class: 'cm-dp-token-punctuation' }))
-        return
-      }
-
-      if (token.startsWith('//') || token.startsWith('#') || token.startsWith('/*')) {
-        className = 'cm-dp-token-comment'
-      } else if (token.startsWith('"') || token.startsWith("'") || token.startsWith('`')) {
-        className = 'cm-dp-token-string'
-      } else if (/^\d/.test(token)) {
-        className = 'cm-dp-token-number'
-      } else if (token.startsWith('<')) {
-        className = 'cm-dp-token-tag'
-      }
-      add(from, to, Decoration.mark({ class: className }))
-    }
-  })
-
-  return ViewPlugin.fromClass(
-    class {
-      decorations: DecorationSet
-
-      constructor(view: EditorView) {
-        this.decorations = matcher.createDeco(view)
-      }
-
-      update(update: ViewUpdate) {
-        this.decorations = matcher.updateDeco(update, this.decorations)
-      }
-    },
-    {
-      decorations: (plugin) => plugin.decorations
-    }
-  )
-}
-
-function copyComputedSvgStyles(sourceSvg: SVGSVGElement, targetSvg: SVGSVGElement) {
-  const sourceElements = [sourceSvg, ...sourceSvg.querySelectorAll('*')]
-  const targetElements = [targetSvg, ...targetSvg.querySelectorAll('*')]
-
-  for (let index = 0; index < sourceElements.length; index += 1) {
-    const sourceElement = sourceElements[index]
-    const targetElement = targetElements[index]
-    if (!targetElement) continue
-
-    const computedStyle = window.getComputedStyle(sourceElement)
-    const declarations = SVG_STYLE_PROPERTIES
-      .map((property) => {
-        const value = computedStyle.getPropertyValue(property)
-        return value ? `${property}: ${value}` : ''
-      })
-      .filter(Boolean)
-
-    if (declarations.length) {
-      targetElement.setAttribute('style', declarations.join('; '))
-    }
-  }
-}
-
-function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (blob) {
-        resolve(blob)
-        return
-      }
-      reject(new Error('Failed to create diagram image'))
-    }, 'image/png')
-  })
-}
-
-function loadImage(source: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const image = new Image()
-    image.onload = () => resolve(image)
-    image.onerror = () => reject(new Error('Failed to load diagram image'))
-    image.src = source
-  })
-}
-
-async function svgToPngBlob(svg: SVGSVGElement): Promise<Blob> {
-  const clonedSvg = svg.cloneNode(true) as SVGSVGElement
-  copyComputedSvgStyles(svg, clonedSvg)
-
-  const rect = svg.getBoundingClientRect()
-  const viewBox = svg.viewBox.baseVal
-  const width = Math.max(1, Math.round(rect.width || viewBox.width || 640))
-  const height = Math.max(1, Math.round(rect.height || viewBox.height || 360))
-  clonedSvg.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
-  clonedSvg.setAttribute('width', String(width))
-  clonedSvg.setAttribute('height', String(height))
-
-  if (!clonedSvg.getAttribute('viewBox') && viewBox.width > 0 && viewBox.height > 0) {
-    clonedSvg.setAttribute('viewBox', `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`)
-  }
-
-  const serializedSvg = new XMLSerializer().serializeToString(clonedSvg)
-  const svgBlob = new Blob([serializedSvg], { type: 'image/svg+xml;charset=utf-8' })
-  const imageUrl = URL.createObjectURL(svgBlob)
-
-  try {
-    const image = await loadImage(imageUrl)
-    const scale = Math.max(1, Math.min(3, window.devicePixelRatio || 1))
-    const canvas = document.createElement('canvas')
-    canvas.width = Math.round(width * scale)
-    canvas.height = Math.round(height * scale)
-
-    const context = canvas.getContext('2d')
-    if (!context) {
-      throw new Error('Canvas is not available')
-    }
-
-    context.fillStyle = '#ffffff'
-    context.fillRect(0, 0, canvas.width, canvas.height)
-    context.drawImage(image, 0, 0, canvas.width, canvas.height)
-    return await canvasToPngBlob(canvas)
-  } finally {
-    URL.revokeObjectURL(imageUrl)
-  }
-}
-
 export function CodeBlockNodeView(props: NodeViewProps) {
   const propsRef = useRef(props)
-  const editorHostRef = useRef<HTMLDivElement | null>(null)
   const mermaidFrameRef = useRef<HTMLDivElement | null>(null)
   const captionInputRef = useRef<HTMLTextAreaElement | null>(null)
-  const codeMirrorRef = useRef<EditorView | null>(null)
-  const languageCompartmentRef = useRef(new Compartment())
-  const applyingExternalChangeRef = useRef(false)
   const copyTimerRef = useRef<number | null>(null)
   const languageMenuRef = useRef<HTMLDivElement | null>(null)
   const resizeRef = useRef<{
@@ -408,7 +98,6 @@ export function CodeBlockNodeView(props: NodeViewProps) {
     startHeight: number
   } | null>(null)
   const draftWidthRef = useRef<number | null>(null)
-  const [codeText, setCodeText] = useState(() => textFromNode(props))
   const [draftWidth, setDraftWidth] = useState<number | null>(null)
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -428,6 +117,7 @@ export function CodeBlockNodeView(props: NodeViewProps) {
   const storedPreviewWidth = numberAttr(attrs.width)
   const activePreviewWidth = draftWidth ?? storedPreviewWidth
   const selectionDecoration = blockSelectionDecoration(props.decorations)
+  const { codeMirrorRef, codeText, editorHostRef } = useCodeMirrorNodeView({ props, language })
   const rootClassName = [
     'code-block-node',
     activeLanguage.special ? 'is-special-code-block' : '',
@@ -443,92 +133,6 @@ export function CodeBlockNodeView(props: NodeViewProps) {
   )
 
   propsRef.current = props
-
-  const baseExtensions = useMemo<Extension[]>(() => [
-    lineNumbers(),
-    highlightSpecialChars(),
-    history(),
-    drawSelection(),
-    highlightActiveLine(),
-    highlightActiveLineGutter(),
-    keymap.of(CODE_KEYMAP),
-    EditorState.tabSize.of(2),
-    EditorView.updateListener.of((update) => {
-      if (!update.docChanged || applyingExternalChangeRef.current) return
-      const nextText = update.state.doc.toString()
-      setCodeText(nextText)
-      syncCodeTextToProseMirror(nextText)
-    }),
-    EditorView.domEventHandlers({
-      click: (event) => {
-        event.stopPropagation()
-        return false
-      },
-      keydown: (event) => {
-        event.stopPropagation()
-        return false
-      },
-      mousedown: (event) => {
-        event.stopPropagation()
-        return false
-      }
-    })
-  ], [])
-
-  useEffect(() => {
-    const host = editorHostRef.current
-    if (!host) return
-
-    const view = new EditorView({
-      parent: host,
-      state: EditorState.create({
-        doc: textFromNode(propsRef.current),
-        extensions: [
-          ...baseExtensions,
-          languageCompartmentRef.current.of(syntaxExtension(language))
-        ]
-      })
-    })
-    codeMirrorRef.current = view
-
-    return () => {
-      view.destroy()
-      codeMirrorRef.current = null
-    }
-  }, [baseExtensions])
-
-  useEffect(() => {
-    const view = codeMirrorRef.current
-    if (!view) return
-    view.dispatch({
-      effects: languageCompartmentRef.current.reconfigure(syntaxExtension(language))
-    })
-  }, [language])
-
-  useEffect(() => {
-    const host = editorHostRef.current
-    const view = codeMirrorRef.current
-    if (!host || !view || view.dom.parentElement === host) return
-    host.appendChild(view.dom)
-  })
-
-  useEffect(() => {
-    const view = codeMirrorRef.current
-    if (!view) return
-    const nextText = textFromNode(props)
-    const currentText = view.state.doc.toString()
-    setCodeText(nextText)
-    if (currentText === nextText) return
-    applyingExternalChangeRef.current = true
-    view.dispatch({
-      changes: {
-        from: 0,
-        to: currentText.length,
-        insert: nextText
-      }
-    })
-    applyingExternalChangeRef.current = false
-  }, [props])
 
   useEffect(() => {
     return () => {
@@ -610,16 +214,6 @@ export function CodeBlockNodeView(props: NodeViewProps) {
       window.removeEventListener('pointerup', handlePointerUp)
     }
   }, [])
-
-  function syncCodeTextToProseMirror(text: string) {
-    const activeProps = propsRef.current
-    const position = activeProps.getPos()
-    if (typeof position !== 'number') return
-    const editorView = activeProps.editor.view
-    const from = position + 1
-    const to = position + activeProps.node.nodeSize - 1
-    editorView.dispatch(editorView.state.tr.insertText(text, from, to))
-  }
 
   function selectCodeBlock() {
     const position = props.getPos()
