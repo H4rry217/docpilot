@@ -64,6 +64,33 @@ class MarkdownBlockParserTest {
     }
 
     @Test
+    void parseEscapedMarkdownSyntaxAsLiteralText() {
+        BlockDocument document = parser.parse("""
+                \\#不是标题
+
+                \\*不是斜体\\*
+
+                转义 \\==不是高亮\\==、\\++不是插入\\++、\\^不是上标\\^、\\~不是下标\\~、\\$不是公式\\$、\\[^不是脚注]。
+                """);
+
+        assertThat(document.getBlocks()).hasSize(3);
+        assertThat(document.getBlocks().getFirst().getType()).isEqualTo(BlockType.PARAGRAPH);
+        assertThat(plainText(document.getBlocks().getFirst())).isEqualTo("#不是标题");
+
+        BlockNode emphasisLike = document.getBlocks().get(1);
+        assertThat(emphasisLike.getType()).isEqualTo(BlockType.PARAGRAPH);
+        assertThat(plainText(emphasisLike)).isEqualTo("*不是斜体*");
+        assertThat(emphasisLike.getInlines()).noneSatisfy(inline -> assertThat(inline.getMarks()).isNotEmpty());
+
+        BlockNode customSyntax = document.getBlocks().get(2);
+        assertThat(plainText(customSyntax))
+                .isEqualTo("转义 ==不是高亮==、++不是插入++、^不是上标^、~不是下标~、$不是公式$、[^不是脚注]。");
+        assertThat(customSyntax.getInlines()).noneSatisfy(inline -> assertThat(inline.getMarks()).isNotEmpty());
+        assertThat(customSyntax.getInlines()).noneSatisfy(inline -> assertThat(inline.getType())
+                .isIn(InlineType.MATH_INLINE, InlineType.FOOTNOTE_REF));
+    }
+
+    @Test
     void parseGfmTablesAndTaskListItems() {
         BlockDocument document = parser.parse("""
                 - [x] Done
@@ -106,6 +133,33 @@ class MarkdownBlockParserTest {
     }
 
     @Test
+    void parseGithubDetailsAsCollapsibleCallout() {
+        BlockDocument document = parser.parse("""
+                <details>
+                <summary>点击展开</summary>
+
+                隐藏 **内容**
+                </details>
+                """);
+
+        assertThat(document.getBlocks()).hasSize(1);
+        BlockNode details = document.getBlocks().getFirst();
+        assertThat(details.getType()).isEqualTo(BlockType.CALLOUT);
+        assertThat(details.getAttrs())
+                .containsEntry("kind", "details")
+                .containsEntry("title", "点击展开")
+                .containsEntry("collapsible", true)
+                .containsEntry("open", false);
+        assertThat(details.getChildren()).hasSize(1);
+        assertThat(details.getChildren().getFirst().getType()).isEqualTo(BlockType.PARAGRAPH);
+        assertThat(details.getChildren().getFirst().getInlines())
+                .anySatisfy(inline -> {
+                    assertThat(inline.getText()).isEqualTo("内容");
+                    assertThat(hasMark(inline.getMarks(), MarkType.BOLD)).isTrue();
+                });
+    }
+
+    @Test
     void parseEnhancedBlocksAndInlineMarks() {
         BlockDocument document = parser.parse("""
                 ---
@@ -138,7 +192,7 @@ class MarkdownBlockParserTest {
         assertThat(document.getSchemaVersion()).isEqualTo("docpilot-block/2");
         assertThat(document.getBlocks()).extracting(BlockNode::getType)
                 .contains(BlockType.FRONT_MATTER, BlockType.CALLOUT, BlockType.MATH_BLOCK,
-                        BlockType.DIAGRAM_BLOCK, BlockType.DEFINITION_LIST, BlockType.FOOTNOTE_DEFINITION, BlockType.TOC);
+                        BlockType.CODE_BLOCK, BlockType.DEFINITION_LIST, BlockType.FOOTNOTE_DEFINITION, BlockType.TOC);
 
         BlockNode frontMatter = document.getBlocks().getFirst();
         assertThat(frontMatter.getAttrs()).containsEntry("format", "yaml");
@@ -172,17 +226,41 @@ class MarkdownBlockParserTest {
         assertThat(math.getAttrs()).containsEntry("notation", "latex");
         assertThat(math.getAttrs().get("text")).asString().contains("a^2 + b^2");
 
-        BlockNode diagram = document.getBlocks().stream()
-                .filter(block -> block.getType() == BlockType.DIAGRAM_BLOCK)
+        BlockNode mermaid = document.getBlocks().stream()
+                .filter(block -> block.getType() == BlockType.CODE_BLOCK)
+                .filter(block -> "mermaid".equals(block.getAttrs().get("language")))
                 .findFirst()
                 .orElseThrow();
-        assertThat(diagram.getAttrs()).containsEntry("engine", "mermaid");
+        assertThat(mermaid.getAttrs()).containsEntry("text", "graph TD\n  A-->B\n");
 
         BlockNode footnoteDefinition = document.getBlocks().stream()
                 .filter(block -> block.getType() == BlockType.FOOTNOTE_DEFINITION)
                 .findFirst()
                 .orElseThrow();
         assertThat(footnoteDefinition.getAttrs()).containsEntry("label", "one");
+    }
+
+    @Test
+    void parseLatexMathWithoutAddingBackslashes() {
+        BlockDocument document = parser.parse("""
+                Inline $E=mc^2$.
+
+                $$
+                \\int_a^b f(x)dx
+                $$
+                """);
+
+        BlockNode paragraph = document.getBlocks().getFirst();
+        assertThat(paragraph.getType()).isEqualTo(BlockType.PARAGRAPH);
+        assertThat(paragraph.getInlines())
+                .anySatisfy(inline -> {
+                    assertThat(inline.getType()).isEqualTo(InlineType.MATH_INLINE);
+                    assertThat(inline.getText()).isEqualTo("E=mc^2");
+                });
+
+        BlockNode math = document.getBlocks().get(1);
+        assertThat(math.getType()).isEqualTo(BlockType.MATH_BLOCK);
+        assertThat(math.getAttrs()).containsEntry("text", "\\int_a^b f(x)dx");
     }
 
     private boolean hasMark(Iterable<InlineMark> marks, MarkType type) {
@@ -192,6 +270,12 @@ class MarkdownBlockParserTest {
             }
         }
         return false;
+    }
+
+    private String plainText(BlockNode block) {
+        StringBuilder text = new StringBuilder();
+        block.getInlines().forEach(inline -> text.append(inline.getText()));
+        return text.toString();
     }
 
 }

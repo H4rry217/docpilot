@@ -46,25 +46,122 @@
 .table-hover-column-segment,
 .table-hover-row-segment {
   position: absolute;
+  appearance: none;
   border-radius: 0;
-  background: transparent;
+  border: 0;
+  background-color: transparent;
+  box-sizing: border-box;
+  color: inherit;
+  cursor: pointer;
+  display: block;
+  font: inherit;
+  margin: 0;
+  padding: 0;
   pointer-events: auto;
-  transition: background-color 120ms ease;
+  transition: background-color 80ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: background-color;
 }
 
 .table-hover-column-segment {
-  top: 0;
-  height: 100%;
+  top: -1px;
+  height: calc(100% + 1px);
 }
 
 .table-hover-row-segment {
-  left: 0;
-  width: 100%;
+  left: -1px;
+  width: calc(100% + 1px);
 }
 
 .table-hover-column-segment:hover,
-.table-hover-row-segment:hover {
-  background: #dfe4eb;
+.table-hover-column-segment:focus-visible,
+.table-hover-row-segment:hover,
+.table-hover-row-segment:focus-visible {
+  background-color: #dfe4eb;
+}
+
+.table-hover-column-segment:focus-visible,
+.table-hover-row-segment:focus-visible {
+  outline: none;
+}
+
+.table-hover-column-segment.is-selected,
+.table-hover-row-segment.is-selected {
+  background-color: #3370ff;
+}
+
+.table-hover-indicator-layer.is-delete-preview .table-hover-column-segment.is-selected,
+.table-hover-indicator-layer.is-delete-preview .table-hover-row-segment.is-selected {
+  background-color: #dc3b31;
+}
+
+.table-hover-column-segment.is-selected:hover,
+.table-hover-column-segment.is-selected:focus-visible,
+.table-hover-row-segment.is-selected:hover,
+.table-hover-row-segment.is-selected:focus-visible {
+  background-color: #3370ff;
+}
+
+.table-hover-indicator-layer.is-delete-preview .table-hover-column-segment.is-selected:hover,
+.table-hover-indicator-layer.is-delete-preview .table-hover-column-segment.is-selected:focus-visible,
+.table-hover-indicator-layer.is-delete-preview .table-hover-row-segment.is-selected:hover,
+.table-hover-indicator-layer.is-delete-preview .table-hover-row-segment.is-selected:focus-visible {
+  background-color: #dc3b31;
+}
+
+.table-selection-toolbar {
+  position: absolute;
+  z-index: 8;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 34px;
+  border: 1px solid #dce3ec;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 6px 16px rgb(15 23 42 / 14%);
+  opacity: 0;
+  padding: 3px 4px;
+  pointer-events: auto;
+  transform: translateY(-3px);
+  animation: table-selection-toolbar-reveal 90ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+.table-selection-toolbar-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 26px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #253044;
+  cursor: pointer;
+  padding: 0;
+  transition:
+    background-color 80ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    color 80ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.table-selection-toolbar-button:hover,
+.table-selection-toolbar-button:focus-visible,
+.table-selection-toolbar-button.is-active {
+  background: #edf4ff;
+  color: #1d5fa8;
+  outline: none;
+}
+
+.table-selection-toolbar-button.is-danger:hover,
+.table-selection-toolbar-button.is-danger:focus-visible {
+  background: #fff1f0;
+  color: #c24135;
+}
+
+.table-selection-toolbar-divider {
+  width: 1px;
+  height: 20px;
+  margin: 0 3px;
+  background: #dfe5ee;
 }
 
 .table-hover-column-dot,
@@ -201,6 +298,18 @@
   }
 }
 
+@keyframes table-selection-toolbar-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @keyframes table-divider-line-reveal {
   from {
     opacity: 0;
@@ -240,8 +349,13 @@
 @media (prefers-reduced-motion: reduce) {
   .table-hover-column-rail,
   .table-hover-row-rail,
+  .table-hover-column-segment,
+  .table-hover-row-segment,
+  .table-selection-toolbar,
+  .table-selection-toolbar-button,
   .table-divider-line,
   .table-divider-insert {
     animation-duration: 1ms;
+    transition-duration: 1ms;
   }
 }

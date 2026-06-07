@@ -54,7 +54,6 @@ public class ProseMirrorJsonConverter {
     private static final String NODE_DOCPILOT_FRONT_MATTER = "docpilotFrontMatter";
     private static final String NODE_DOCPILOT_MATH_BLOCK = "docpilotMathBlock";
     private static final String NODE_DOCPILOT_MATH_INLINE = "docpilotMathInline";
-    private static final String NODE_DOCPILOT_DIAGRAM_BLOCK = "docpilotDiagramBlock";
     private static final String NODE_DOCPILOT_CALLOUT = "docpilotCallout";
     private static final String NODE_DOCPILOT_FOOTNOTE_DEFINITION = "docpilotFootnoteDefinition";
     private static final String NODE_DOCPILOT_FOOTNOTE_REF = "docpilotFootnoteRef";
@@ -117,7 +116,7 @@ public class ProseMirrorJsonConverter {
                     childContent(taskListItem.children()));
         }
         if (block instanceof CodeBlock codeBlock) {
-            return ProseMirrorNode.node(NODE_CODE_BLOCK, withSource(codeBlock, Map.of(BlockAttrs.LANGUAGE.key(), codeBlock.language())),
+            return ProseMirrorNode.node(NODE_CODE_BLOCK, withSource(codeBlock, attrsForCodeBlock(codeBlock)),
                     textContent(codeBlock.text()));
         }
         if (block instanceof TableCellBlock tableCell) {
@@ -130,7 +129,8 @@ public class ProseMirrorJsonConverter {
             return ProseMirrorNode.leaf(NODE_DOCPILOT_MATH_BLOCK, withSource(mathBlock, attrsForMath(mathBlock)));
         }
         if (block instanceof DiagramBlock diagramBlock) {
-            return ProseMirrorNode.leaf(NODE_DOCPILOT_DIAGRAM_BLOCK, withSource(diagramBlock, attrsForDiagram(diagramBlock)));
+            return ProseMirrorNode.node(NODE_CODE_BLOCK, withSource(diagramBlock, attrsForDiagramBlock(diagramBlock)),
+                    textContent(diagramBlock.text()));
         }
         if (block instanceof CalloutBlock callout) {
             return ProseMirrorNode.node(NODE_DOCPILOT_CALLOUT, withSource(callout, attrsForCallout(callout)), childContent(callout.children()));
@@ -185,7 +185,7 @@ public class ProseMirrorJsonConverter {
 
     private ProseMirrorNode toInlineNode(InlineNode inline) {
         return switch (inline.getType()) {
-            case TEXT -> ProseMirrorNode.text(inline.getText(), marks(inline.getMarks()));
+            case TEXT -> ProseMirrorNode.text(unescapeMarkdownText(inline.getText()), marks(inline.getMarks()));
             case SOFT_BREAK -> ProseMirrorNode.text("\n", marks(inline.getMarks()));
             case HARD_BREAK -> ProseMirrorNode.leaf(NODE_HARD_BREAK, sourceAttrs(inline));
             case IMAGE -> ProseMirrorNode.leaf(NODE_IMAGE, withSource(inline, normalizeAttrs(inline.getAttrs())));
@@ -222,6 +222,40 @@ public class ProseMirrorJsonConverter {
         return List.of(ProseMirrorNode.text(text, List.of()));
     }
 
+    private String unescapeMarkdownText(String text) {
+        if (text == null || text.isEmpty()) {
+            return "";
+        }
+
+        StringBuilder result = new StringBuilder(text.length());
+        for (int index = 0; index < text.length(); index++) {
+            char current = text.charAt(index);
+            if (current == '\\' && index + 1 < text.length() && isMarkdownEscapable(text.charAt(index + 1))) {
+                result.append(text.charAt(index + 1));
+                index++;
+            } else {
+                result.append(current);
+            }
+        }
+        return result.toString();
+    }
+
+    private boolean isMarkdownEscapable(char character) {
+        return character >= '!' && character <= '~' && !Character.isLetterOrDigit(character);
+    }
+
+    private Map<String, Object> attrsForCodeBlock(CodeBlock block) {
+        Map<String, Object> attrs = normalizeAttrs(block.extraAttrs());
+        attrs.put(BlockAttrs.LANGUAGE.key(), block.language());
+        return attrs;
+    }
+
+    private Map<String, Object> attrsForDiagramBlock(DiagramBlock block) {
+        Map<String, Object> attrs = normalizeAttrs(block.extraAttrs());
+        attrs.put(BlockAttrs.LANGUAGE.key(), block.engine());
+        return attrs;
+    }
+
     private Map<String, Object> attrsForTableCell(TableCellBlock block) {
         Map<String, Object> attrs = normalizeAttrs(block.extraAttrs());
         attrs.put(BlockAttrs.HEADER.key(), block.header());
@@ -244,13 +278,6 @@ public class ProseMirrorJsonConverter {
         attrs.put(BlockAttrs.NOTATION.key(), block.notation());
         attrs.put(BlockAttrs.TEXT.key(), block.text());
         attrs.put(BlockAttrs.DELIMITER.key(), block.delimiter());
-        return attrs;
-    }
-
-    private Map<String, Object> attrsForDiagram(DiagramBlock block) {
-        Map<String, Object> attrs = normalizeAttrs(block.extraAttrs());
-        attrs.put(BlockAttrs.ENGINE.key(), block.engine());
-        attrs.put(BlockAttrs.TEXT.key(), block.text());
         return attrs;
     }
 

@@ -159,6 +159,7 @@ function isInteractiveSelectionTarget(target: HTMLElement): boolean {
     '.cm-editor',
     '.image-node',
     '.code-block-control',
+    '.code-block-resize-handle',
     '.image-node-toolbar',
     '.image-node-caption',
     '.image-resize-handle',
@@ -359,6 +360,7 @@ export const BlockDocumentEditor = forwardRef<BlockDocumentEditorHandle, BlockDo
       requestTableHoverIndicatorHide,
       resetTableAffordances,
       revealTableDividerAfterDelay,
+      selectTableIndicatorSegment,
       tableDivider,
       tableHoverIndicator
     } = useTableAffordances({ editor, surfaceRef })
@@ -704,13 +706,16 @@ export const BlockDocumentEditor = forwardRef<BlockDocumentEditorHandle, BlockDo
         onWheelCapture={handleTableWheel}
       >
         <EditorContent editor={editor} className="editor-content" />
-        {tableHoverIndicator ? (
+        {editor && tableHoverIndicator ? (
           <TableHoverIndicators
+            editor={editor}
             geometry={tableHoverIndicator}
             onDividerHandleEnter={revealTableDividerAfterDelay}
             onDividerHandleLeave={requestTableDividerHide}
             onKeepVisible={keepTableHoverIndicatorVisible}
             onRequestHide={requestTableHoverIndicatorHide}
+            onSelectColumn={(column) => selectTableIndicatorSegment('column', column)}
+            onSelectRow={(row) => selectTableIndicatorSegment('row', row)}
           />
         ) : null}
         {editor && tableDivider ? (

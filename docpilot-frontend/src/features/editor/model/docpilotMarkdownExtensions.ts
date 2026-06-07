@@ -1,7 +1,9 @@
-import { Mark, mergeAttributes, Node } from '@tiptap/core'
+import { Mark, mergeAttributes, Node, type NodeViewRendererProps } from '@tiptap/core'
 import { ReactNodeViewRenderer } from '@tiptap/react'
 import type { DOMOutputSpec } from '@tiptap/pm/model'
+import type { NodeView, ViewMutationRecord } from '@tiptap/pm/view'
 import { ImageNodeView } from '../ui/ImageNodeView'
+import { normalizeLatexSource, renderLatexMath } from './docpilotMathRendering'
 
 type HtmlAttrs = Record<string, unknown>
 
@@ -64,6 +66,21 @@ function stringAttr(attributes: HtmlAttrs, key: string, fallback = ''): string {
   return typeof value === 'string' ? value : fallback
 }
 
+function booleanAttr(value: unknown, fallback = false): boolean {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'string') return value === 'true'
+  return fallback
+}
+
+function renderedCalloutAttrs(attributes: HtmlAttrs, extra: HtmlAttrs = {}) {
+  const attrs = { ...attributes }
+  delete attrs.kind
+  delete attrs.title
+  delete attrs.collapsible
+  delete attrs.open
+  return renderedAttrs(attrs, extra)
+}
+
 function imageAlignmentAttr(value: unknown): 'left' | 'center' | 'right' {
   return value === 'center' || value === 'right' ? value : 'left'
 }
@@ -114,6 +131,199 @@ function renderInlineToken(label: string, attributes: HtmlAttrs): DOMOutputSpec 
     label
 
   return ['span', renderedAttrs(attributes, { class: 'docpilot-inline-token' }), text]
+}
+
+function renderedSourceAttrs(attributes: HtmlAttrs, hiddenKeys: string[], extra: HtmlAttrs = {}) {
+  const attrs = { ...attributes }
+  hiddenKeys.forEach((key) => {
+    delete attrs[key]
+  })
+  return renderedAttrs(attrs, extra)
+}
+
+function mathText(attributes: HtmlAttrs): string {
+  return stringAttr(attributes, 'text') || stringAttr(attributes, 'source') || stringAttr(attributes, 'raw')
+}
+
+function renderedMathAttrs(attributes: HtmlAttrs, extra: HtmlAttrs = {}) {
+  const attrs = { ...attributes }
+  delete attrs.text
+  delete attrs.source
+  delete attrs.raw
+  delete attrs.delimiter
+  delete attrs.notation
+  return renderedAttrs(attrs, extra)
+}
+
+function renderMathBlock(attributes: HtmlAttrs): DOMOutputSpec {
+  const text = mathText(attributes)
+  const label = normalizeLatexSource(text)
+  return [
+    'div',
+    renderedMathAttrs(attributes, {
+      class: 'docpilot-block docpilot-math-block',
+      role: 'math',
+      ...(label ? { 'aria-label': label } : {})
+    }),
+    ['span', { class: 'docpilot-math-rendered' }, ...renderLatexMath(text)]
+  ]
+}
+
+function renderMathInline(attributes: HtmlAttrs): DOMOutputSpec {
+  const text = mathText(attributes)
+  const label = normalizeLatexSource(text)
+  return [
+    'span',
+    renderedMathAttrs(attributes, {
+      class: 'docpilot-math-inline',
+      role: 'math',
+      ...(label ? { 'aria-label': label } : {})
+    }),
+    ...renderLatexMath(text)
+  ]
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function frontMatterEntries(attributes: HtmlAttrs): Array<[string, unknown]> {
+  if (isPlainRecord(attributes.data)) {
+    return Object.entries(attributes.data)
+  }
+
+  const raw = stringAttr(attributes, 'raw')
+  if (!raw) return []
+
+  return raw
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && line !== '---' && line !== '...')
+    .map((line): [string, string] | null => {
+      const separator = line.indexOf(':')
+      if (separator <= 0) return null
+      return [line.slice(0, separator).trim(), line.slice(separator + 1).trim()]
+    })
+    .filter((entry): entry is [string, string] => entry !== null)
+}
+
+function renderFrontMatterValue(value: unknown): DOMOutputSpec {
+  if (Array.isArray(value)) {
+    return ['span', { class: 'docpilot-front-matter-tags' }, ...value.map((item) => ['span', { class: 'docpilot-front-matter-tag' }, String(item)] as DOMOutputSpec)]
+  }
+
+  if (isPlainRecord(value)) {
+    return ['code', {}, JSON.stringify(value)]
+  }
+
+  return ['span', {}, String(value ?? '')]
+}
+
+function renderFrontMatterBlock(attributes: HtmlAttrs): DOMOutputSpec {
+  const raw = stringAttr(attributes, 'raw')
+  const entries = frontMatterEntries(attributes)
+
+  return [
+    'section',
+    renderedSourceAttrs(attributes, ['raw', 'data', 'format'], { class: 'docpilot-block docpilot-front-matter' }),
+    ['div', { class: 'docpilot-front-matter-title' }, 'YAML Front Matter'],
+    entries.length
+      ? ['dl', { class: 'docpilot-front-matter-list' }, ...entries.flatMap(([key, value]) => [
+          ['dt', {}, key],
+          ['dd', {}, renderFrontMatterValue(value)]
+        ] as DOMOutputSpec[])]
+      : ['pre', { class: 'docpilot-front-matter-source' }, raw]
+  ]
+}
+
+function setDomAttributes(element: HTMLElement, attributes: HtmlAttrs) {
+  const nextNames = new Set(Object.keys(attributes))
+  for (const attribute of Array.from(element.attributes)) {
+    if (attribute.name === 'open') continue
+    if (!nextNames.has(attribute.name)) {
+      element.removeAttribute(attribute.name)
+    }
+  }
+
+  for (const [name, value] of Object.entries(attributes)) {
+    if (value === false || value === null || value === undefined) {
+      element.removeAttribute(name)
+    } else if (value === true) {
+      element.setAttribute(name, '')
+    } else {
+      element.setAttribute(name, String(value))
+    }
+  }
+}
+
+function calloutTitle(attributes: HtmlAttrs): string {
+  return stringAttr(attributes, 'title', 'Details') || 'Details'
+}
+
+function calloutNodeView(props: NodeViewRendererProps): NodeView {
+  const attrs = props.node.attrs as HtmlAttrs
+  const collapsible = booleanAttr(attrs.collapsible)
+  const dom = document.createElement(collapsible ? 'details' : 'aside')
+  const contentDOM = document.createElement('div')
+
+  let summary: HTMLElement | null = null
+
+  if (collapsible) {
+    const details = dom as HTMLDetailsElement
+    const initialOpen = booleanAttr(attrs.open, true)
+    details.open = initialOpen
+    details.toggleAttribute('open', initialOpen)
+    setDomAttributes(details, renderedCalloutAttrs(props.HTMLAttributes, {
+      class: 'docpilot-block docpilot-callout docpilot-callout-collapsible'
+    }))
+
+    summary = document.createElement('summary')
+    summary.className = 'docpilot-callout-summary'
+    summary.contentEditable = 'false'
+    summary.textContent = calloutTitle(attrs)
+    summary.addEventListener('click', (event) => {
+      event.preventDefault()
+      details.open = !details.open
+      details.toggleAttribute('open', details.open)
+    })
+
+    contentDOM.className = 'docpilot-callout-body'
+    details.append(summary, contentDOM)
+  } else {
+    setDomAttributes(dom, renderedCalloutAttrs(props.HTMLAttributes, {
+      class: 'docpilot-block docpilot-callout'
+    }))
+    dom.append(contentDOM)
+  }
+
+  return {
+    dom,
+    contentDOM,
+    update(nextNode) {
+      if (nextNode.type.name !== props.node.type.name) return false
+      const nextAttrs = nextNode.attrs as HtmlAttrs
+      if (booleanAttr(nextAttrs.collapsible) !== collapsible) return false
+
+      if (collapsible) {
+        setDomAttributes(dom, renderedCalloutAttrs(nextAttrs, {
+          class: 'docpilot-block docpilot-callout docpilot-callout-collapsible'
+        }))
+        if (summary) {
+          summary.textContent = calloutTitle(nextAttrs)
+        }
+      } else {
+        setDomAttributes(dom, renderedCalloutAttrs(nextAttrs, {
+          class: 'docpilot-block docpilot-callout'
+        }))
+      }
+      return true
+    },
+    ignoreMutation(mutation: ViewMutationRecord) {
+      return mutation.type === 'attributes'
+        && mutation.target === dom
+        && mutation.attributeName === 'open'
+    }
+  }
 }
 
 export const DocpilotImage = Node.create({
@@ -177,7 +387,7 @@ export const DocpilotFrontMatter = Node.create({
   },
 
   renderHTML({ HTMLAttributes }) {
-    return renderLeafBlock('Front matter', HTMLAttributes)
+    return renderFrontMatterBlock(HTMLAttributes)
   }
 })
 
@@ -191,7 +401,7 @@ export const DocpilotMathBlock = Node.create({
   },
 
   renderHTML({ HTMLAttributes }) {
-    return renderLeafBlock('Math', HTMLAttributes)
+    return renderMathBlock(HTMLAttributes)
   }
 })
 
@@ -219,7 +429,24 @@ export const DocpilotCallout = Node.create({
   },
 
   renderHTML({ HTMLAttributes }) {
-    return ['aside', renderedAttrs(HTMLAttributes, { class: 'docpilot-block docpilot-callout' }), 0]
+    if (booleanAttr(HTMLAttributes.collapsible)) {
+      const title = stringAttr(HTMLAttributes, 'title', 'Details') || 'Details'
+      return [
+        'details',
+        renderedCalloutAttrs(HTMLAttributes, {
+          class: 'docpilot-block docpilot-callout docpilot-callout-collapsible',
+          ...(booleanAttr(HTMLAttributes.open, true) ? { open: 'open' } : {})
+        }),
+        ['summary', { class: 'docpilot-callout-summary' }, title],
+        ['div', { class: 'docpilot-callout-body' }, 0]
+      ]
+    }
+
+    return ['aside', renderedCalloutAttrs(HTMLAttributes, { class: 'docpilot-block docpilot-callout' }), 0]
+  },
+
+  addNodeView() {
+    return calloutNodeView
   }
 })
 
@@ -339,7 +566,7 @@ export const DocpilotMathInline = Node.create({
   },
 
   renderHTML({ HTMLAttributes }) {
-    return renderInlineToken('math', HTMLAttributes)
+    return renderMathInline(HTMLAttributes)
   }
 })
 

@@ -8,6 +8,7 @@ import { DocpilotBlockSelection } from './blockSelection'
 import { DocpilotBlockIdentity } from './docpilotBlockIdentity'
 import { DocpilotCodeBlock } from './docpilotCodeBlock'
 import { DocpilotHtmlBlock } from './docpilotHtmlBlock'
+import { DocpilotTableCellSelection } from './docpilotTableCellSelection'
 import {
   DocpilotCallout,
   DocpilotDefinitionItem,
@@ -42,6 +43,7 @@ export const editorExtensions = [
       levels: [1, 2, 3, 4, 5, 6]
     }
   }),
+  DocpilotTableCellSelection,
   DocpilotBlockIdentity,
   DocpilotBlockSelection,
   DocpilotCodeBlock,

@@ -7,6 +7,12 @@ import { CodeBlockNodeView } from '../ui/CodeBlockNodeView'
 
 type DeleteDirection = 'backward' | 'forward'
 
+function codeBlockWidthAttr(value: unknown): number | null {
+  const number = typeof value === 'number' ? value : typeof value === 'string' ? Number.parseInt(value, 10) : Number.NaN
+  if (!Number.isFinite(number)) return null
+  return Math.max(240, Math.min(720, Math.trunc(number)))
+}
+
 function isCodeBlockNode(node: ProseMirrorNode | null | undefined): node is ProseMirrorNode {
   return node?.type.name === 'codeBlock'
 }
@@ -55,6 +61,28 @@ export function deleteAdjacentCodeBlock(editor: Editor, direction: DeleteDirecti
 
 export const DocpilotCodeBlock = CodeBlock.extend({
   selectable: true,
+
+  addAttributes() {
+    return {
+      ...(this.parent?.() ?? {}),
+      caption: {
+        default: '',
+        parseHTML: (element) => element.getAttribute('data-caption') ?? '',
+        renderHTML: (attributes) => {
+          const caption = attributes.caption
+          return typeof caption === 'string' && caption ? { 'data-caption': caption } : {}
+        }
+      },
+      width: {
+        default: null,
+        parseHTML: (element) => codeBlockWidthAttr(element.getAttribute('data-width') ?? element.getAttribute('width')),
+        renderHTML: (attributes) => {
+          const width = codeBlockWidthAttr(attributes.width)
+          return width ? { 'data-width': String(width) } : {}
+        }
+      }
+    }
+  },
 
   addKeyboardShortcuts() {
     return {

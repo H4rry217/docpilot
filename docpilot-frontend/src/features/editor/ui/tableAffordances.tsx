@@ -1,11 +1,22 @@
-import { columnResizingPluginKey, findTable, TableMap } from '@tiptap/pm/tables'
+import { CellSelection, columnResizingPluginKey, findCellPos, findTable, TableMap } from '@tiptap/pm/tables'
 import type { Editor } from '@tiptap/react'
-import { Plus } from 'lucide-react'
+import {
+  Bold,
+  Code2,
+  Combine,
+  Highlighter,
+  Italic,
+  Plus,
+  Strikethrough,
+  Trash2,
+  Underline
+} from 'lucide-react'
 import {
   useCallback,
   useEffect,
   useRef,
   useState,
+  type ReactNode,
   type PointerEvent as ReactPointerEvent,
   type RefObject,
   type WheelEvent as ReactWheelEvent
@@ -42,8 +53,12 @@ export type TableDividerGeometry = {
 export type TableHoverIndicatorSegment = {
   afterDivider?: TableDividerGeometry
   beforeDivider?: TableDividerGeometry
+  cell: HTMLTableCellElement
+  index: number
+  selected?: boolean
   offset: number
   size: number
+  span: number
 }
 
 export type TableHoverIndicatorGeometry = {
@@ -53,6 +68,22 @@ export type TableHoverIndicatorGeometry = {
   tableLeft: number
   tableTop: number
   tableWidth: number
+}
+
+type TableIndicatorSelectionRange = {
+  columns?: {
+    from: number
+    to: number
+  }
+  rows?: {
+    from: number
+    to: number
+  }
+}
+
+type TableSelectionToolbarGeometry = {
+  left: number
+  top: number
 }
 
 const TABLE_DIVIDER_GUTTER_PX = 8
@@ -127,7 +158,43 @@ function isTableDividerHotspotPoint(
     && Math.abs(surfacePoint.y - divider.handleTop) <= TABLE_DIVIDER_HOTSPOT_RADIUS_PX
 }
 
-function tableHoverIndicatorFromTable(surface: HTMLElement, table: HTMLTableElement): TableHoverIndicatorGeometry | null {
+function tableDomFromTableResult(editor: Editor, tablePos: number): HTMLTableElement | null {
+  const tableDom = editor.view.nodeDOM(tablePos)
+  if (tableDom instanceof HTMLTableElement) return tableDom
+  if (tableDom instanceof HTMLElement) {
+    return tableDom.querySelector<HTMLTableElement>('table')
+  }
+
+  return null
+}
+
+function tableSelectionRangeForTable(editor: Editor, table: HTMLTableElement): TableIndicatorSelectionRange | null {
+  const selection = editor.state.selection
+  if (!(selection instanceof CellSelection)) return null
+
+  const tableResult = findTable(selection.$anchorCell)
+  if (!tableResult) return null
+
+  const selectedTable = tableDomFromTableResult(editor, tableResult.pos)
+  if (selectedTable !== table) return null
+
+  const map = TableMap.get(tableResult.node)
+  const rect = map.rectBetween(
+    selection.$anchorCell.pos - tableResult.start,
+    selection.$headCell.pos - tableResult.start
+  )
+
+  return {
+    columns: selection.isColSelection() ? { from: rect.left, to: rect.right } : undefined,
+    rows: selection.isRowSelection() ? { from: rect.top, to: rect.bottom } : undefined
+  }
+}
+
+function tableHoverIndicatorFromTable(
+  editor: Editor,
+  surface: HTMLElement,
+  table: HTMLTableElement
+): TableHoverIndicatorGeometry | null {
   const surfaceRect = surface.getBoundingClientRect()
   const tableRect = table.getBoundingClientRect()
   const wrapperRect = table.closest<HTMLElement>('.tableWrapper')?.getBoundingClientRect() ?? tableRect
@@ -144,10 +211,15 @@ function tableHoverIndicatorFromTable(surface: HTMLElement, table: HTMLTableElem
   // Mirrors the top/left rail transform plus the external dot offset in CSS.
   const columnHandleTop = tableTop - TABLE_HOVER_INDICATOR_DOT_ANCHOR_OUTSET_PX
   const rowHandleLeft = tableLeft - TABLE_HOVER_INDICATOR_DOT_ANCHOR_OUTSET_PX
+  const selectionRange = tableSelectionRangeForTable(editor, table)
+  let columnIndex = 0
 
   return {
     columns: Array.from(firstRow.cells)
       .map((cell, index): TableHoverIndicatorSegment | null => {
+        const span = Math.max(cell.colSpan || 1, 1)
+        const currentColumnIndex = columnIndex
+        columnIndex += span
         const rect = cell.getBoundingClientRect()
         const clippedLeft = Math.max(rect.left, visibleLeft)
         const clippedRight = Math.min(rect.right, visibleRight)
@@ -181,8 +253,16 @@ function tableHoverIndicatorFromTable(surface: HTMLElement, table: HTMLTableElem
         return {
           afterDivider,
           beforeDivider,
+          cell,
+          index: currentColumnIndex,
           offset,
-          size: clippedRight - clippedLeft
+          selected: Boolean(
+            selectionRange?.columns
+            && currentColumnIndex < selectionRange.columns.to
+            && currentColumnIndex + span > selectionRange.columns.from
+          ),
+          size: clippedRight - clippedLeft,
+          span
         }
       })
       .filter((column): column is TableHoverIndicatorSegment => column !== null),
@@ -215,8 +295,16 @@ function tableHoverIndicatorFromTable(surface: HTMLElement, table: HTMLTableElem
         return {
           afterDivider,
           beforeDivider,
+          cell,
+          index,
           offset,
-          size: rect.height
+          selected: Boolean(
+            selectionRange?.rows
+            && index >= selectionRange.rows.from
+            && index < selectionRange.rows.to
+          ),
+          size: rect.height,
+          span: 1
         }
       })
       .filter((row): row is TableHoverIndicatorSegment => row !== null),
@@ -229,20 +317,14 @@ function tableHoverIndicatorFromTable(surface: HTMLElement, table: HTMLTableElem
 
 function tableHoverIndicatorFromPoint(editor: Editor, surface: HTMLElement, point: Point): TableHoverIndicatorGeometry | null {
   const table = tableFromPoint(editor.view.dom, point)
-  return table ? tableHoverIndicatorFromTable(surface, table) : null
+  return table ? tableHoverIndicatorFromTable(editor, surface, table) : null
 }
 
 function tableFromEditorSelection(editor: Editor): HTMLTableElement | null {
   const tableResult = findTable(editor.state.selection.$from)
   if (!tableResult) return null
 
-  const tableDom = editor.view.nodeDOM(tableResult.pos)
-  if (tableDom instanceof HTMLTableElement) return tableDom
-  if (tableDom instanceof HTMLElement) {
-    return tableDom.querySelector<HTMLTableElement>('table')
-  }
-
-  return null
+  return tableDomFromTableResult(editor, tableResult.pos)
 }
 
 export function isTableColumnResizing(editor: Editor): boolean {
@@ -298,6 +380,95 @@ function tableCellPosition(editor: Editor, cell: HTMLTableCellElement): number |
     top: rect.top + Math.min(8, Math.max(rect.height / 2, 1))
   })?.pos
   return typeof position === 'number' ? position : null
+}
+
+function tableCellResolvedPosition(editor: Editor, cell: HTMLTableCellElement) {
+  const position = tableCellPosition(editor, cell)
+  if (position === null) return null
+
+  return findCellPos(editor.state.doc, position) ?? null
+}
+
+function runTableIndicatorSelect(
+  editor: Editor,
+  axis: TableDividerAxis,
+  segment: TableHoverIndicatorSegment
+): boolean {
+  const $cell = tableCellResolvedPosition(editor, segment.cell)
+  if (!$cell) return false
+
+  const tableResult = findTable($cell)
+  if (!tableResult) return false
+
+  const table = tableResult.node
+  const map = TableMap.get(table)
+  if (!map.width || !map.height) return false
+
+  const startIndex = Math.max(0, segment.index)
+  let anchorCell: number
+  let headCell: number
+  let selection: CellSelection
+
+  if (axis === 'column') {
+    const startColumn = Math.min(startIndex, map.width - 1)
+    const endColumn = Math.min(startIndex + Math.max(segment.span, 1) - 1, map.width - 1)
+    anchorCell = map.positionAt(map.height - 1, endColumn, table)
+    headCell = map.positionAt(0, startColumn, table)
+    selection = CellSelection.colSelection(
+      editor.state.doc.resolve(tableResult.start + anchorCell),
+      editor.state.doc.resolve(tableResult.start + headCell)
+    )
+  } else {
+    const rowIndex = Math.min(startIndex, map.height - 1)
+    anchorCell = map.positionAt(rowIndex, map.width - 1, table)
+    headCell = map.positionAt(rowIndex, 0, table)
+    selection = CellSelection.rowSelection(
+      editor.state.doc.resolve(tableResult.start + anchorCell),
+      editor.state.doc.resolve(tableResult.start + headCell)
+    )
+  }
+
+  editor.view.dispatch(editor.state.tr.setSelection(selection))
+  editor.view.focus()
+  return true
+}
+
+function runTableToolbarDelete(editor: Editor): boolean {
+  const selection = editor.state.selection
+  const chain = editor.chain().focus()
+  if (selection instanceof CellSelection && selection.isRowSelection() && selection.isColSelection()) {
+    return chain.deleteTable().run()
+  }
+  if (selection instanceof CellSelection && selection.isRowSelection()) {
+    return chain.deleteRow().run()
+  }
+  if (selection instanceof CellSelection && selection.isColSelection()) {
+    return chain.deleteColumn().run()
+  }
+
+  return chain.deleteTable().run()
+}
+
+function tableSelectionToolbarFromGeometry(geometry: TableHoverIndicatorGeometry): TableSelectionToolbarGeometry | null {
+  const selectedRows = geometry.rows.filter((row) => row.selected)
+  if (selectedRows.length) {
+    const firstRow = selectedRows[0]
+    return {
+      left: Math.max(8, geometry.tableLeft - 2),
+      top: Math.max(8, geometry.tableTop + firstRow.offset - 44)
+    }
+  }
+
+  const selectedColumns = geometry.columns.filter((column) => column.selected)
+  if (selectedColumns.length) {
+    const firstColumn = selectedColumns[0]
+    return {
+      left: Math.max(8, geometry.tableLeft + firstColumn.offset - 2),
+      top: Math.max(8, geometry.tableTop - 48)
+    }
+  }
+
+  return null
 }
 
 function columnWidthsFromTableDom(table: HTMLTableElement): number[] {
@@ -608,7 +779,7 @@ export function useTableAffordances({
     }
 
     const table = tableFromEditorSelection(editor)
-    let nextIndicator = table ? tableHoverIndicatorFromTable(surface, table) : null
+    let nextIndicator = table ? tableHoverIndicatorFromTable(editor, surface, table) : null
     if (!nextIndicator && lastPointerPointRef.current) {
       nextIndicator = tableHoverIndicatorFromPoint(editor, surface, lastPointerPointRef.current)
     }
@@ -748,6 +919,21 @@ export function useTableAffordances({
     scheduleTableDividerRefresh(divider)
   }, [scheduleTableDividerRefresh])
 
+  const selectTableIndicatorSegment = useCallback((axis: TableDividerAxis, segment: TableHoverIndicatorSegment) => {
+    if (!editor) return
+
+    if (runTableIndicatorSelect(editor, axis, segment)) {
+      hideTableDivider()
+      keepTableHoverIndicatorVisible()
+      window.requestAnimationFrame(() => refreshTableHoverIndicatorFromSelection())
+    }
+  }, [
+    editor,
+    hideTableDivider,
+    keepTableHoverIndicatorVisible,
+    refreshTableHoverIndicatorFromSelection
+  ])
+
   useEffect(() => {
     if (!editor) return
 
@@ -794,6 +980,7 @@ export function useTableAffordances({
     requestTableHoverIndicatorHide,
     resetTableAffordances,
     revealTableDividerAfterDelay,
+    selectTableIndicatorSegment,
     tableDivider,
     tableHoverIndicator
   }
@@ -851,21 +1038,185 @@ export function TableDividerControls({
   )
 }
 
+function TableSelectionToolbarButton({
+  active,
+  children,
+  danger,
+  onClick,
+  onPreviewChange,
+  title
+}: {
+  active?: boolean
+  children: ReactNode
+  danger?: boolean
+  onClick: () => void
+  onPreviewChange?: (active: boolean) => void
+  title: string
+}) {
+  return (
+    <button
+      className={`table-selection-toolbar-button ${active ? 'is-active' : ''} ${danger ? 'is-danger' : ''}`}
+      type="button"
+      aria-label={title}
+      aria-pressed={active === undefined ? undefined : active}
+      title={title}
+      onClick={(event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        onClick()
+      }}
+      onBlur={() => onPreviewChange?.(false)}
+      onFocus={() => onPreviewChange?.(true)}
+      onPointerEnter={() => onPreviewChange?.(true)}
+      onPointerLeave={() => onPreviewChange?.(false)}
+      onPointerDown={(event) => {
+        event.preventDefault()
+        event.stopPropagation()
+      }}
+    >
+      {children}
+    </button>
+  )
+}
+
+function TableSelectionToolbar({
+  editor,
+  geometry,
+  onDeletePreviewChange,
+  onKeepVisible,
+  onRequestHide
+}: {
+  editor: Editor
+  geometry: TableSelectionToolbarGeometry
+  onDeletePreviewChange: (active: boolean) => void
+  onKeepVisible: () => void
+  onRequestHide: () => void
+}) {
+  const iconSize = 15
+
+  return (
+    <div
+      className="table-selection-toolbar"
+      contentEditable={false}
+      style={{
+        left: `${geometry.left}px`,
+        top: `${geometry.top}px`
+      }}
+      onPointerEnter={onKeepVisible}
+      onPointerLeave={onRequestHide}
+    >
+      <TableSelectionToolbarButton
+        active={editor.isActive('bold')}
+        title="Bold"
+        onClick={() => editor.chain().focus().toggleBold().run()}
+      >
+        <Bold size={iconSize} strokeWidth={2.4} />
+      </TableSelectionToolbarButton>
+      <TableSelectionToolbarButton
+        active={editor.isActive('strike')}
+        title="Strikethrough"
+        onClick={() => editor.chain().focus().toggleStrike().run()}
+      >
+        <Strikethrough size={iconSize} strokeWidth={2.4} />
+      </TableSelectionToolbarButton>
+      <TableSelectionToolbarButton
+        active={editor.isActive('italic')}
+        title="Italic"
+        onClick={() => editor.chain().focus().toggleItalic().run()}
+      >
+        <Italic size={iconSize} strokeWidth={2.4} />
+      </TableSelectionToolbarButton>
+      <TableSelectionToolbarButton
+        active={editor.isActive('underline')}
+        title="Underline"
+        onClick={() => editor.chain().focus().toggleMark('underline').run()}
+      >
+        <Underline size={iconSize} strokeWidth={2.4} />
+      </TableSelectionToolbarButton>
+      <TableSelectionToolbarButton
+        active={editor.isActive('code')}
+        title="Code"
+        onClick={() => editor.chain().focus().toggleCode().run()}
+      >
+        <Code2 size={iconSize} strokeWidth={2.4} />
+      </TableSelectionToolbarButton>
+      <TableSelectionToolbarButton
+        active={editor.isActive('highlight')}
+        title="Highlight"
+        onClick={() => editor.chain().focus().toggleMark('highlight').run()}
+      >
+        <Highlighter size={iconSize} strokeWidth={2.4} />
+      </TableSelectionToolbarButton>
+      <span className="table-selection-toolbar-divider" />
+      <TableSelectionToolbarButton
+        title="Merge cells"
+        onClick={() => editor.chain().focus().mergeCells().run()}
+      >
+        <Combine size={iconSize} strokeWidth={2.4} />
+      </TableSelectionToolbarButton>
+      <TableSelectionToolbarButton
+        danger
+        title="Delete selection"
+        onPreviewChange={onDeletePreviewChange}
+        onClick={() => runTableToolbarDelete(editor)}
+      >
+        <Trash2 size={iconSize} strokeWidth={2.4} />
+      </TableSelectionToolbarButton>
+    </div>
+  )
+}
+
 export function TableHoverIndicators({
+  editor,
   geometry,
   onDividerHandleEnter,
   onDividerHandleLeave,
   onKeepVisible,
-  onRequestHide
+  onRequestHide,
+  onSelectColumn,
+  onSelectRow
 }: {
+  editor: Editor
   geometry: TableHoverIndicatorGeometry
   onDividerHandleEnter: (divider: TableDividerGeometry) => void
   onDividerHandleLeave: () => void
   onKeepVisible: () => void
   onRequestHide: () => void
+  onSelectColumn: (column: TableHoverIndicatorSegment) => void
+  onSelectRow: (row: TableHoverIndicatorSegment) => void
 }) {
+  const toolbarGeometry = tableSelectionToolbarFromGeometry(geometry)
+  const hasSelectionToolbar = toolbarGeometry !== null
+  const [deletePreviewActive, setDeletePreviewActive] = useState(false)
+
+  useEffect(() => {
+    editor.view.dom.classList.toggle('table-delete-preview', deletePreviewActive)
+
+    return () => {
+      editor.view.dom.classList.remove('table-delete-preview')
+    }
+  }, [deletePreviewActive, editor])
+
+  useEffect(() => {
+    if (!hasSelectionToolbar) {
+      setDeletePreviewActive(false)
+    }
+  }, [hasSelectionToolbar])
+
   return (
-    <div className="table-hover-indicator-layer" contentEditable={false}>
+    <div
+      className={`table-hover-indicator-layer ${deletePreviewActive ? 'is-delete-preview' : ''}`}
+      contentEditable={false}
+    >
+      {toolbarGeometry ? (
+        <TableSelectionToolbar
+          editor={editor}
+          geometry={toolbarGeometry}
+          onDeletePreviewChange={setDeletePreviewActive}
+          onKeepVisible={onKeepVisible}
+          onRequestHide={onRequestHide}
+        />
+      ) : null}
       <div
         className="table-hover-column-rail"
         style={{
@@ -875,19 +1226,35 @@ export function TableHoverIndicators({
         }}
       >
         {geometry.columns.map((column, index) => (
-          <span
+          <button
             key={`column-segment-${index}`}
-            className="table-hover-column-segment"
+            className={`table-hover-column-segment ${column.selected ? 'is-selected' : ''}`}
+            type="button"
+            aria-label="Select column"
+            title="Select column"
             style={{
               left: `${column.offset}px`,
               width: `${column.size}px`
             }}
+            onClick={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              onSelectColumn(column)
+            }}
             onPointerEnter={onKeepVisible}
             onPointerLeave={onRequestHide}
+            onPointerDown={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+            }}
           >
             {column.beforeDivider ? (
               <span
                 className="table-hover-column-dot table-hover-column-dot-before"
+                onClick={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                }}
                 onPointerEnter={() => {
                   onKeepVisible()
                   onDividerHandleEnter(column.beforeDivider!)
@@ -896,11 +1263,19 @@ export function TableHoverIndicators({
                   onDividerHandleLeave()
                   onRequestHide()
                 }}
+                onPointerDown={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                }}
               />
             ) : null}
             {column.afterDivider ? (
               <span
                 className="table-hover-column-dot table-hover-column-dot-after"
+                onClick={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                }}
                 onPointerEnter={() => {
                   onKeepVisible()
                   onDividerHandleEnter(column.afterDivider!)
@@ -909,9 +1284,13 @@ export function TableHoverIndicators({
                   onDividerHandleLeave()
                   onRequestHide()
                 }}
+                onPointerDown={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                }}
               />
             ) : null}
-          </span>
+          </button>
         ))}
       </div>
       <div
@@ -923,19 +1302,35 @@ export function TableHoverIndicators({
         }}
       >
         {geometry.rows.map((row, index) => (
-          <span
+          <button
             key={`row-segment-${index}`}
-            className="table-hover-row-segment"
+            className={`table-hover-row-segment ${row.selected ? 'is-selected' : ''}`}
+            type="button"
+            aria-label="Select row"
+            title="Select row"
             style={{
               height: `${row.size}px`,
               top: `${row.offset + TABLE_HOVER_INDICATOR_RAIL_SIZE_PX}px`
             }}
+            onClick={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              onSelectRow(row)
+            }}
             onPointerEnter={onKeepVisible}
             onPointerLeave={onRequestHide}
+            onPointerDown={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+            }}
           >
             {row.beforeDivider ? (
               <span
                 className="table-hover-row-dot table-hover-row-dot-before"
+                onClick={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                }}
                 onPointerEnter={() => {
                   onKeepVisible()
                   onDividerHandleEnter(row.beforeDivider!)
@@ -944,11 +1339,19 @@ export function TableHoverIndicators({
                   onDividerHandleLeave()
                   onRequestHide()
                 }}
+                onPointerDown={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                }}
               />
             ) : null}
             {row.afterDivider ? (
               <span
                 className="table-hover-row-dot table-hover-row-dot-after"
+                onClick={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                }}
                 onPointerEnter={() => {
                   onKeepVisible()
                   onDividerHandleEnter(row.afterDivider!)
@@ -957,9 +1360,13 @@ export function TableHoverIndicators({
                   onDividerHandleLeave()
                   onRequestHide()
                 }}
+                onPointerDown={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                }}
               />
             ) : null}
-          </span>
+          </button>
         ))}
       </div>
     </div>

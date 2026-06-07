@@ -81,7 +81,12 @@ public class BlockNodeConverterTest {
         assertEquals(3, first(allTypedNodes, OrderedListBlock.class).start());
         assertEquals(true, first(allTypedNodes, TaskListItemBlock.class).checked());
         assertEquals("java", first(allTypedNodes, CodeBlock.class).language());
-        assertEquals("mermaid", first(allTypedNodes, DiagramBlock.class).engine());
+        assertTrue(allTypedNodes.stream()
+                .filter(CodeBlock.class::isInstance)
+                .map(CodeBlock.class::cast)
+                .map(CodeBlock::language)
+                .toList()
+                .contains("mermaid"));
         assertFalse(first(allTypedNodes, MathBlock.class).text().isBlank());
         assertEquals(TableCellAlignment.LEFT, first(allTypedNodes, TableCellBlock.class).alignment());
         assertEquals(HtmlDisplayMode.FIXED, first(allTypedNodes, HtmlBlock.class).displayMode());

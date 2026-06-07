@@ -121,6 +121,8 @@ describe('proseMirrorJsonToBlockDocument', () => {
           attrs: {
             blockId: 'code1',
             language: 'java',
+            caption: 'Example code',
+            width: 360,
             wrapLines: true
           },
           content: [{ type: 'text', text: 'System.out.println("Hello");' }]
@@ -133,10 +135,37 @@ describe('proseMirrorJsonToBlockDocument', () => {
       type: 'CODE_BLOCK',
       attrs: {
         language: 'java',
+        caption: 'Example code',
+        width: 360,
         text: 'System.out.println("Hello");'
       }
     })
     expect(blockDocument.blocks[0].attrs).not.toHaveProperty('wrapLines')
+  })
+
+  it('saves legacy diagram nodes as mermaid code blocks', () => {
+    const blockDocument = proseMirrorJsonToBlockDocument({
+      type: 'doc',
+      content: [
+        {
+          type: 'docpilotDiagramBlock',
+          attrs: {
+            blockId: 'diagram1',
+            engine: 'mermaid',
+            text: 'graph TD\n  A-->B'
+          }
+        }
+      ]
+    })
+
+    expect(blockDocument.blocks[0]).toMatchObject({
+      id: 'diagram1',
+      type: 'CODE_BLOCK',
+      attrs: {
+        language: 'mermaid',
+        text: 'graph TD\n  A-->B'
+      }
+    })
   })
 
   it('normalizes html attrs from editor json', () => {

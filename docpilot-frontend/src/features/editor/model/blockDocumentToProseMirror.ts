@@ -5,6 +5,10 @@ import { normalizeBlockAttrsForProseMirror } from './blockAttrs'
 
 type JsonObject = Record<string, unknown>
 
+const DETAILS_OPEN_BLOCK = /^\s*<details\b([^>]*)>\s*(?:<summary\b[^>]*>(.*?)<\/summary>)?\s*$/is
+const DETAILS_CLOSE_BLOCK = /^\s*<\/details>\s*$/i
+const DETAILS_OPEN_ATTR = /(^|\s)open(\s|=|$)/i
+
 function isObject(value: unknown): value is JsonObject {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
@@ -23,7 +27,7 @@ export function blockDocumentToProseMirrorJson(document: BlockDocument): JSONCon
     attrs: {
       schemaVersion: document.schemaVersion
     },
-    content: document.blocks.map(blockToProseMirrorJson)
+    content: normalizeLegacyDetailsBlocks(document.blocks).map(blockToProseMirrorJson)
   }
 }
 
@@ -58,7 +62,7 @@ function blockToProseMirrorJson(block: BlockNode): JSONContent {
     case 'MATH_BLOCK':
       return { type: 'docpilotMathBlock', attrs }
     case 'DIAGRAM_BLOCK':
-      return { type: 'docpilotDiagramBlock', attrs }
+      return diagramBlockToCodeBlock(block, attrs)
     case 'CALLOUT':
       return node('docpilotCallout', attrs, childContent(block))
     case 'FOOTNOTE_DEFINITION':
@@ -91,7 +95,7 @@ function blockToProseMirrorJson(block: BlockNode): JSONContent {
 function inlineToProseMirrorJson(inline: InlineNode): JSONContent {
   switch (inline.type) {
     case 'TEXT':
-      return textNode(inline.text ?? '', markContent(inline.marks))
+      return textNode(unescapeMarkdownText(inline.text ?? ''), markContent(inline.marks))
     case 'SOFT_BREAK':
       return textNode('\n', markContent(inline.marks))
     case 'HARD_BREAK':
@@ -109,9 +113,9 @@ function inlineToProseMirrorJson(inline: InlineNode): JSONContent {
     case 'EXTENSION_INLINE':
       return { type: 'docpilotExtensionInline', attrs: withInlineSourceAttr(inline, inline.attrs) }
     case 'UNSUPPORTED_INLINE':
-      return textNode(inline.text ?? '')
+      return textNode(unescapeMarkdownText(inline.text ?? ''))
     default:
-      return textNode(inline.text ?? '')
+      return textNode(unescapeMarkdownText(inline.text ?? ''))
   }
 }
 
@@ -136,11 +140,22 @@ function tableCellContent(block: BlockNode): JSONContent[] {
 }
 
 function childContent(block: BlockNode): JSONContent[] {
-  return block.children.map(blockToProseMirrorJson)
+  return normalizeLegacyDetailsBlocks(block.children).map(blockToProseMirrorJson)
 }
 
 function textContent(text: string): JSONContent[] {
   return text ? [textNode(text)] : []
+}
+
+function diagramBlockToCodeBlock(block: BlockNode, attrs: JsonObject): JSONContent {
+  const codeAttrs = { ...attrs }
+  const rawEngine = codeAttrs.engine
+  delete codeAttrs.engine
+  delete codeAttrs.text
+  delete codeAttrs.source
+  delete codeAttrs.raw
+  const language = stringAttr(rawEngine, 'mermaid') || 'mermaid'
+  return node('codeBlock', { ...codeAttrs, language }, textContent(textAttr(block, 'text')))
 }
 
 function markContent(marks: InlineMark[]): ProseMirrorMark[] {
@@ -194,4 +209,119 @@ function textAttr(block: BlockNode, name: string): string {
 
 function stringAttr(value: unknown, fallback: string): string {
   return typeof value === 'string' ? value : fallback
+}
+
+function unescapeMarkdownText(text: string): string {
+  let result = ''
+  for (let index = 0; index < text.length; index += 1) {
+    const current = text[index]
+    const next = text[index + 1]
+    if (current === '\\' && next && isMarkdownEscapable(next)) {
+      result += next
+      index += 1
+    } else {
+      result += current
+    }
+  }
+  return result
+}
+
+function isMarkdownEscapable(character: string): boolean {
+  if (character.length !== 1) return false
+  const code = character.charCodeAt(0)
+  return code >= 33 && code <= 126 && !/[A-Za-z0-9]/.test(character)
+}
+
+type DetailsOpening = {
+  open: boolean
+  title: string
+}
+
+function normalizeLegacyDetailsBlocks(blocks: BlockNode[]): BlockNode[] {
+  const normalized: BlockNode[] = []
+
+  for (let index = 0; index < blocks.length; index += 1) {
+    const opening = detailsOpening(blocks[index])
+    if (!opening) {
+      normalized.push(blocks[index])
+      continue
+    }
+
+    const closeIndex = findDetailsCloseIndex(blocks, index + 1)
+    if (closeIndex === -1) {
+      normalized.push(blocks[index])
+      continue
+    }
+
+    normalized.push({
+      ...blocks[index],
+      type: 'CALLOUT',
+      attrs: {
+        kind: 'details',
+        title: opening.title,
+        collapsible: true,
+        open: opening.open
+      },
+      inlines: [],
+      children: normalizeLegacyDetailsBlocks(blocks.slice(index + 1, closeIndex))
+    })
+    index = closeIndex
+  }
+
+  return normalized
+}
+
+function findDetailsCloseIndex(blocks: BlockNode[], fromIndex: number): number {
+  let depth = 1
+
+  for (let index = fromIndex; index < blocks.length; index += 1) {
+    if (detailsOpening(blocks[index])) {
+      depth += 1
+      continue
+    }
+
+    if (!isDetailsClose(blocks[index])) continue
+    depth -= 1
+    if (depth === 0) return index
+  }
+
+  return -1
+}
+
+function detailsOpening(block: BlockNode): DetailsOpening | null {
+  const source = htmlBlockSource(block)
+  if (!source) return null
+
+  const match = DETAILS_OPEN_BLOCK.exec(source)
+  if (!match) return null
+
+  const title = htmlText(match[2])
+  return {
+    title: title || 'Details',
+    open: DETAILS_OPEN_ATTR.test(match[1] ?? '')
+  }
+}
+
+function isDetailsClose(block: BlockNode): boolean {
+  const source = htmlBlockSource(block)
+  return Boolean(source && DETAILS_CLOSE_BLOCK.test(source))
+}
+
+function htmlBlockSource(block: BlockNode): string | null {
+  if (block.type !== 'HTML_BLOCK') return null
+  return typeof block.attrs.source === 'string' ? block.attrs.source : null
+}
+
+function htmlText(html: string | undefined): string {
+  if (!html) return ''
+  return unescapeHtml(html.replace(/<[^>]+>/gis, '')).trim()
+}
+
+function unescapeHtml(text: string): string {
+  return text
+    .replaceAll('&lt;', '<')
+    .replaceAll('&gt;', '>')
+    .replaceAll('&amp;', '&')
+    .replaceAll('&quot;', '"')
+    .replaceAll('&#39;', "'")
 }

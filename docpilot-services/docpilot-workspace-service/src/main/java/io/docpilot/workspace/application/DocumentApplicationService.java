@@ -1,6 +1,7 @@
 package io.docpilot.workspace.application;
 
 import io.docpilot.block.model.BlockDocument;
+import io.docpilot.block.processing.BlockDocumentNormalizer;
 import io.docpilot.block.processing.MarkdownBlockParser;
 import io.docpilot.block.processing.MarkdownBlockRenderer;
 import io.docpilot.block.processing.ProseMirrorJsonConverter;
@@ -56,8 +57,14 @@ public class DocumentApplicationService {
     private WorkspaceTransactionRunner transactionRunner;
     private MarkdownBlockParser markdownBlockParser;
     private MarkdownBlockRenderer markdownBlockRenderer;
+    private BlockDocumentNormalizer blockDocumentNormalizer = new BlockDocumentNormalizer();
     private ProseMirrorJsonConverter proseMirrorJsonConverter = new ProseMirrorJsonConverter();
     private Clock clock = Clock.systemDefaultZone();
+
+    public void setMarkdownBlockParser(MarkdownBlockParser markdownBlockParser) {
+        this.markdownBlockParser = markdownBlockParser;
+        this.blockDocumentNormalizer = new BlockDocumentNormalizer(markdownBlockParser);
+    }
 
     public DocumentDetailResponse createDocument(CreateDocumentCommand command) {
         AuthSubject subject = requireSubject();
@@ -249,13 +256,18 @@ public class DocumentApplicationService {
     }
 
     private DocumentDetailResponse toDetailResponse(WorkspaceDocument document) {
+        BlockDocument blockDocument = blockDocumentNormalizer.normalizeForEditing(document.getContent().getBlockDocument());
         return new DocumentDetailResponse(
-                toResponse(document),
-                proseMirrorJsonConverter.toProseMirror(document.getContent().getBlockDocument())
+                toResponse(document, blockDocument),
+                proseMirrorJsonConverter.toProseMirror(blockDocument)
         );
     }
 
     private DocumentResponse toResponse(WorkspaceDocument document) {
+        return toResponse(document, document.getContent().getBlockDocument());
+    }
+
+    private DocumentResponse toResponse(WorkspaceDocument document, BlockDocument blockDocument) {
         return new DocumentResponse(
                 idCodec.format(document.getId()),
                 idCodec.format(document.getOwnerUserId()),
@@ -264,16 +276,20 @@ public class DocumentApplicationService {
                 idCodec.format(document.getCurrentVersion()),
                 idCodec.format(document.getCurrentRevisionId()),
                 document.getMetadata(),
-                toResponse(document.getContent()),
+                toResponse(document.getContent(), blockDocument),
                 format(document.getCreateTime()),
                 format(document.getUpdateTime())
         );
     }
 
     private DocumentContentResponse toResponse(DocumentContent content) {
+        return toResponse(content, content.getBlockDocument());
+    }
+
+    private DocumentContentResponse toResponse(DocumentContent content, BlockDocument blockDocument) {
         return new DocumentContentResponse(
                 content.getBlockSchemaVersion(),
-                content.getBlockDocument(),
+                blockDocument,
                 content.getMarkdownText(),
                 content.getChecksum()
         );

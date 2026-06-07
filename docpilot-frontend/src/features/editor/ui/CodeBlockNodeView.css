@@ -72,7 +72,8 @@
 }
 
 .code-block-collapse:hover,
-.code-block-action:hover {
+.code-block-action:hover,
+.code-block-action.is-active {
   background: #eef3f8;
   color: #2563eb;
 }
@@ -91,6 +92,15 @@
   justify-content: flex-end;
   gap: 6px;
   min-width: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.code-block-node:hover .code-block-actions,
+.code-block-node:focus-within .code-block-actions {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .code-block-language-menu {
@@ -99,7 +109,8 @@
   align-items: center;
 }
 
-.code-block-language-trigger {
+.code-block-language-trigger,
+.code-block-language-static {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -110,17 +121,25 @@
   border-radius: 6px;
   background: transparent;
   color: #475569;
-  cursor: pointer;
   font: inherit;
   font-size: 0.8rem;
   font-weight: 720;
   outline: none;
   padding: 0 8px;
+}
+
+.code-block-language-trigger {
+  cursor: pointer;
   transition:
     background-color 120ms ease,
     border-color 120ms ease,
     color 120ms ease,
     box-shadow 120ms ease;
+}
+
+.code-block-language-static {
+  cursor: default;
+  user-select: none;
 }
 
 .code-block-language-trigger svg {
@@ -207,6 +226,10 @@
 }
 
 .code-block-node.is-collapsed .code-block-editor {
+  display: none;
+}
+
+.code-block-editor.is-preview-hidden {
   display: none;
 }
 
@@ -299,9 +322,279 @@
   color: #c2410c;
 }
 
+.code-block-editor .cm-dp-token-key {
+  color: #2563eb;
+  font-weight: 720;
+}
+
+.code-block-editor .cm-dp-token-punctuation {
+  color: #64748b;
+  font-weight: 720;
+}
+
 .code-block-editor .cm-dp-token-tag {
   color: #2563eb;
   font-weight: 650;
+}
+
+.code-block-node.is-special-code-block {
+  margin: 14px 0;
+}
+
+.code-block-node.is-special-code-block .code-block-frame,
+.code-block-node.is-special-code-block:hover .code-block-frame,
+.code-block-node.is-special-code-block.is-selected .code-block-frame,
+.code-block-node.is-special-code-block.docpilot-block-selected .code-block-frame {
+  border-color: transparent;
+  background: transparent;
+  outline-color: transparent;
+  box-shadow: none;
+}
+
+.code-block-node.is-special-code-block .code-block-header {
+  min-height: 30px;
+  border-bottom: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0 2px;
+}
+
+.code-block-node.is-special-code-block .code-block-editor {
+  border-radius: 0;
+  background: transparent;
+}
+
+.code-block-node.is-special-code-block .code-block-editor .cm-scroller {
+  padding: 4px 0 6px;
+}
+
+.code-block-node.is-special-code-block .code-block-editor .cm-gutters {
+  border-right: 0;
+  background: transparent;
+  padding-left: 0;
+}
+
+.code-block-node.is-special-code-block .code-block-editor .cm-content {
+  padding-right: 8px;
+}
+
+.code-block-node.is-collapsed .code-block-mermaid-preview,
+.code-block-node.is-collapsed .code-block-mermaid-caption,
+.code-block-node.is-collapsed .code-block-resize-handle {
+  display: none;
+}
+
+.code-block-mermaid-shell {
+  display: block;
+  width: min(100%, 640px);
+  min-width: min(100%, 240px);
+  max-width: 100%;
+  margin: 4px auto 14px;
+}
+
+.code-block-mermaid-frame {
+  position: relative;
+  display: block;
+  width: 100%;
+  border: 1px solid #d9e3ef;
+  border-radius: 5px;
+  background: #fff;
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  transition:
+    border-color 120ms ease,
+    outline-color 120ms ease;
+}
+
+.code-block-node.is-special-code-block .code-block-mermaid-frame .code-block-header {
+  min-height: 34px;
+  border-bottom: 1px solid #e1e5eb;
+  border-radius: 5px 5px 0 0;
+  background: #fafbfc;
+  padding: 0 8px;
+}
+
+.code-block-node.is-special-code-block .code-block-mermaid-frame .code-block-editor {
+  border-radius: 0 0 5px 5px;
+  background: #f6f7f9;
+}
+
+.code-block-node.is-special-code-block .code-block-mermaid-frame .code-block-editor .cm-scroller {
+  padding: 10px 0 11px;
+}
+
+.code-block-node.is-special-code-block .code-block-mermaid-frame .code-block-editor .cm-gutters {
+  border-right: 1px solid #e2e6ec;
+  background: #f0f2f5;
+  padding-left: 10px;
+}
+
+.code-block-node.is-special-code-block .code-block-mermaid-frame .code-block-editor .cm-content {
+  padding-right: 18px;
+}
+
+.code-block-mermaid-frame:hover,
+.code-block-node.is-resizing .code-block-mermaid-frame {
+  border-color: #aac5e4;
+  outline-color: #4d86ff;
+}
+
+.code-block-mermaid-preview {
+  display: grid;
+  place-items: center;
+  overflow-x: auto;
+  background: transparent;
+  padding: 10px 12px 14px;
+}
+
+.code-block-mermaid-svg {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  height: auto;
+  color: #253044;
+}
+
+.code-block-mermaid-edge {
+  stroke: #94a3b8;
+  stroke-linecap: round;
+  stroke-width: 1.7;
+}
+
+.code-block-mermaid-arrow {
+  fill: #94a3b8;
+}
+
+.code-block-mermaid-node rect,
+.code-block-mermaid-node polygon,
+.code-block-mermaid-node ellipse {
+  fill: #f8fafc;
+  stroke: #9ab7d6;
+  stroke-width: 1.5;
+}
+
+.code-block-mermaid-node-diamond polygon {
+  fill: #fff9ed;
+  stroke: #d6ad64;
+}
+
+.code-block-mermaid-node-text {
+  fill: #1f2d3d;
+  font-family: Inter, "Segoe UI", Arial, sans-serif;
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 760;
+  letter-spacing: 0;
+}
+
+.code-block-mermaid-source {
+  margin: 0;
+  overflow-x: auto;
+  background: transparent;
+  color: #334155;
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.88rem;
+  line-height: 1.6;
+  padding: 8px 0 12px;
+}
+
+.code-block-mermaid-caption {
+  position: relative;
+  display: block;
+  width: 100%;
+  margin-top: 9px;
+  color: #64748b;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.code-block-mermaid-caption textarea,
+.code-block-mermaid-caption-text {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  min-height: calc(1.45em + 5px);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  padding: 2px 8px 3px;
+  text-align: center;
+}
+
+.code-block-mermaid-caption textarea {
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  resize: none;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.code-block-mermaid-caption textarea:focus {
+  outline: none;
+}
+
+.code-block-mermaid-caption textarea::placeholder {
+  color: #a7b1bf;
+}
+
+.code-block-mermaid-caption-text {
+  cursor: text;
+  white-space: normal;
+}
+
+.code-block-resize-handle {
+  position: absolute;
+  z-index: 2;
+  display: block;
+  width: 13px;
+  height: 13px;
+  border: 1.5px solid #4d86ff;
+  border-radius: 999px;
+  background: #fff;
+  opacity: 0;
+  transition: opacity 100ms ease;
+}
+
+.code-block-mermaid-frame:hover .code-block-resize-handle,
+.code-block-node.is-resizing .code-block-resize-handle {
+  opacity: 1;
+}
+
+.code-block-resize-handle.handle-top-left {
+  top: -9px;
+  left: -9px;
+  cursor: nwse-resize;
+}
+
+.code-block-resize-handle.handle-top-right {
+  top: -9px;
+  right: -9px;
+  cursor: nesw-resize;
+}
+
+.code-block-resize-handle.handle-bottom-left {
+  bottom: -9px;
+  left: -9px;
+  cursor: nesw-resize;
+}
+
+.code-block-resize-handle.handle-bottom-right {
+  right: -9px;
+  bottom: -9px;
+  cursor: nwse-resize;
+}
+
+.code-block-node.is-special-code-block .code-block-language-trigger:hover,
+.code-block-node.is-special-code-block .code-block-language-trigger:focus-visible,
+.code-block-node.is-special-code-block .code-block-language-menu.open .code-block-language-trigger,
+.code-block-node.is-special-code-block .code-block-collapse:hover,
+.code-block-node.is-special-code-block .code-block-action:hover {
+  border-color: transparent;
+  background: #f3f6fa;
+  box-shadow: none;
 }
 
 .sr-only {

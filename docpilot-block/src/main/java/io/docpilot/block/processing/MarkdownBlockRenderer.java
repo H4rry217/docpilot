@@ -170,6 +170,10 @@ public class MarkdownBlockRenderer {
     }
 
     private String renderCallout(CalloutBlock block, int depth) {
+        if (block.collapsible() && "details".equalsIgnoreCase(block.kind())) {
+            return renderDetails(block, depth);
+        }
+
         String kind = block.kind().toUpperCase(Locale.ROOT);
         String title = block.title().trim();
         String header = title.isEmpty() ? "> [!" + kind + "]" : "> [!" + kind + "] " + title;
@@ -178,6 +182,22 @@ public class MarkdownBlockRenderer {
             return header;
         }
         return header + "\n" + prefixLines(body, "> ");
+    }
+
+    private String renderDetails(CalloutBlock block, int depth) {
+        String body = renderChildren(block.children(), depth);
+        StringBuilder markdown = new StringBuilder("<details");
+        if (block.open()) {
+            markdown.append(" open");
+        }
+        markdown.append(">\n<summary>")
+                .append(escapeHtml(block.title().trim().isEmpty() ? "Details" : block.title().trim()))
+                .append("</summary>");
+        if (!body.isBlank()) {
+            markdown.append("\n\n").append(body);
+        }
+        markdown.append("\n</details>");
+        return markdown.toString();
     }
 
     private String renderFootnoteDefinition(FootnoteDefinitionBlock block, int depth) {
@@ -257,10 +277,8 @@ public class MarkdownBlockRenderer {
     }
 
     private String renderInline(InlineNode inline) {
-        String text = renderInlineText(inline);
-
         if (inline.getType() == InlineType.IMAGE || inline.getType() == InlineType.HTML_INLINE) {
-            return text;
+            return renderInlineText(inline);
         }
 
         InlineMark link = null;
@@ -273,9 +291,13 @@ public class MarkdownBlockRenderer {
             }
         }
 
+        String text = renderInlineText(inline);
         if (code) {
             text = "`" + text + "`";
         } else {
+            if (inline.getType() == InlineType.TEXT) {
+                text = escapeMarkdownText(text);
+            }
             for (InlineMark mark : inline.getMarks()) {
                 text = applyMark(text, mark.getType());
             }
@@ -285,6 +307,37 @@ public class MarkdownBlockRenderer {
             text = "[" + text + "](" + link.getAttrs().getOrDefault(BlockAttrs.HREF.key(), "") + ")";
         }
         return text;
+    }
+
+    private String escapeMarkdownText(String text) {
+        StringBuilder escaped = new StringBuilder(text.length());
+        for (int index = 0; index < text.length(); index++) {
+            if (text.startsWith("==", index)) {
+                escaped.append("\\==");
+                index++;
+                continue;
+            }
+            if (text.startsWith("++", index)) {
+                escaped.append("\\++");
+                index++;
+                continue;
+            }
+            if (text.startsWith("[^", index)) {
+                escaped.append("\\[^");
+                index++;
+                continue;
+            }
+            char current = text.charAt(index);
+            if (isMarkdownEscapable(current)) {
+                escaped.append('\\');
+            }
+            escaped.append(current);
+        }
+        return escaped.toString();
+    }
+
+    private boolean isMarkdownEscapable(char character) {
+        return "\\`*_{}[]()#-~^$|<>".indexOf(character) >= 0;
     }
 
     private String renderInlineText(InlineNode inline) {
@@ -345,6 +398,15 @@ public class MarkdownBlockRenderer {
             return "==" + text + "==";
         }
         return text;
+    }
+
+    private String escapeHtml(String value) {
+        return value
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;");
     }
 
     private String prefixLines(String value, String prefix) {

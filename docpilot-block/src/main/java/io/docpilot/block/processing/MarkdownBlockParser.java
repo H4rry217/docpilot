@@ -66,6 +66,10 @@ public class MarkdownBlockParser {
     private static final Pattern FOOTNOTE_DEFINITION = Pattern.compile("^\\[\\^([^]]+)]\\s*:\\s*(.*)$", Pattern.DOTALL);
     private static final Pattern BLOCKQUOTE_CALLOUT = Pattern.compile("^>\\s*\\[!([A-Za-z][A-Za-z0-9_-]*)](.*)$");
     private static final Pattern ADMONITION_HEADER = Pattern.compile("^!!!\\s+([A-Za-z][A-Za-z0-9_-]*)(.*)$");
+    private static final Pattern DETAILS_BLOCK = Pattern.compile("(?is)^\\s*<details\\b([^>]*)>\\s*<summary\\b[^>]*>(.*?)</summary>(.*?)</details>\\s*$");
+    private static final Pattern DETAILS_OPEN_BLOCK = Pattern.compile("(?is)^\\s*<details\\b([^>]*)>\\s*(?:<summary\\b[^>]*>(.*?)</summary>)?\\s*$");
+    private static final Pattern DETAILS_CLOSE_BLOCK = Pattern.compile("(?is)^\\s*</details>\\s*$");
+    private static final Pattern DETAILS_OPEN_ATTR = Pattern.compile("(?i)(^|\\s)open(\\s|=|$)");
 
     private static final List<String> FLEXMARK_EXTENSION_CLASSES = List.of(
             "com.vladsch.flexmark.ext.tables.TablesExtension",
@@ -117,7 +121,16 @@ public class MarkdownBlockParser {
         com.vladsch.flexmark.util.ast.Document document = parser.parse(body);
 
         int index = blocks.size();
-        for (Node child : document.getChildren()) {
+        List<Node> children = nodeChildren(document);
+        for (int childIndex = 0; childIndex < children.size(); childIndex++) {
+            DetailsSequence details = detailsSequence(children, childIndex);
+            if (details != null) {
+                blocks.add(detailsBlock(idGenerator.nextId(), details, List.of(index), source, sourceIndex, bodyOffset));
+                childIndex = details.endIndex();
+                index++;
+                continue;
+            }
+            Node child = children.get(childIndex);
             BlockNode block = convertBlock(child, List.of(index), source, sourceIndex, bodyOffset);
             if (block != null) {
                 blocks.add(block);
@@ -214,9 +227,6 @@ public class MarkdownBlockParser {
             if ("math".equalsIgnoreCase(language)) {
                 return block(id, BlockType.MATH_BLOCK, Map.of(BlockAttrs.NOTATION.key(), "latex", BlockAttrs.TEXT.key(), text, BlockAttrs.DELIMITER.key(), "fenced"), List.of(), List.of(), node, sourceIndex, baseOffset);
             }
-            if ("mermaid".equalsIgnoreCase(language)) {
-                return block(id, BlockType.DIAGRAM_BLOCK, Map.of(BlockAttrs.ENGINE.key(), "mermaid", BlockAttrs.TEXT.key(), text), List.of(), List.of(), node, sourceIndex, baseOffset);
-            }
             Map<String, Object> attrs = new HashMap<>();
             attrs.put(BlockAttrs.LANGUAGE.key(), language);
             attrs.put(BlockAttrs.TEXT.key(), text);
@@ -245,6 +255,16 @@ public class MarkdownBlockParser {
         }
         if (node instanceof HtmlBlock) {
             String rawHtml = raw(node);
+            DetailsSlice details = detailsSlice(rawHtml);
+            if (details != null) {
+                Map<String, Object> attrs = new HashMap<>();
+                attrs.put(BlockAttrs.KIND.key(), "details");
+                attrs.put(BlockAttrs.TITLE.key(), details.title());
+                attrs.put(BlockAttrs.COLLAPSIBLE.key(), true);
+                attrs.put(BlockAttrs.OPEN.key(), details.open());
+                return block(id, BlockType.CALLOUT, attrs, List.of(),
+                        convertDetailsChildren(details, path, source, sourceIndex, baseOffset, node), node, sourceIndex, baseOffset);
+            }
             Map<String, Object> attrs = new HashMap<>();
             attrs.put(BlockAttrs.ID.key(), id);
             attrs.put(BlockAttrs.TITLE.key(), "HTML");
@@ -266,7 +286,16 @@ public class MarkdownBlockParser {
     private List<BlockNode> convertChildren(Node node, List<Integer> path, String source, SourceIndex sourceIndex, int baseOffset) {
         List<BlockNode> children = new ArrayList<>();
         int index = 0;
-        for (Node child : node.getChildren()) {
+        List<Node> siblingNodes = nodeChildren(node);
+        for (int childIndex = 0; childIndex < siblingNodes.size(); childIndex++) {
+            DetailsSequence details = detailsSequence(siblingNodes, childIndex);
+            if (details != null) {
+                children.add(detailsBlock(idGenerator.nextId(), details, append(path, index), source, sourceIndex, baseOffset));
+                childIndex = details.endIndex();
+                index++;
+                continue;
+            }
+            Node child = siblingNodes.get(childIndex);
             if (child instanceof TableSeparator) {
                 continue;
             }
@@ -281,6 +310,80 @@ public class MarkdownBlockParser {
                 continue;
             }
             BlockNode block = convertBlock(child, append(path, index), source, sourceIndex, baseOffset);
+            if (block != null) {
+                children.add(block);
+                index++;
+            }
+        }
+        return children;
+    }
+
+    private List<Node> nodeChildren(Node node) {
+        List<Node> children = new ArrayList<>();
+        for (Node child : node.getChildren()) {
+            children.add(child);
+        }
+        return children;
+    }
+
+    private DetailsSequence detailsSequence(List<Node> siblings, int startIndex) {
+        Node openNode = siblings.get(startIndex);
+        DetailsOpening opening = detailsOpening(raw(openNode));
+        if (!(openNode instanceof HtmlBlock) || opening == null) {
+            return null;
+        }
+
+        for (int index = startIndex + 1; index < siblings.size(); index++) {
+            Node closeNode = siblings.get(index);
+            if (closeNode instanceof HtmlBlock && DETAILS_CLOSE_BLOCK.matcher(raw(closeNode)).matches()) {
+                return new DetailsSequence(opening.title(), opening.open(), siblings.subList(startIndex + 1, index), openNode, closeNode, index);
+            }
+        }
+        return null;
+    }
+
+    private DetailsOpening detailsOpening(String raw) {
+        Matcher matcher = DETAILS_OPEN_BLOCK.matcher(raw);
+        if (!matcher.matches()) {
+            return null;
+        }
+        String attrs = matcher.group(1) == null ? "" : matcher.group(1);
+        String title = htmlText(matcher.group(2));
+        return new DetailsOpening(title, DETAILS_OPEN_ATTR.matcher(attrs).find());
+    }
+
+    private BlockNode detailsBlock(String id, DetailsSequence details, List<Integer> path, String source, SourceIndex sourceIndex, int baseOffset) {
+        Map<String, Object> attrs = new HashMap<>();
+        attrs.put(BlockAttrs.KIND.key(), "details");
+        attrs.put(BlockAttrs.TITLE.key(), details.title());
+        attrs.put(BlockAttrs.COLLAPSIBLE.key(), true);
+        attrs.put(BlockAttrs.OPEN.key(), details.open());
+        return BlockNode.of(id, BlockType.CALLOUT, attrs,
+                List.of(),
+                convertDetailsSequenceChildren(details, path, source, sourceIndex, baseOffset),
+                range(baseOffset + details.openNode().getStartOffset(), baseOffset + details.closeNode().getEndOffset(), sourceIndex));
+    }
+
+    private List<BlockNode> convertDetailsSequenceChildren(DetailsSequence details, List<Integer> path, String source, SourceIndex sourceIndex, int baseOffset) {
+        List<BlockNode> children = new ArrayList<>();
+        int index = 0;
+        for (Node child : details.bodyNodes()) {
+            BlockNode block = convertBlock(child, append(path, index), source, sourceIndex, baseOffset);
+            if (block != null) {
+                children.add(block);
+                index++;
+            }
+        }
+        return children;
+    }
+
+    private List<BlockNode> convertDetailsChildren(DetailsSlice details, List<Integer> path, String source, SourceIndex sourceIndex, int baseOffset, Node node) {
+        com.vladsch.flexmark.util.ast.Document document = parser.parse(details.body());
+        List<BlockNode> children = new ArrayList<>();
+        int index = 0;
+        int bodyBaseOffset = baseOffset + node.getStartOffset() + details.bodyOffset();
+        for (Node child : document.getChildren()) {
+            BlockNode block = convertBlock(child, append(path, index), source, sourceIndex, bodyBaseOffset);
             if (block != null) {
                 children.add(block);
                 index++;
@@ -426,11 +529,11 @@ public class MarkdownBlockParser {
         while (index < text.length()) {
             Token token = nextToken(text, index);
             if (token == null) {
-                inlines.add(inline(InlineType.TEXT, text.substring(index), Map.of(), marks, node, sourceIndex, baseOffset));
+                addTextInline(inlines, text.substring(index), marks, node, sourceIndex, baseOffset);
                 break;
             }
             if (token.start() > index) {
-                inlines.add(inline(InlineType.TEXT, text.substring(index, token.start()), Map.of(), marks, node, sourceIndex, baseOffset));
+                addTextInline(inlines, text.substring(index, token.start()), marks, node, sourceIndex, baseOffset);
             }
             switch (token.type()) {
                 case "math" -> inlines.add(inline(InlineType.MATH_INLINE, token.content(), Map.of("notation", "latex", "delimiter", "$"), marks, node, sourceIndex, baseOffset));
@@ -439,11 +542,18 @@ public class MarkdownBlockParser {
                 case "insert" -> inlines.addAll(parseTextInlines(token.content(), appendMark(marks, MarkType.INSERT, Map.of(), node, sourceIndex, baseOffset), node, sourceIndex, baseOffset));
                 case "superscript" -> inlines.addAll(parseTextInlines(token.content(), appendMark(marks, MarkType.SUPERSCRIPT, Map.of(), node, sourceIndex, baseOffset), node, sourceIndex, baseOffset));
                 case "subscript" -> inlines.addAll(parseTextInlines(token.content(), appendMark(marks, MarkType.SUBSCRIPT, Map.of(), node, sourceIndex, baseOffset), node, sourceIndex, baseOffset));
-                default -> inlines.add(inline(InlineType.TEXT, text.substring(token.start(), token.end()), Map.of(), marks, node, sourceIndex, baseOffset));
+                default -> addTextInline(inlines, text.substring(token.start(), token.end()), marks, node, sourceIndex, baseOffset);
             }
             index = token.end();
         }
         return inlines;
+    }
+
+    private void addTextInline(List<InlineNode> inlines, String text, List<InlineMark> marks, Node node, SourceIndex sourceIndex, int baseOffset) {
+        String unescaped = unescapeMarkdownText(text);
+        if (!unescaped.isEmpty()) {
+            inlines.add(inline(InlineType.TEXT, unescaped, Map.of(), marks, node, sourceIndex, baseOffset));
+        }
     }
 
     private Token nextToken(String text, int fromIndex) {
@@ -458,20 +568,57 @@ public class MarkdownBlockParser {
     }
 
     private Token tokenBetween(String text, int fromIndex, String open, String close, String type, boolean avoidRepeatedDelimiter) {
-        int start = text.indexOf(open, fromIndex);
+        int start = indexOfUnescaped(text, open, fromIndex);
         while (start >= 0) {
             if (avoidRepeatedDelimiter && repeatedDelimiterAt(text, start, open)) {
-                start = text.indexOf(open, start + open.length());
+                start = indexOfUnescaped(text, open, start + open.length());
                 continue;
             }
             int contentStart = start + open.length();
-            int end = text.indexOf(close, contentStart);
-            if (end > contentStart && !(avoidRepeatedDelimiter && repeatedDelimiterAt(text, end, close))) {
-                return new Token(type, start, end + close.length(), text.substring(contentStart, end));
+            int end = indexOfUnescaped(text, close, contentStart);
+            while (end >= 0) {
+                if (end > contentStart && !(avoidRepeatedDelimiter && repeatedDelimiterAt(text, end, close))) {
+                    return new Token(type, start, end + close.length(), text.substring(contentStart, end));
+                }
+                end = indexOfUnescaped(text, close, end + close.length());
             }
-            start = text.indexOf(open, contentStart);
+            start = indexOfUnescaped(text, open, contentStart);
         }
         return null;
+    }
+
+    private int indexOfUnescaped(String text, String delimiter, int fromIndex) {
+        int index = text.indexOf(delimiter, fromIndex);
+        while (index >= 0 && isEscaped(text, index)) {
+            index = text.indexOf(delimiter, index + delimiter.length());
+        }
+        return index;
+    }
+
+    private boolean isEscaped(String text, int index) {
+        int backslashes = 0;
+        for (int cursor = index - 1; cursor >= 0 && text.charAt(cursor) == '\\'; cursor--) {
+            backslashes++;
+        }
+        return backslashes % 2 == 1;
+    }
+
+    private String unescapeMarkdownText(String text) {
+        StringBuilder result = new StringBuilder(text.length());
+        for (int index = 0; index < text.length(); index++) {
+            char current = text.charAt(index);
+            if (current == '\\' && index + 1 < text.length() && isMarkdownEscapable(text.charAt(index + 1))) {
+                result.append(text.charAt(index + 1));
+                index++;
+            } else {
+                result.append(current);
+            }
+        }
+        return result.toString();
+    }
+
+    private boolean isMarkdownEscapable(char character) {
+        return character >= '!' && character <= '~' && !Character.isLetterOrDigit(character);
     }
 
     private boolean repeatedDelimiterAt(String text, int index, String delimiter) {
@@ -485,11 +632,11 @@ public class MarkdownBlockParser {
     }
 
     private Token footnoteToken(String text, int fromIndex) {
-        int start = text.indexOf("[^", fromIndex);
+        int start = indexOfUnescaped(text, "[^", fromIndex);
         if (start < 0) {
             return null;
         }
-        int end = text.indexOf(']', start + 2);
+        int end = indexOfUnescaped(text, "]", start + 2);
         if (end <= start + 2) {
             return null;
         }
@@ -716,6 +863,33 @@ public class MarkdownBlockParser {
         return attrs;
     }
 
+    private DetailsSlice detailsSlice(String raw) {
+        Matcher matcher = DETAILS_BLOCK.matcher(raw);
+        if (!matcher.matches()) {
+            return null;
+        }
+        String attrs = matcher.group(1) == null ? "" : matcher.group(1);
+        String title = htmlText(matcher.group(2));
+        String body = matcher.group(3) == null ? "" : matcher.group(3);
+        return new DetailsSlice(title, body, matcher.start(3), DETAILS_OPEN_ATTR.matcher(attrs).find());
+    }
+
+    private String htmlText(String html) {
+        if (html == null || html.isBlank()) {
+            return "";
+        }
+        return unescapeHtml(html.replaceAll("(?is)<[^>]+>", "")).strip();
+    }
+
+    private String unescapeHtml(String value) {
+        return value
+                .replace("&lt;", "<")
+                .replace("&gt;", ">")
+                .replace("&quot;", "\"")
+                .replace("&#39;", "'")
+                .replace("&amp;", "&");
+    }
+
     private String firstLine(String raw) {
         int newline = raw.indexOf('\n');
         return newline < 0 ? raw.trim() : raw.substring(0, newline).trim();
@@ -840,6 +1014,15 @@ public class MarkdownBlockParser {
     }
 
     private record FrontMatterSlice(String raw, String content, int endOffset) {
+    }
+
+    private record DetailsSlice(String title, String body, int bodyOffset, boolean open) {
+    }
+
+    private record DetailsOpening(String title, boolean open) {
+    }
+
+    private record DetailsSequence(String title, boolean open, List<Node> bodyNodes, Node openNode, Node closeNode, int endIndex) {
     }
 
     private record Token(String type, int start, int end, String content) {

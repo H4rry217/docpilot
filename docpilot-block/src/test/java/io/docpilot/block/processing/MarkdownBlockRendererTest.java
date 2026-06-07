@@ -63,4 +63,39 @@ class MarkdownBlockRendererTest {
         assertThat(markdown).contains("```mermaid");
     }
 
+    @Test
+    void renderLiteralMarkdownPunctuationWithEscapes() {
+        BlockDocument document = parser.parse("""
+                \\#不是标题
+
+                \\*不是斜体\\*
+
+                \\==不是高亮\\== and \\$不是公式\\$
+                """);
+
+        String markdown = renderer.render(document);
+
+        assertThat(markdown).contains("\\#不是标题");
+        assertThat(markdown).contains("\\*不是斜体\\*");
+        assertThat(markdown).contains("\\==不是高亮\\== and \\$不是公式\\$");
+    }
+
+    @Test
+    void renderGithubDetailsBackFromCollapsibleCallout() {
+        BlockDocument document = parser.parse("""
+                <details open>
+                <summary>点击展开</summary>
+
+                隐藏内容
+                </details>
+                """);
+
+        String markdown = renderer.render(document);
+
+        assertThat(markdown).contains("<details open>");
+        assertThat(markdown).contains("<summary>点击展开</summary>");
+        assertThat(markdown).contains("隐藏内容");
+        assertThat(markdown).contains("</details>");
+    }
+
 }

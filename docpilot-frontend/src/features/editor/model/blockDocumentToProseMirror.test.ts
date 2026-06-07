@@ -112,6 +112,32 @@ describe('blockDocumentToProseMirrorJson', () => {
     ])
   })
 
+  it('unescapes markdown punctuation stored in legacy text inlines', () => {
+    const blockDocument: BlockDocument = {
+      schemaVersion: 'docpilot-block/2',
+      metadata: {},
+      blocks: [
+        {
+          id: 'p1',
+          type: 'PARAGRAPH',
+          attrs: {},
+          inlines: [
+            { type: 'TEXT', text: '\\#不是标题', attrs: {}, marks: [] },
+            { type: 'TEXT', text: ' \\*不是斜体\\* ', attrs: {}, marks: [] },
+            { type: 'TEXT', text: '\\==不是高亮\\==', attrs: {}, marks: [] }
+          ],
+          children: []
+        }
+      ]
+    }
+
+    expect(blockDocumentToProseMirrorJson(blockDocument).content?.[0].content).toEqual([
+      { type: 'text', text: '#不是标题' },
+      { type: 'text', text: ' *不是斜体* ' },
+      { type: 'text', text: '==不是高亮==' }
+    ])
+  })
+
   it('keeps editable image layout attrs in editor json', () => {
     const blockDocument: BlockDocument = {
       schemaVersion: 'docpilot-block/2',
@@ -150,6 +176,307 @@ describe('blockDocumentToProseMirrorJson', () => {
         alignment: 'right'
       }
     })
+  })
+
+  it('keeps editable mermaid layout attrs in the editor schema', () => {
+    const blockDocument: BlockDocument = {
+      schemaVersion: 'docpilot-block/2',
+      metadata: {},
+      blocks: [
+        {
+          id: 'diagram1',
+          type: 'CODE_BLOCK',
+          attrs: {
+            language: 'mermaid',
+            text: 'graph TD\n  A-->B',
+            caption: 'Request flow',
+            width: 420
+          },
+          inlines: [],
+          children: []
+        }
+      ]
+    }
+
+    const editor = new Editor({
+      extensions: editorExtensions,
+      content: blockDocumentToProseMirrorJson(blockDocument)
+    })
+
+    expect(editor.getJSON().content?.[0]).toMatchObject({
+      type: 'codeBlock',
+      attrs: {
+        language: 'mermaid',
+        caption: 'Request flow',
+        width: 420
+      }
+    })
+    editor.destroy()
+  })
+
+  it('renders collapsible callouts as native details blocks', () => {
+    const blockDocument: BlockDocument = {
+      schemaVersion: 'docpilot-block/2',
+      metadata: {},
+      blocks: [
+        {
+          id: 'details1',
+          type: 'CALLOUT',
+          attrs: {
+            kind: 'details',
+            title: '点击展开',
+            collapsible: true,
+            open: false
+          },
+          inlines: [],
+          children: [
+            {
+              id: 'p1',
+              type: 'PARAGRAPH',
+              attrs: {},
+              inlines: [{ type: 'TEXT', text: '隐藏内容', attrs: {}, marks: [] }],
+              children: []
+            }
+          ]
+        }
+      ]
+    }
+
+    const editor = new Editor({
+      extensions: editorExtensions,
+      content: blockDocumentToProseMirrorJson(blockDocument)
+    })
+
+    expect(editor.getHTML()).toContain('<details')
+    expect(editor.getHTML()).toContain('<summary')
+    expect(editor.getHTML()).toContain('点击展开')
+    expect(editor.getHTML()).toContain('隐藏内容')
+    expect(editor.getHTML()).not.toContain('docpilot-html-block')
+    editor.destroy()
+  })
+
+  it('toggles collapsible callouts locally from summary clicks', () => {
+    const blockDocument: BlockDocument = {
+      schemaVersion: 'docpilot-block/2',
+      metadata: {},
+      blocks: [
+        {
+          id: 'details1',
+          type: 'CALLOUT',
+          attrs: {
+            kind: 'details',
+            title: 'Click to expand',
+            collapsible: true,
+            open: false
+          },
+          inlines: [],
+          children: [
+            {
+              id: 'p1',
+              type: 'PARAGRAPH',
+              attrs: {},
+              inlines: [{ type: 'TEXT', text: 'Hidden content', attrs: {}, marks: [] }],
+              children: []
+            }
+          ]
+        }
+      ]
+    }
+
+    const editor = new Editor({
+      extensions: editorExtensions,
+      content: blockDocumentToProseMirrorJson(blockDocument)
+    })
+    const summary = editor.view.dom.querySelector('summary.docpilot-callout-summary')
+    expect(summary).toBeInstanceOf(HTMLElement)
+    expect(summary?.firstChild).toBeInstanceOf(Text)
+
+    summary?.firstChild?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    ;(editor.view as unknown as { domObserver?: { flush: () => void } }).domObserver?.flush()
+
+    expect(editor.view.dom.querySelector('details')?.hasAttribute('open')).toBe(true)
+    expect(editor.getJSON().content?.[0].attrs).toMatchObject({ open: false })
+    editor.destroy()
+  })
+
+  it('normalizes legacy split details html blocks before rendering', () => {
+    const blockDocument: BlockDocument = {
+      schemaVersion: 'docpilot-block/2',
+      metadata: {},
+      blocks: [
+        {
+          id: 'details-open',
+          type: 'HTML_BLOCK',
+          attrs: { source: '<details><summary>Click to expand</summary>' },
+          inlines: [],
+          children: []
+        },
+        {
+          id: 'details-body',
+          type: 'PARAGRAPH',
+          attrs: {},
+          inlines: [{ type: 'TEXT', text: 'Hidden content', attrs: {}, marks: [] }],
+          children: []
+        },
+        {
+          id: 'details-close',
+          type: 'HTML_BLOCK',
+          attrs: { source: '</details>' },
+          inlines: [],
+          children: []
+        }
+      ]
+    }
+
+    const editor = new Editor({
+      extensions: editorExtensions,
+      content: blockDocumentToProseMirrorJson(blockDocument)
+    })
+
+    expect(editor.getJSON().content).toHaveLength(1)
+    expect(editor.getHTML()).toContain('<details')
+    expect(editor.getHTML()).toContain('<summary')
+    expect(editor.getHTML()).toContain('Click to expand')
+    expect(editor.getHTML()).toContain('Hidden content')
+    expect(editor.getHTML()).not.toContain('docpilot-html-block')
+    editor.destroy()
+  })
+
+  it('renders math formulas instead of raw tokens and source cards', () => {
+    const blockDocument: BlockDocument = {
+      schemaVersion: 'docpilot-block/2',
+      metadata: {},
+      blocks: [
+        {
+          id: 'p1',
+          type: 'PARAGRAPH',
+          attrs: {},
+          inlines: [
+            { type: 'TEXT', text: 'inline: ', attrs: {}, marks: [] },
+            { type: 'MATH_INLINE', text: 'E=mc^2', attrs: { notation: 'latex', delimiter: '$' }, marks: [] }
+          ],
+          children: []
+        },
+        {
+          id: 'math1',
+          type: 'MATH_BLOCK',
+          attrs: { notation: 'latex', text: '\\int_a^b f(x)dx', delimiter: '$$' },
+          inlines: [],
+          children: []
+        }
+      ]
+    }
+
+    const editor = new Editor({
+      extensions: editorExtensions,
+      content: blockDocumentToProseMirrorJson(blockDocument)
+    })
+    const html = editor.getHTML()
+
+    expect(html).toContain('docpilot-math-inline')
+    expect(html).toContain('docpilot-math-block')
+    expect(html).toContain('<sup>2</sup>')
+    expect(html).toContain('∫')
+    expect(html).toContain('docpilot-math-limit-top')
+    expect(html).not.toContain('docpilot-inline-token')
+    expect(html).not.toContain('docpilot-leaf-block')
+    editor.destroy()
+  })
+
+  it('renders double-escaped latex commands in math blocks', () => {
+    const blockDocument: BlockDocument = {
+      schemaVersion: 'docpilot-block/2',
+      metadata: {},
+      blocks: [
+        {
+          id: 'math1',
+          type: 'MATH_BLOCK',
+          attrs: { notation: 'latex', text: '\\\\int_a^b f(x)dx', delimiter: '$$' },
+          inlines: [],
+          children: []
+        }
+      ]
+    }
+
+    const editor = new Editor({
+      extensions: editorExtensions,
+      content: blockDocumentToProseMirrorJson(blockDocument)
+    })
+    const html = editor.getHTML()
+
+    expect(html).toContain('∫')
+    expect(html).toContain('docpilot-math-limit-top')
+    expect(html).not.toContain('\\\\int')
+    editor.destroy()
+  })
+
+  it('maps legacy mermaid diagram blocks to editable code blocks', () => {
+    const blockDocument: BlockDocument = {
+      schemaVersion: 'docpilot-block/2',
+      metadata: {},
+      blocks: [
+        {
+          id: 'diagram1',
+          type: 'DIAGRAM_BLOCK',
+          attrs: {
+            engine: 'mermaid',
+            text: 'graph TD\n  A[Start] --> B{Process}\n  B --> C[End]'
+          },
+          inlines: [],
+          children: []
+        }
+      ]
+    }
+
+    const editor = new Editor({
+      extensions: editorExtensions,
+      content: blockDocumentToProseMirrorJson(blockDocument)
+    })
+
+    expect(editor.getJSON().content?.[0]).toMatchObject({
+      type: 'codeBlock',
+      attrs: { language: 'mermaid' },
+      content: [{ type: 'text', text: 'graph TD\n  A[Start] --> B{Process}\n  B --> C[End]' }]
+    })
+    editor.destroy()
+  })
+
+  it('renders front matter blocks as metadata', () => {
+    const blockDocument: BlockDocument = {
+      schemaVersion: 'docpilot-block/2',
+      metadata: {},
+      blocks: [
+        {
+          id: 'frontmatter1',
+          type: 'FRONT_MATTER',
+          attrs: {
+            format: 'yaml',
+            raw: '---\ntitle: Markdown Demo\nauthor: Harry\ntags:\n  - markdown\n  - demo\n---',
+            data: {
+              title: 'Markdown Demo',
+              author: 'Harry',
+              tags: ['markdown', 'demo']
+            }
+          },
+          inlines: [],
+          children: []
+        }
+      ]
+    }
+
+    const editor = new Editor({
+      extensions: editorExtensions,
+      content: blockDocumentToProseMirrorJson(blockDocument)
+    })
+    const html = editor.getHTML()
+
+    expect(html).toContain('docpilot-front-matter')
+    expect(html).toContain('Markdown Demo')
+    expect(html).toContain('Harry')
+    expect(html).toContain('markdown')
+    expect(html).toContain('demo')
+    expect(html).not.toContain('docpilot-leaf-block')
+    editor.destroy()
   })
 
   it('renders inline code marks as TipTap code marks', () => {

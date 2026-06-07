@@ -29,7 +29,11 @@ function blockFromNode(node: JSONContent, path: string): BlockNode {
   }
 
   if (node.type === 'docpilotDiagramBlock') {
-    return block(path, 'DIAGRAM_BLOCK', attrs)
+    return block(path, 'CODE_BLOCK', {
+      ...attrs,
+      language: stringAttr(attrs, 'engine', 'mermaid') || 'mermaid',
+      text: stringAttr(attrs, 'text', '')
+    })
   }
 
   if (node.type === 'docpilotFrontMatter') {
@@ -202,7 +206,7 @@ function blockType(type?: string): BlockType {
     case 'docpilotMathBlock':
       return 'MATH_BLOCK'
     case 'docpilotDiagramBlock':
-      return 'DIAGRAM_BLOCK'
+      return 'CODE_BLOCK'
     case 'docpilotCallout':
       return 'CALLOUT'
     case 'docpilotFootnoteDefinition':
