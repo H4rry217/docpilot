@@ -1,13 +1,20 @@
 import { LogIn, UserPlus } from 'lucide-react'
 import type { FormEvent } from 'react'
 import { useState } from 'react'
-import { Button } from '../../../shared/ui/Button'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
+import { Spinner } from '@/components/ui/spinner'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { useI18n } from '../../../shared/i18n'
 import { login, register, type AuthSession } from '../api/authApi'
-import './AuthScreen.css'
 
 type AuthMode = 'login' | 'register'
 
 export function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSession) => void }) {
+  const { t } = useI18n()
   const [mode, setMode] = useState<AuthMode>('login')
   const [email, setEmail] = useState('')
   const [displayName, setDisplayName] = useState('')
@@ -28,100 +35,109 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: Aut
         setMode('login')
         setPassword('')
         setDisplayName('')
-        setMessage('注册成功，请登录')
+        setMessage(t('auth.registerSuccess'))
         return
       }
       const session = await login({ email, password })
       onAuthenticated(session)
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : '认证失败')
+      setError(submitError instanceof Error ? submitError.message : t('auth.failed'))
     } finally {
       setSubmitting(false)
     }
   }
 
   return (
-    <main className="auth-shell">
-      <section className="auth-panel" aria-label="DocPilot 用户认证">
-        <div className="auth-brand">
-          <strong>DocPilot</strong>
-          <span>默认用户体系</span>
-        </div>
+    <main className="grid h-screen w-screen place-items-center bg-muted/40 p-6">
+      <Card className="w-full max-w-sm" aria-label={t('auth.panel')}>
+        <CardHeader className="gap-1">
+          <CardTitle className="text-2xl">DocPilot</CardTitle>
+          <p className="text-sm font-medium text-muted-foreground">{t('auth.brandSubtitle')}</p>
+        </CardHeader>
+        <CardContent>
+          <form className="flex flex-col gap-4" onSubmit={submit}>
+            <ToggleGroup
+              type="single"
+              value={mode}
+              variant="outline"
+              size="sm"
+              spacing={0}
+              className="grid w-full grid-cols-2"
+              aria-label={t('auth.mode')}
+              onValueChange={(value) => {
+                if (!value) return
+                setMode(value as AuthMode)
+                setError(null)
+                setMessage(null)
+              }}
+            >
+              <ToggleGroupItem value="login">{t('auth.login')}</ToggleGroupItem>
+              <ToggleGroupItem value="register">{t('auth.register')}</ToggleGroupItem>
+            </ToggleGroup>
 
-        <div className="auth-mode-switch" role="tablist" aria-label="认证模式">
-          <button
-            className={mode === 'login' ? 'active' : ''}
-            type="button"
-            onClick={() => {
-              setMode('login')
-              setError(null)
-              setMessage(null)
-            }}
-          >
-            登录
-          </button>
-          <button
-            className={mode === 'register' ? 'active' : ''}
-            type="button"
-            onClick={() => {
-              setMode('register')
-              setError(null)
-              setMessage(null)
-            }}
-          >
-            注册
-          </button>
-        </div>
+            <FieldGroup className="gap-3">
+              <Field>
+                <FieldLabel htmlFor="auth-email">{t('auth.email')}</FieldLabel>
+                <Input
+                  id="auth-email"
+                  autoComplete="email"
+                  inputMode="email"
+                  required
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                />
+              </Field>
 
-        <form className="auth-form" onSubmit={submit}>
-          <label>
-            <span>邮箱</span>
-            <input
-              autoComplete="email"
-              inputMode="email"
-              required
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-            />
-          </label>
+              {isRegister ? (
+                <Field>
+                  <FieldLabel htmlFor="auth-display-name">{t('auth.displayName')}</FieldLabel>
+                  <Input
+                    id="auth-display-name"
+                    autoComplete="name"
+                    value={displayName}
+                    onChange={(event) => setDisplayName(event.target.value)}
+                  />
+                </Field>
+              ) : null}
 
-          {isRegister ? (
-            <label>
-              <span>显示名</span>
-              <input
-                autoComplete="name"
-                value={displayName}
-                onChange={(event) => setDisplayName(event.target.value)}
-              />
-            </label>
-          ) : null}
+              <Field>
+                <FieldLabel htmlFor="auth-password">{t('auth.password')}</FieldLabel>
+                <Input
+                  id="auth-password"
+                  autoComplete={isRegister ? 'new-password' : 'current-password'}
+                  minLength={8}
+                  required
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                />
+              </Field>
+            </FieldGroup>
 
-          <label>
-            <span>密码</span>
-            <input
-              autoComplete={isRegister ? 'new-password' : 'current-password'}
-              minLength={8}
-              required
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-            />
-          </label>
+            {error ? (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            ) : null}
+            {message ? (
+              <Alert>
+                <AlertDescription>{message}</AlertDescription>
+              </Alert>
+            ) : null}
 
-          {error ? <div className="auth-error">{error}</div> : null}
-          {message ? <div className="auth-message">{message}</div> : null}
-
-          <Button
-            className="auth-submit"
-            disabled={isSubmitting}
-            icon={isRegister ? <UserPlus size={15} /> : <LogIn size={15} />}
-            variant="primary"
-            type="submit"
-          >
-            {isSubmitting ? '处理中' : isRegister ? '创建账号' : '登录'}
-          </Button>
-        </form>
-      </section>
+            <Button className="w-full" disabled={isSubmitting} type="submit">
+              {isSubmitting ? (
+                <Spinner data-icon="inline-start" />
+              ) : isRegister ? (
+                <UserPlus data-icon="inline-start" />
+              ) : (
+                <LogIn data-icon="inline-start" />
+              )}
+              {isSubmitting ? t('auth.processing') : isRegister ? t('auth.createAccount') : t('auth.login')}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </main>
   )
 }

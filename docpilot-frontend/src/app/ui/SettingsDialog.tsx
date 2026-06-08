@@ -1,10 +1,16 @@
-import { KeyRound, SlidersHorizontal, X } from 'lucide-react'
-import { useEffect, useState, type ReactNode } from 'react'
+import { KeyRound, SlidersHorizontal } from 'lucide-react'
+import type { ReactNode } from 'react'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { UserInformation } from '../../entities/user/types'
 import { ProfileControls } from '../../features/auth/ui/ProfileControls'
 import { useI18n, type Locale } from '../../shared/i18n'
 import { SelectField } from '../../shared/ui/SelectField'
-import './SettingsDialog.css'
 
 type SettingsSection = 'general' | 'login'
 
@@ -21,11 +27,6 @@ type SettingsNavItem = {
   label: string
 }
 
-const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
-  { id: 'general', icon: <SlidersHorizontal size={16} />, label: '通用' },
-  { id: 'login', icon: <KeyRound size={16} />, label: '登录设置' }
-]
-
 function SettingRow({
   label,
   children
@@ -34,41 +35,52 @@ function SettingRow({
   children: ReactNode
 }) {
   return (
-    <div className="settings-row">
-      <span>{label}</span>
-      {children}
+    <div className="grid min-h-14 grid-cols-[minmax(0,1fr)_minmax(12rem,auto)] items-center gap-5 border-t py-3">
+      <span className="truncate text-sm font-medium text-foreground">{label}</span>
+      <div className="justify-self-end">{children}</div>
     </div>
   )
 }
 
-function GeneralSettings({ locale, setLocale }: { locale: Locale; setLocale: (locale: Locale) => void }) {
+function SettingsSectionShell({
+  title,
+  children
+}: {
+  title: string
+  children: ReactNode
+}) {
   return (
-    <section className="settings-section">
-      <h3>语言</h3>
-      <div className="settings-list">
-        <SettingRow label="界面语言">
-          <SelectField
-            label="界面语言"
-            value={locale}
-            onChange={(value) => setLocale(value as Locale)}
-            options={[
-              { label: '中文', value: 'zh-CN' },
-              { label: 'English', value: 'en-US' }
-            ]}
-          />
-        </SettingRow>
-      </div>
+    <section className="mx-auto w-full max-w-2xl">
+      <header className="pb-3">
+        <h3 className="text-sm font-medium tracking-normal text-foreground">{title}</h3>
+      </header>
+      <div>{children}</div>
     </section>
   )
 }
 
-function LoginSettings({ user, onLogout, onUserChange }: Omit<SettingsDialogProps, 'onClose'>) {
+function GeneralSettings({ locale, setLocale }: { locale: Locale; setLocale: (locale: Locale) => void }) {
+  const { t } = useI18n()
+
   return (
-    <section className="settings-section">
-      <h3>账号</h3>
-      <ProfileControls user={user} onUserChange={onUserChange} onLogout={onLogout} />
-    </section>
+    <SettingsSectionShell title={t('sidebar.languageTitle')}>
+      <SettingRow label={t('sidebar.languageTitle')}>
+        <SelectField
+          label={t('sidebar.languageTitle')}
+          value={locale}
+          onChange={(value) => setLocale(value as Locale)}
+          options={[
+            { label: '中文', value: 'zh-CN' },
+            { label: 'English', value: 'en-US' }
+          ]}
+        />
+      </SettingRow>
+    </SettingsSectionShell>
   )
+}
+
+function LoginSettings({ user, onLogout, onUserChange }: Omit<SettingsDialogProps, 'onClose'>) {
+  return <ProfileControls user={user} onUserChange={onUserChange} onLogout={onLogout} />
 }
 
 function renderSettingsPage(section: SettingsSection, input: SettingsDialogProps & { locale: Locale; setLocale: (locale: Locale) => void }) {
@@ -80,55 +92,36 @@ function renderSettingsPage(section: SettingsSection, input: SettingsDialogProps
 }
 
 export function SettingsDialog({ user, onClose, onLogout, onUserChange }: SettingsDialogProps) {
-  const [activeSection, setActiveSection] = useState<SettingsSection>('general')
-  const { locale, setLocale } = useI18n()
-  const activeItem = SETTINGS_NAV_ITEMS.find((item) => item.id === activeSection) ?? SETTINGS_NAV_ITEMS[0]
-
-  useEffect(() => {
-    function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose()
-    }
-
-    window.addEventListener('keydown', closeOnEscape)
-    return () => window.removeEventListener('keydown', closeOnEscape)
-  }, [onClose])
+  const { locale, setLocale, t } = useI18n()
+  const settingsNavItems: SettingsNavItem[] = [
+    { id: 'general', icon: <SlidersHorizontal />, label: t('settings.general') },
+    { id: 'login', icon: <KeyRound />, label: t('settings.login') }
+  ]
 
   return (
-    <div
-      className="settings-dialog-backdrop"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose()
-      }}
-    >
-      <section className="settings-dialog" role="dialog" aria-modal="true" aria-label="设置">
-        <aside className="settings-nav" aria-label="设置分类">
-          {SETTINGS_NAV_ITEMS.map((item) => (
-            <button
-              className={item.id === activeSection ? 'active' : ''}
-              type="button"
-              aria-current={item.id === activeSection ? 'page' : undefined}
-              key={item.id}
-              onClick={() => setActiveSection(item.id)}
-            >
-              {item.icon}
-              <span>{item.label}</span>
-            </button>
+    <Dialog open onOpenChange={(open) => {
+      if (!open) onClose()
+    }}>
+      <DialogContent className="grid h-[min(560px,calc(100vh-40px))] max-w-[min(760px,calc(100vw-40px))] grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden rounded-lg bg-background p-0 shadow-none sm:max-w-[min(760px,calc(100vw-40px))]">
+        <DialogHeader className="border-b px-5 py-3">
+          <DialogTitle className="text-sm">{t('sidebar.settingsTitle')}</DialogTitle>
+        </DialogHeader>
+        <Tabs defaultValue="general" orientation="vertical" className="min-h-0 gap-0 md:grid md:grid-cols-[190px_minmax(0,1fr)]">
+          <TabsList variant="line" className="h-full w-full items-stretch justify-start rounded-none border-r bg-muted/20 p-2 md:flex-col">
+            {settingsNavItems.map((item) => (
+              <TabsTrigger key={item.id} value={item.id} className="h-8 justify-start rounded-md px-2.5 text-sm">
+                <span data-icon="inline-start">{item.icon}</span>
+                <span className="truncate">{item.label}</span>
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          {settingsNavItems.map((item) => (
+            <TabsContent key={item.id} value={item.id} className="min-h-0 overflow-auto px-8 py-6">
+              {renderSettingsPage(item.id, { user, onClose, onLogout, onUserChange, locale, setLocale })}
+            </TabsContent>
           ))}
-        </aside>
-
-        <main className="settings-main">
-          <header className="settings-header">
-            <h2>{activeItem.label}</h2>
-            <button type="button" aria-label="关闭设置" title="关闭设置" onClick={onClose}>
-              <X size={18} />
-            </button>
-          </header>
-          <div className="settings-content">
-            {renderSettingsPage(activeSection, { user, onClose, onLogout, onUserChange, locale, setLocale })}
-          </div>
-        </main>
-      </section>
-    </div>
+        </Tabs>
+      </DialogContent>
+    </Dialog>
   )
 }

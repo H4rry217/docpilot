@@ -79,6 +79,10 @@ export function useAppDialogs() {
 
   function handleDialogSubmit(event: FormEvent) {
     event.preventDefault()
+    handleDialogConfirm()
+  }
+
+  function handleDialogConfirm() {
     if (!dialog) return
 
     if (dialog.type === 'prompt') {
@@ -97,6 +101,7 @@ export function useAppDialogs() {
     requestText,
     requestConfirm,
     handleDialogCancel,
+    handleDialogConfirm,
     handleDialogValueChange,
     handleDialogSubmit
   }

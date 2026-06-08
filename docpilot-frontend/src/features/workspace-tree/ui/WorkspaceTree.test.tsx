@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { WORKSPACE_NODE_TYPE, WORKSPACE_RESOURCE_TYPE, WORKSPACE_TYPE, type Workspace, type WorkspaceTreeNode } from '../../../entities/workspace/types'
 import { I18nProvider } from '../../../shared/i18n'
 import { WorkspaceTree } from './WorkspaceTree'
@@ -65,12 +66,20 @@ function WorkspaceTreeHarness() {
   const [selectedNodeId, setSelectedNodeId] = useState<string>()
 
   return (
-    <I18nProvider>
+    <TestProviders>
       <WorkspaceTree
         nodes={nodes}
         selectedNodeId={selectedNodeId}
         onSelectNode={(node) => setSelectedNodeId(node.nodeId)}
       />
+    </TestProviders>
+  )
+}
+
+function TestProviders({ children }: { children: ReactNode }) {
+  return (
+    <I18nProvider>
+      <TooltipProvider>{children}</TooltipProvider>
     </I18nProvider>
   )
 }
@@ -99,14 +108,14 @@ describe('WorkspaceTree', () => {
 
   it('keeps a created document highlighted when its server node id arrives', () => {
     render(
-      <I18nProvider>
+      <TestProviders>
         <WorkspaceTree
           nodes={nodes}
           selectedNodeId="pending-document-1"
           selectedDocumentId="document-1"
           onSelectNode={() => undefined}
         />
-      </I18nProvider>
+      </TestProviders>
     )
 
     const document = screen.getByRole('button', { name: 'README.md' })
@@ -131,9 +140,9 @@ describe('WorkspaceTree', () => {
     ]
 
     render(
-      <I18nProvider>
+      <TestProviders>
         <WorkspaceTree nodes={longNameNodes} onSelectNode={() => undefined} />
-      </I18nProvider>
+      </TestProviders>
     )
 
     const document = screen.getByRole('button', { name: longFileName })
@@ -147,7 +156,7 @@ describe('WorkspaceTree', () => {
   it('switches from the file tree to the workspace list from the workspace card', () => {
     const onSelectWorkspace = vi.fn()
     render(
-      <I18nProvider>
+      <TestProviders>
         <WorkspaceTree
           nodes={nodes}
           workspaces={workspaces}
@@ -156,7 +165,7 @@ describe('WorkspaceTree', () => {
           onSelectWorkspace={onSelectWorkspace}
           onSelectNode={() => undefined}
         />
-      </I18nProvider>
+      </TestProviders>
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Alice Workspace' }))
@@ -170,7 +179,7 @@ describe('WorkspaceTree', () => {
     const onRenameWorkspace = vi.fn()
     const onDeleteWorkspace = vi.fn()
     const { container } = render(
-      <I18nProvider>
+      <TestProviders>
         <WorkspaceTree
           nodes={nodes}
           workspaces={workspaces}
@@ -180,7 +189,7 @@ describe('WorkspaceTree', () => {
           onDeleteWorkspace={onDeleteWorkspace}
           onSelectNode={() => undefined}
         />
-      </I18nProvider>
+      </TestProviders>
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Alice Workspace' }))
@@ -201,13 +210,13 @@ describe('WorkspaceTree', () => {
     const markdownFile = new File(['# Hello'], 'hello.md', { type: 'text/markdown' })
     const ignoredFile = new File(['nope'], 'image.png', { type: 'image/png' })
     render(
-      <I18nProvider>
+      <TestProviders>
         <WorkspaceTree
           nodes={nodes}
           onSelectNode={() => undefined}
           onUploadMarkdownFiles={onUploadMarkdownFiles}
         />
-      </I18nProvider>
+      </TestProviders>
     )
 
     const folderDropTarget = screen.getByRole('button', { name: 'New Folder' }).parentElement as HTMLElement
@@ -226,14 +235,14 @@ describe('WorkspaceTree', () => {
     const onUploadMarkdownFiles = vi.fn()
     const markdownFile = new File(['# Root'], 'root.markdown', { type: 'text/markdown' })
     render(
-      <I18nProvider>
+      <TestProviders>
         <WorkspaceTree
           nodes={nodes}
           workspaceName="Alice Workspace"
           onSelectNode={() => undefined}
           onUploadMarkdownFiles={onUploadMarkdownFiles}
         />
-      </I18nProvider>
+      </TestProviders>
     )
 
     fireEvent.drop(screen.getByRole('button', { name: 'Alice Workspace' }), {

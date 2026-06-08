@@ -9,14 +9,9 @@ import {
 import type { BlockDocument } from '../../../entities/block/types'
 import type { Workspace, WorkspaceTreeNode } from '../../../entities/workspace/types'
 import { useI18n, type Locale } from '../../../shared/i18n'
-import { usePersistentNumberState } from '../../../shared/ui/usePersistentNumberState'
 import { getDocument, saveDocumentContent } from '../api/documentApi'
-import {
-  AiReviewPanel,
-  AI_REVIEW_PANEL_DEFAULT_WIDTH,
-  AI_REVIEW_PANEL_MAX_WIDTH,
-  AI_REVIEW_PANEL_MIN_WIDTH
-} from './AiReviewPanel'
+import { useAiWorkspaceLayout } from '../model/aiWorkspaceLayout'
+import { AiWorkspace } from './AiWorkspace'
 import {
   BlockDocumentEditor,
   type BlockDocumentEditorHandle,
@@ -82,12 +77,7 @@ export function DocumentEditor({
   onSelectOutlineItem
 }: DocumentEditorProps) {
   const { locale, t } = useI18n()
-  const [reviewPanelWidth, setReviewPanelWidth] = usePersistentNumberState({
-    storageKey: 'docpilot.layout.reviewPanelWidth',
-    defaultValue: AI_REVIEW_PANEL_DEFAULT_WIDTH,
-    min: AI_REVIEW_PANEL_MIN_WIDTH,
-    max: AI_REVIEW_PANEL_MAX_WIDTH
-  })
+  const aiWorkspaceLayout = useAiWorkspaceLayout()
   const [saveState, setSaveState] = useState<SaveState>('idle')
   const [saveError, setSaveError] = useState<string | null>(null)
   const [blockDebugMode, setBlockDebugMode] = useState(false)
@@ -239,14 +229,20 @@ export function DocumentEditor({
   const updatedAt = formatUpdatedAt(documentQuery.data?.document.updateTime, locale) ?? t('editor.notSaved')
   const saveMessage = saveState === 'error' && saveError ? saveError : t(saveStateKey(saveState))
   const contentKey = documentQuery.data?.document.documentId
+  const aiWorkspaceDockedOpen = hasDocument
+    && aiWorkspaceLayout.state.dockMode === 'docked'
+    && !aiWorkspaceLayout.state.minimized
+  const aiWorkspaceDockedMinimized = hasDocument
+    && aiWorkspaceLayout.state.dockMode === 'docked'
+    && aiWorkspaceLayout.state.minimized
   const editorLayoutStyle = {
-    '--review-panel-width': `${reviewPanelWidth}px`
+    '--ai-workspace-dock-width': `${aiWorkspaceLayout.state.dockWidth}px`
   } as CSSProperties
 
   return (
     <main
       ref={editorLayoutRef}
-      className={`editor-layout ${hasDocument ? '' : 'is-empty'} ${outlineCompact ? 'outline-compact' : ''} ${blockDebugMode ? 'block-debug-mode' : ''}`}
+      className={`editor-layout ${hasDocument ? '' : 'is-empty'} ${aiWorkspaceDockedOpen ? 'has-ai-dock' : ''} ${aiWorkspaceDockedMinimized ? 'has-ai-rail' : ''} ${outlineCompact ? 'outline-compact' : ''} ${blockDebugMode ? 'block-debug-mode' : ''}`}
       style={editorLayoutStyle}
     >
       {hasDocument ? (
@@ -300,7 +296,7 @@ export function DocumentEditor({
       </div>
 
       {hasDocument ? (
-        <AiReviewPanel width={reviewPanelWidth} onWidthChange={setReviewPanelWidth} />
+        <AiWorkspace layout={aiWorkspaceLayout} />
       ) : null}
     </main>
   )

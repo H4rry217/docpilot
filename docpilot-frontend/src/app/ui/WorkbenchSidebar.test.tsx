@@ -1,5 +1,6 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { I18nProvider } from '../../shared/i18n'
 import { WorkbenchSidebar } from './WorkbenchSidebar'
 
@@ -11,26 +12,28 @@ afterEach(() => {
 function renderSidebar() {
   render(
     <I18nProvider>
-      <WorkbenchSidebar
-        mode="files"
-        expanded
-        width={240}
-        workspaces={[]}
-        tree={[]}
-        onModeChange={vi.fn()}
-        onWidthChange={vi.fn()}
-        onSelectWorkspace={vi.fn()}
-        onCreateWorkspace={vi.fn()}
-        onRenameWorkspace={vi.fn()}
-        onDeleteWorkspace={vi.fn()}
-        onSelectNode={vi.fn()}
-        onCreateFolder={vi.fn()}
-        onCreateDocument={vi.fn()}
-        onUploadMarkdownFiles={vi.fn()}
-        onRenameNode={vi.fn()}
-        onDeleteNode={vi.fn()}
-        onOpenSettings={vi.fn()}
-      />
+      <TooltipProvider>
+        <WorkbenchSidebar
+          mode="files"
+          expanded
+          width={240}
+          workspaces={[]}
+          tree={[]}
+          onModeChange={vi.fn()}
+          onWidthChange={vi.fn()}
+          onSelectWorkspace={vi.fn()}
+          onCreateWorkspace={vi.fn()}
+          onRenameWorkspace={vi.fn()}
+          onDeleteWorkspace={vi.fn()}
+          onSelectNode={vi.fn()}
+          onCreateFolder={vi.fn()}
+          onCreateDocument={vi.fn()}
+          onUploadMarkdownFiles={vi.fn()}
+          onRenameNode={vi.fn()}
+          onDeleteNode={vi.fn()}
+          onOpenSettings={vi.fn()}
+        />
+      </TooltipProvider>
     </I18nProvider>
   )
 }

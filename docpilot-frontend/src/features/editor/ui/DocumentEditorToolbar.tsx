@@ -1,6 +1,7 @@
 import { Braces, Save, Share2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import { useI18n } from '../../../shared/i18n'
-import { Button } from '../../../shared/ui/Button'
 
 export function DocumentEditorToolbar({
   blockDebugMode,
@@ -18,20 +19,22 @@ export function DocumentEditorToolbar({
   const { t } = useI18n()
 
   return (
-    <div className="document-actions">
-      <Button variant="ghost" icon={<Save size={14} />} disabled={!canSave || isSaving} onClick={onSave}>
+    <div className="flex flex-wrap items-center justify-end gap-1.5">
+      <Button variant="outline" disabled={!canSave || isSaving} onClick={onSave}>
+        <Save data-icon="inline-start" />
         {t('editor.save')}
       </Button>
-      <Button variant="ghost" icon={<Share2 size={14} />}>
+      <Button variant="outline">
+        <Share2 data-icon="inline-start" />
         {t('editor.share')}
       </Button>
       <Button
-        variant="ghost"
-        icon={<Braces size={14} />}
-        className={`block-debug-toggle ${blockDebugMode ? 'is-active' : ''}`}
+        variant="outline"
+        className={cn(blockDebugMode && 'border-primary/30 bg-primary/10 text-primary')}
         aria-pressed={blockDebugMode}
         onClick={onToggleBlockDebugMode}
       >
+        <Braces data-icon="inline-start" />
         {t('editor.blockMode')}
       </Button>
     </div>

@@ -1,10 +1,12 @@
-import { useEffect, useState, type MouseEvent } from 'react'
+import { useState } from 'react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import type { Workspace, WorkspaceTreeNode } from '../../../entities/workspace/types'
 import { useI18n } from '../../../shared/i18n'
-import { WorkspaceContextMenu, type WorkspaceContextMenuState } from './WorkspaceContextMenu'
+import { WorkspaceContextMenu } from './WorkspaceContextMenu'
 import { WorkspaceSwitcher } from './WorkspaceSwitcher'
 import { WorkspaceTreeNodeRow } from './WorkspaceTreeNodeRow'
-import './WorkspaceTree.css'
 import { useWorkspaceTreeDnd } from './useWorkspaceTreeDnd'
 
 export type WorkspaceTreeProps = {
@@ -50,31 +52,9 @@ export function WorkspaceTree({
 }: WorkspaceTreeProps) {
   const { t } = useI18n()
   const [collapsedFolderIds, setCollapsedFolderIds] = useState<Set<string>>(() => new Set())
-  const [contextMenu, setContextMenu] = useState<WorkspaceContextMenuState>()
   const [showWorkspaceList, setShowWorkspaceList] = useState(false)
   const dnd = useWorkspaceTreeDnd({ onUploadMarkdownFiles })
   const currentWorkspaceName = workspaceName ?? t('sidebar.workspace')
-
-  useEffect(() => {
-    if (!contextMenu) return
-
-    function closeContextMenu() {
-      setContextMenu(undefined)
-    }
-
-    function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === 'Escape') closeContextMenu()
-    }
-
-    document.addEventListener('click', closeContextMenu)
-    document.addEventListener('contextmenu', closeContextMenu)
-    document.addEventListener('keydown', closeOnEscape)
-    return () => {
-      document.removeEventListener('click', closeContextMenu)
-      document.removeEventListener('contextmenu', closeContextMenu)
-      document.removeEventListener('keydown', closeOnEscape)
-    }
-  }, [contextMenu])
 
   function toggleFolder(node: WorkspaceTreeNode) {
     setCollapsedFolderIds((current) => {
@@ -92,100 +72,80 @@ export function WorkspaceTree({
     return !collapsedFolderIds.has(node.nodeId)
   }
 
-  function openContextMenu(event: MouseEvent, node?: WorkspaceTreeNode) {
-    event.preventDefault()
-    event.stopPropagation()
-    setContextMenu({
-      node,
-      x: Math.max(8, Math.min(event.clientX, window.innerWidth - 144)),
-      y: Math.max(8, Math.min(event.clientY, window.innerHeight - 84))
-    })
-  }
-
-  if (showWorkspaceList) {
-    return (
-      <WorkspaceSwitcher
-        currentWorkspaceName={currentWorkspaceName}
-        rootDropTarget={dnd.rootDropTarget}
-        selectedWorkspaceId={selectedWorkspaceId}
-        showWorkspaceList={showWorkspaceList}
-        workspaces={workspaces}
-        onCreateWorkspace={onCreateWorkspace}
-        onDeleteWorkspace={onDeleteWorkspace}
-        onHideWorkspaceList={() => setShowWorkspaceList(false)}
-        onOpenContextMenu={openContextMenu}
-        onRenameWorkspace={onRenameWorkspace}
-        onRootDragLeave={dnd.handleRootDragLeave}
-        onRootDragOver={dnd.handleRootDragOver}
-        onRootDrop={dnd.handleRootDrop}
-        onSelectWorkspace={onSelectWorkspace}
-        onShowWorkspaceList={() => setShowWorkspaceList(true)}
-      />
-    )
-  }
-
   return (
-    <div
-      className="workspace-panel"
-      onContextMenu={(event) => openContextMenu(event)}
-      onDragOver={dnd.handlePanelDragOver}
-      onDragLeave={dnd.handlePanelDragLeave}
-      onDrop={dnd.handlePanelDrop}
-    >
-      <WorkspaceSwitcher
-        currentWorkspaceName={currentWorkspaceName}
-        rootDropTarget={dnd.rootDropTarget}
-        selectedWorkspaceId={selectedWorkspaceId}
-        showWorkspaceList={showWorkspaceList}
-        workspaces={workspaces}
-        onCreateWorkspace={onCreateWorkspace}
-        onDeleteWorkspace={onDeleteWorkspace}
-        onHideWorkspaceList={() => setShowWorkspaceList(false)}
-        onOpenContextMenu={openContextMenu}
-        onRenameWorkspace={onRenameWorkspace}
-        onRootDragLeave={dnd.handleRootDragLeave}
-        onRootDragOver={dnd.handleRootDragOver}
-        onRootDrop={dnd.handleRootDrop}
-        onSelectWorkspace={onSelectWorkspace}
-        onShowWorkspaceList={() => setShowWorkspaceList(true)}
-      />
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div
+          className="relative flex h-full min-w-0 flex-col overflow-hidden py-3"
+          onDragOver={showWorkspaceList ? undefined : dnd.handlePanelDragOver}
+          onDragLeave={showWorkspaceList ? undefined : dnd.handlePanelDragLeave}
+          onDrop={showWorkspaceList ? undefined : dnd.handlePanelDrop}
+        >
+          <WorkspaceSwitcher
+            currentWorkspaceName={currentWorkspaceName}
+            rootDropTarget={dnd.rootDropTarget}
+            selectedWorkspaceId={selectedWorkspaceId}
+            showWorkspaceList={showWorkspaceList}
+            workspaces={workspaces}
+            onCreateWorkspace={onCreateWorkspace}
+            onDeleteWorkspace={onDeleteWorkspace}
+            onHideWorkspaceList={() => setShowWorkspaceList(false)}
+            onRenameWorkspace={onRenameWorkspace}
+            onRootDragLeave={dnd.handleRootDragLeave}
+            onRootDragOver={dnd.handleRootDragOver}
+            onRootDrop={dnd.handleRootDrop}
+            onSelectWorkspace={onSelectWorkspace}
+            onShowWorkspaceList={() => setShowWorkspaceList(true)}
+          />
 
-      <div className="tree-list">
-        {nodes.length > 0 ? (
-          nodes.map((node) => (
-            <WorkspaceTreeNodeRow
-              key={node.nodeId}
-              node={node}
-              depth={0}
-              expanded={isFolderExpanded(node)}
-              selectedNodeId={selectedNodeId}
-              selectedDocumentId={selectedDocumentId}
-              onSelectNode={onSelectNode}
-              onToggleFolder={toggleFolder}
-              isFolderExpanded={isFolderExpanded}
-              onOpenContextMenu={openContextMenu}
-              dragTargetNodeId={dnd.dragTargetNodeId}
-              onMarkdownDragOver={dnd.handleMarkdownDragOver}
-              onMarkdownDragLeave={dnd.handleMarkdownDragLeave}
-              onMarkdownDrop={dnd.handleMarkdownDrop}
-            />
-          ))
-        ) : (
-          <div className="sidebar-empty">{t('workspace.empty')}</div>
-        )}
-      </div>
-      {uploadMessage ? <div className="workspace-upload-message">{uploadMessage}</div> : null}
-      {contextMenu ? (
-        <WorkspaceContextMenu
-          contextMenu={contextMenu}
-          rootNodeId={rootNodeId}
-          onClose={() => setContextMenu(undefined)}
-          onCreateDocument={onCreateDocument}
-          onCreateFolder={onCreateFolder}
-          onDeleteNode={onDeleteNode}
-          onRenameNode={onRenameNode}
-        />
-      ) : null}
-    </div>
+          {!showWorkspaceList ? (
+            <>
+              <ScrollArea className="min-h-0 flex-1">
+                <div className="grid gap-0.5 px-1 py-2">
+                  {nodes.length > 0 ? (
+                    nodes.map((node) => (
+                      <WorkspaceTreeNodeRow
+                        key={node.nodeId}
+                        node={node}
+                        depth={0}
+                        expanded={isFolderExpanded(node)}
+                        selectedNodeId={selectedNodeId}
+                        selectedDocumentId={selectedDocumentId}
+                        rootNodeId={rootNodeId}
+                        onSelectNode={onSelectNode}
+                        onToggleFolder={toggleFolder}
+                        isFolderExpanded={isFolderExpanded}
+                        onCreateFolder={onCreateFolder}
+                        onCreateDocument={onCreateDocument}
+                        onRenameNode={onRenameNode}
+                        onDeleteNode={onDeleteNode}
+                        dragTargetNodeId={dnd.dragTargetNodeId}
+                        onMarkdownDragOver={dnd.handleMarkdownDragOver}
+                        onMarkdownDragLeave={dnd.handleMarkdownDragLeave}
+                        onMarkdownDrop={dnd.handleMarkdownDrop}
+                      />
+                    ))
+                  ) : (
+                    <div className="px-3 py-4 text-sm font-medium text-muted-foreground">{t('workspace.empty')}</div>
+                  )}
+                </div>
+              </ScrollArea>
+              {uploadMessage ? (
+                <Alert className="mx-2 mt-2">
+                  <AlertDescription>{uploadMessage}</AlertDescription>
+                </Alert>
+              ) : null}
+            </>
+          ) : null}
+        </div>
+      </ContextMenuTrigger>
+      <WorkspaceContextMenu
+        rootNodeId={rootNodeId}
+        onCreateDocument={onCreateDocument}
+        onCreateFolder={onCreateFolder}
+        onDeleteNode={onDeleteNode}
+        onRenameNode={onRenameNode}
+      />
+    </ContextMenu>
   )
 }

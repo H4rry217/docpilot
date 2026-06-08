@@ -1,5 +1,26 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from '@/components/ui/alert-dialog'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog'
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
+import { Spinner } from '@/components/ui/spinner'
 import type { AuthSession } from '../features/auth/api/authApi'
 import { AuthScreen } from '../features/auth/ui/AuthScreen'
 import { DocumentEditor } from '../features/editor/ui/DocumentEditor'
@@ -10,7 +31,6 @@ import { useDocumentOutlineState } from './model/useDocumentOutlineState'
 import { useWorkspaceShell } from './model/useWorkspaceShell'
 import { WorkbenchSidebar } from './ui/WorkbenchSidebar'
 import { SettingsDialog } from './ui/SettingsDialog'
-import './App.css'
 
 export function App() {
   const { t } = useI18n()
@@ -48,8 +68,11 @@ export function App() {
 
   if (authStatus === 'checking') {
     return (
-      <main className="auth-shell">
-        <div className="auth-loading">{t('app.loading')}</div>
+      <main className="grid h-screen w-screen place-items-center bg-muted/40">
+        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+          <Spinner />
+          <span>{t('app.loading')}</span>
+        </div>
       </main>
     )
   }
@@ -60,7 +83,7 @@ export function App() {
 
   return (
     <div
-      className="app-shell"
+      className="grid h-screen w-screen overflow-hidden bg-background"
       style={{ gridTemplateColumns: `48px ${workspaceShell.sidebarExpanded ? workspaceShell.sidebarWidth : 0}px minmax(0, 1fr)` }}
     >
       <WorkbenchSidebar
@@ -105,43 +128,58 @@ export function App() {
           onUserChange={setCurrentUser}
         />
       ) : null}
-      {activeDialog ? (
-        <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => {
-          if (event.target === event.currentTarget) dialogs.handleDialogCancel()
+      {activeDialog?.type === 'prompt' ? (
+        <Dialog open onOpenChange={(open) => {
+          if (!open) dialogs.handleDialogCancel()
         }}>
-          <form
-            className={`app-dialog ${activeDialog.type === 'confirm' && activeDialog.danger ? 'danger' : ''}`}
-            role="dialog"
-            aria-modal="true"
-            onSubmit={(event: FormEvent) => dialogs.handleDialogSubmit(event)}
-          >
-            <header className="app-dialog-header">
-              <strong>{activeDialog.title}</strong>
-            </header>
-            <div className="app-dialog-body">
-              {activeDialog.type === 'prompt' ? (
-                <label className="app-dialog-field">
-                  <span>{activeDialog.label}</span>
-                  <input autoFocus value={activeDialog.value} onChange={(event) => dialogs.handleDialogValueChange(event.target.value)} />
-                </label>
-              ) : (
-                <p>{activeDialog.message}</p>
-              )}
-            </div>
-            <div className="app-dialog-actions">
-              <button type="button" className="app-dialog-cancel" onClick={dialogs.handleDialogCancel}>
-                {t('dialog.cancel')}
-              </button>
-              <button
-                type="submit"
-                className={`app-dialog-confirm ${activeDialog.type === 'confirm' && activeDialog.danger ? 'danger' : ''}`}
-                disabled={activeDialog.type === 'prompt' && !activeDialog.value.trim()}
+          <DialogContent>
+            <form className="grid gap-4" onSubmit={(event: FormEvent) => dialogs.handleDialogSubmit(event)}>
+              <DialogHeader>
+                <DialogTitle>{activeDialog.title}</DialogTitle>
+              </DialogHeader>
+              <FieldGroup>
+                <Field>
+                  <FieldLabel htmlFor="app-dialog-value">{activeDialog.label}</FieldLabel>
+                  <Input
+                    id="app-dialog-value"
+                    autoFocus
+                    value={activeDialog.value}
+                    onChange={(event) => dialogs.handleDialogValueChange(event.target.value)}
+                  />
+                </Field>
+              </FieldGroup>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={dialogs.handleDialogCancel}>
+                  {t('dialog.cancel')}
+                </Button>
+                <Button type="submit" disabled={!activeDialog.value.trim()}>
+                  {activeDialog.confirmLabel}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      ) : null}
+      {activeDialog?.type === 'confirm' ? (
+        <AlertDialog open onOpenChange={(open) => {
+          if (!open) dialogs.handleDialogCancel()
+        }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{activeDialog.title}</AlertDialogTitle>
+              <AlertDialogDescription>{activeDialog.message}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={dialogs.handleDialogCancel}>{t('dialog.cancel')}</AlertDialogCancel>
+              <AlertDialogAction
+                variant={activeDialog.danger ? 'destructive' : 'default'}
+                onClick={dialogs.handleDialogConfirm}
               >
                 {activeDialog.confirmLabel}
-              </button>
-            </div>
-          </form>
-        </div>
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       ) : null}
     </div>
   )

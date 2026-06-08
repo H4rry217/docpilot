@@ -3,10 +3,18 @@
   display: grid;
   min-width: 0;
   min-height: 0;
-  grid-template-columns: minmax(0, 1fr) var(--review-panel-width, 320px);
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
   background: #fff;
+}
+
+.editor-layout.has-ai-dock {
+  grid-template-columns: minmax(0, 1fr) var(--ai-workspace-dock-width, 340px);
+}
+
+.editor-layout.has-ai-rail {
+  grid-template-columns: minmax(0, 1fr) 36px;
 }
 
 .editor-layout.is-empty {
@@ -1152,8 +1160,7 @@
 
 @media (max-width: 1180px) {
   .editor-layout {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr) 280px;
+    grid-template-rows: auto minmax(0, 1fr);
   }
 
   .editor-layout.is-empty {

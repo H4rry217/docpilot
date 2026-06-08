@@ -1,11 +1,12 @@
 import { Files, Settings } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
 import type { Workspace, WorkspaceTreeNode } from '../../entities/workspace/types'
 import { WorkspaceTree } from '../../features/workspace-tree/ui/WorkspaceTree'
 import { useI18n } from '../../shared/i18n'
 import { useResizableWidth } from '../../shared/ui/useResizableWidth'
-import '../../shared/ui/ResizablePanel.css'
-import './WorkbenchSidebar.css'
 
 export type SidebarMode = 'files'
 
@@ -23,16 +24,25 @@ type ActivityButtonProps = {
 
 function ActivityButton({ active, expanded, icon, label, onClick }: ActivityButtonProps) {
   return (
-    <button
-      className={`activity-button ${active ? 'active' : ''}`}
-      type="button"
-      aria-label={label}
-      aria-expanded={active ? expanded : false}
-      title={label}
-      onClick={onClick}
-    >
-      {icon}
-    </button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          className={cn(
+            'relative size-9',
+            active && 'text-primary before:absolute before:-left-[7px] before:h-4 before:w-0.5 before:rounded-full before:bg-primary'
+          )}
+          type="button"
+          aria-label={label}
+          aria-expanded={active ? expanded : false}
+          variant={active ? 'secondary' : 'ghost'}
+          size="icon"
+          onClick={onClick}
+        >
+          {icon}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="right">{label}</TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -153,28 +163,28 @@ export function WorkbenchSidebar({
 
   return (
     <>
-      <aside className="activity-bar" aria-label="DocPilot">
-        <div className="activity-bar-main">
+      <aside className="flex min-w-0 flex-col justify-between border-r bg-sidebar p-1.5" aria-label="DocPilot">
+        <div className="grid gap-2">
           <ActivityButton
             active={mode === 'files'}
             expanded={expanded}
-            icon={<Files size={18} />}
+            icon={<Files />}
             label={t('activity.files')}
             onClick={() => onModeChange('files')}
           />
         </div>
-        <div className="activity-bar-bottom">
+        <div className="grid gap-2">
           <ActivityButton
             active={false}
             expanded={false}
-            icon={<Settings size={18} />}
+            icon={<Settings />}
             label={t('activity.settings')}
             onClick={onOpenSettings}
           />
         </div>
       </aside>
 
-      <aside className={`workspace-sidebar ${expanded ? '' : 'collapsed'}`} aria-hidden={!expanded}>
+      <aside className={cn('relative min-w-0 overflow-visible border-r bg-sidebar', !expanded && 'overflow-hidden border-r-0')} aria-hidden={!expanded}>
         {expanded ? (
           <>
             <SidebarPanel
@@ -196,7 +206,7 @@ export function WorkbenchSidebar({
               uploadMessage={uploadMessage}
             />
             <button
-              className="resize-handle resize-handle-left"
+              className="absolute inset-y-0 -right-[5px] z-50 w-2.5 cursor-col-resize border-0 bg-transparent p-0 after:absolute after:inset-y-0 after:left-1 after:w-0.5 after:rounded-full after:bg-primary after:opacity-0 after:transition-opacity hover:after:opacity-100 focus-visible:outline-none focus-visible:after:opacity-100"
               type="button"
               aria-label="Resize sidebar"
               onPointerDown={startResize}
