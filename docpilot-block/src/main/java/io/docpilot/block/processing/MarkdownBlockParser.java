@@ -64,12 +64,6 @@ public class MarkdownBlockParser {
     private static final Pattern ATTRIBUTE_GROUP = Pattern.compile("\\s*\\{([^{}]+)}\\s*$");
     private static final Pattern LINK_REFERENCE = Pattern.compile("^\\[([^]]+)]\\s*:\\s*(\\S+)(?:\\s+\"([^\"]*)\")?\\s*$", Pattern.DOTALL);
     private static final Pattern FOOTNOTE_DEFINITION = Pattern.compile("^\\[\\^([^]]+)]\\s*:\\s*(.*)$", Pattern.DOTALL);
-    private static final Pattern BLOCKQUOTE_CALLOUT = Pattern.compile("^>\\s*\\[!([A-Za-z][A-Za-z0-9_-]*)](.*)$");
-    private static final Pattern ADMONITION_HEADER = Pattern.compile("^!!!\\s+([A-Za-z][A-Za-z0-9_-]*)(.*)$");
-    private static final Pattern DETAILS_BLOCK = Pattern.compile("(?is)^\\s*<details\\b([^>]*)>\\s*<summary\\b[^>]*>(.*?)</summary>(.*?)</details>\\s*$");
-    private static final Pattern DETAILS_OPEN_BLOCK = Pattern.compile("(?is)^\\s*<details\\b([^>]*)>\\s*(?:<summary\\b[^>]*>(.*?)</summary>)?\\s*$");
-    private static final Pattern DETAILS_CLOSE_BLOCK = Pattern.compile("(?is)^\\s*</details>\\s*$");
-    private static final Pattern DETAILS_OPEN_ATTR = Pattern.compile("(?i)(^|\\s)open(\\s|=|$)");
 
     private static final List<String> FLEXMARK_EXTENSION_CLASSES = List.of(
             "com.vladsch.flexmark.ext.tables.TablesExtension",
@@ -123,7 +117,7 @@ public class MarkdownBlockParser {
         int index = blocks.size();
         List<Node> children = nodeChildren(document);
         for (int childIndex = 0; childIndex < children.size(); childIndex++) {
-            DetailsSequence details = detailsSequence(children, childIndex);
+            MarkdownCalloutHtmlSupport.DetailsSequence details = MarkdownCalloutHtmlSupport.detailsSequence(children, childIndex);
             if (details != null) {
                 blocks.add(detailsBlock(idGenerator.nextId(), details, List.of(index), source, sourceIndex, bodyOffset));
                 childIndex = details.endIndex();
@@ -187,14 +181,15 @@ public class MarkdownBlockParser {
         if (isDefinitionItem(node)) {
             return block(id, BlockType.DEFINITION_ITEM, Map.of(), List.of(), convertChildren(node, path, source, sourceIndex, baseOffset), node, sourceIndex, baseOffset);
         }
-        if (isAdmonitionBlock(node)) {
-            Map<String, Object> attrs = admonitionAttrs(raw(node));
+        if (MarkdownCalloutHtmlSupport.isAdmonitionBlock(node)) {
+            Map<String, Object> attrs = MarkdownCalloutHtmlSupport.admonitionAttrs(raw(node));
             return block(id, BlockType.CALLOUT, attrs, List.of(), convertChildren(node, path, source, sourceIndex, baseOffset), node, sourceIndex, baseOffset);
         }
-        if (node instanceof BlockQuote && blockQuoteCalloutAttrs(raw(node)) != null) {
-            BlockNode callout = block(id, BlockType.CALLOUT, blockQuoteCalloutAttrs(raw(node)), List.of(),
+        Map<String, Object> blockQuoteCalloutAttrs = MarkdownCalloutHtmlSupport.blockQuoteCalloutAttrs(raw(node));
+        if (node instanceof BlockQuote && blockQuoteCalloutAttrs != null) {
+            BlockNode callout = block(id, BlockType.CALLOUT, blockQuoteCalloutAttrs, List.of(),
                     convertChildren(node, path, source, sourceIndex, baseOffset), node, sourceIndex, baseOffset);
-            stripCalloutMarker(callout);
+            MarkdownCalloutHtmlSupport.stripCalloutMarker(callout);
             return callout;
         }
         if (node instanceof Paragraph) {
@@ -255,24 +250,12 @@ public class MarkdownBlockParser {
         }
         if (node instanceof HtmlBlock) {
             String rawHtml = raw(node);
-            DetailsSlice details = detailsSlice(rawHtml);
+            MarkdownCalloutHtmlSupport.DetailsSlice details = MarkdownCalloutHtmlSupport.detailsSlice(rawHtml);
             if (details != null) {
-                Map<String, Object> attrs = new HashMap<>();
-                attrs.put(BlockAttrs.KIND.key(), "details");
-                attrs.put(BlockAttrs.TITLE.key(), details.title());
-                attrs.put(BlockAttrs.COLLAPSIBLE.key(), true);
-                attrs.put(BlockAttrs.OPEN.key(), details.open());
-                return block(id, BlockType.CALLOUT, attrs, List.of(),
+                return block(id, BlockType.CALLOUT, MarkdownCalloutHtmlSupport.detailsAttrs(details.title(), details.open()), List.of(),
                         convertDetailsChildren(details, path, source, sourceIndex, baseOffset, node), node, sourceIndex, baseOffset);
             }
-            Map<String, Object> attrs = new HashMap<>();
-            attrs.put(BlockAttrs.ID.key(), id);
-            attrs.put(BlockAttrs.TITLE.key(), "HTML");
-            attrs.put(BlockAttrs.SOURCE.key(), rawHtml);
-            attrs.put(BlockAttrs.DISPLAY_MODE.key(), "fixed");
-            attrs.put(BlockAttrs.FIXED_HEIGHT_PX.key(), 320);
-            attrs.put(BlockAttrs.ALLOW_SCRIPTS.key(), false);
-            return block(id, BlockType.HTML_BLOCK, attrs, List.of(), List.of(), node, sourceIndex, baseOffset);
+            return block(id, BlockType.HTML_BLOCK, MarkdownCalloutHtmlSupport.htmlBlockAttrs(id, rawHtml), List.of(), List.of(), node, sourceIndex, baseOffset);
         }
         if (simpleName.endsWith("Block") && node.getClass().getName().contains(".ext.")) {
             return block(id, BlockType.EXTENSION_BLOCK, Map.of(BlockAttrs.SOURCE.key(), raw(node), BlockAttrs.NODE_TYPE.key(), simpleName), List.of(),
@@ -288,7 +271,7 @@ public class MarkdownBlockParser {
         int index = 0;
         List<Node> siblingNodes = nodeChildren(node);
         for (int childIndex = 0; childIndex < siblingNodes.size(); childIndex++) {
-            DetailsSequence details = detailsSequence(siblingNodes, childIndex);
+            MarkdownCalloutHtmlSupport.DetailsSequence details = MarkdownCalloutHtmlSupport.detailsSequence(siblingNodes, childIndex);
             if (details != null) {
                 children.add(detailsBlock(idGenerator.nextId(), details, append(path, index), source, sourceIndex, baseOffset));
                 childIndex = details.endIndex();
@@ -326,45 +309,14 @@ public class MarkdownBlockParser {
         return children;
     }
 
-    private DetailsSequence detailsSequence(List<Node> siblings, int startIndex) {
-        Node openNode = siblings.get(startIndex);
-        DetailsOpening opening = detailsOpening(raw(openNode));
-        if (!(openNode instanceof HtmlBlock) || opening == null) {
-            return null;
-        }
-
-        for (int index = startIndex + 1; index < siblings.size(); index++) {
-            Node closeNode = siblings.get(index);
-            if (closeNode instanceof HtmlBlock && DETAILS_CLOSE_BLOCK.matcher(raw(closeNode)).matches()) {
-                return new DetailsSequence(opening.title(), opening.open(), siblings.subList(startIndex + 1, index), openNode, closeNode, index);
-            }
-        }
-        return null;
-    }
-
-    private DetailsOpening detailsOpening(String raw) {
-        Matcher matcher = DETAILS_OPEN_BLOCK.matcher(raw);
-        if (!matcher.matches()) {
-            return null;
-        }
-        String attrs = matcher.group(1) == null ? "" : matcher.group(1);
-        String title = htmlText(matcher.group(2));
-        return new DetailsOpening(title, DETAILS_OPEN_ATTR.matcher(attrs).find());
-    }
-
-    private BlockNode detailsBlock(String id, DetailsSequence details, List<Integer> path, String source, SourceIndex sourceIndex, int baseOffset) {
-        Map<String, Object> attrs = new HashMap<>();
-        attrs.put(BlockAttrs.KIND.key(), "details");
-        attrs.put(BlockAttrs.TITLE.key(), details.title());
-        attrs.put(BlockAttrs.COLLAPSIBLE.key(), true);
-        attrs.put(BlockAttrs.OPEN.key(), details.open());
-        return BlockNode.of(id, BlockType.CALLOUT, attrs,
+    private BlockNode detailsBlock(String id, MarkdownCalloutHtmlSupport.DetailsSequence details, List<Integer> path, String source, SourceIndex sourceIndex, int baseOffset) {
+        return BlockNode.of(id, BlockType.CALLOUT, MarkdownCalloutHtmlSupport.detailsAttrs(details.title(), details.open()),
                 List.of(),
                 convertDetailsSequenceChildren(details, path, source, sourceIndex, baseOffset),
                 range(baseOffset + details.openNode().getStartOffset(), baseOffset + details.closeNode().getEndOffset(), sourceIndex));
     }
 
-    private List<BlockNode> convertDetailsSequenceChildren(DetailsSequence details, List<Integer> path, String source, SourceIndex sourceIndex, int baseOffset) {
+    private List<BlockNode> convertDetailsSequenceChildren(MarkdownCalloutHtmlSupport.DetailsSequence details, List<Integer> path, String source, SourceIndex sourceIndex, int baseOffset) {
         List<BlockNode> children = new ArrayList<>();
         int index = 0;
         for (Node child : details.bodyNodes()) {
@@ -377,7 +329,7 @@ public class MarkdownBlockParser {
         return children;
     }
 
-    private List<BlockNode> convertDetailsChildren(DetailsSlice details, List<Integer> path, String source, SourceIndex sourceIndex, int baseOffset, Node node) {
+    private List<BlockNode> convertDetailsChildren(MarkdownCalloutHtmlSupport.DetailsSlice details, List<Integer> path, String source, SourceIndex sourceIndex, int baseOffset, Node node) {
         com.vladsch.flexmark.util.ast.Document document = parser.parse(details.body());
         List<BlockNode> children = new ArrayList<>();
         int index = 0;
@@ -811,10 +763,6 @@ public class MarkdownBlockParser {
         return "DefinitionItem".equals(node.getClass().getSimpleName());
     }
 
-    private boolean isAdmonitionBlock(Node node) {
-        return "AdmonitionBlock".equals(node.getClass().getSimpleName()) || ADMONITION_HEADER.matcher(firstLine(raw(node))).matches();
-    }
-
     private String raw(Node node) {
         return node.getChars().toString();
     }
@@ -838,83 +786,6 @@ public class MarkdownBlockParser {
             return Map.of(BlockAttrs.LABEL.key(), "", BlockAttrs.RAW.key(), raw);
         }
         return Map.of(BlockAttrs.LABEL.key(), matcher.group(1), BlockAttrs.RAW.key(), raw);
-    }
-
-    private Map<String, Object> blockQuoteCalloutAttrs(String raw) {
-        Matcher matcher = BLOCKQUOTE_CALLOUT.matcher(firstLine(raw));
-        if (!matcher.matches()) {
-            return null;
-        }
-        Map<String, Object> attrs = new HashMap<>();
-        attrs.put(BlockAttrs.KIND.key(), matcher.group(1).toLowerCase(Locale.ROOT));
-        attrs.put(BlockAttrs.TITLE.key(), matcher.group(2).trim());
-        attrs.put(BlockAttrs.COLLAPSIBLE.key(), false);
-        attrs.put(BlockAttrs.OPEN.key(), true);
-        return attrs;
-    }
-
-    private Map<String, Object> admonitionAttrs(String raw) {
-        Matcher matcher = ADMONITION_HEADER.matcher(firstLine(raw));
-        Map<String, Object> attrs = new HashMap<>();
-        attrs.put(BlockAttrs.KIND.key(), matcher.matches() ? matcher.group(1).toLowerCase(Locale.ROOT) : "note");
-        attrs.put(BlockAttrs.TITLE.key(), matcher.matches() ? matcher.group(2).trim() : "");
-        attrs.put(BlockAttrs.COLLAPSIBLE.key(), false);
-        attrs.put(BlockAttrs.OPEN.key(), true);
-        return attrs;
-    }
-
-    private DetailsSlice detailsSlice(String raw) {
-        Matcher matcher = DETAILS_BLOCK.matcher(raw);
-        if (!matcher.matches()) {
-            return null;
-        }
-        String attrs = matcher.group(1) == null ? "" : matcher.group(1);
-        String title = htmlText(matcher.group(2));
-        String body = matcher.group(3) == null ? "" : matcher.group(3);
-        return new DetailsSlice(title, body, matcher.start(3), DETAILS_OPEN_ATTR.matcher(attrs).find());
-    }
-
-    private String htmlText(String html) {
-        if (html == null || html.isBlank()) {
-            return "";
-        }
-        return unescapeHtml(html.replaceAll("(?is)<[^>]+>", "")).strip();
-    }
-
-    private String unescapeHtml(String value) {
-        return value
-                .replace("&lt;", "<")
-                .replace("&gt;", ">")
-                .replace("&quot;", "\"")
-                .replace("&#39;", "'")
-                .replace("&amp;", "&");
-    }
-
-    private String firstLine(String raw) {
-        int newline = raw.indexOf('\n');
-        return newline < 0 ? raw.trim() : raw.substring(0, newline).trim();
-    }
-
-    private void stripCalloutMarker(BlockNode callout) {
-        if (callout.getChildren().isEmpty()) {
-            return;
-        }
-        BlockNode firstChild = callout.getChildren().getFirst();
-        if (firstChild.getType() != BlockType.PARAGRAPH || firstChild.getInlines().isEmpty()) {
-            return;
-        }
-        InlineNode firstInline = firstChild.getInlines().getFirst();
-        String text = firstInline.getText();
-        Matcher matcher = Pattern.compile("^\\[![A-Za-z][A-Za-z0-9_-]*]\\s*").matcher(text);
-        if (matcher.find()) {
-            firstInline.setText(text.substring(matcher.end()));
-            if (firstInline.getText().isEmpty()) {
-                firstChild.getInlines().removeFirst();
-            }
-            if (!firstChild.getInlines().isEmpty() && firstChild.getInlines().getFirst().getType() == InlineType.SOFT_BREAK) {
-                firstChild.getInlines().removeFirst();
-            }
-        }
     }
 
     private BlockNode withTrailingAttributes(BlockNode block, Node node) {
@@ -1014,15 +885,6 @@ public class MarkdownBlockParser {
     }
 
     private record FrontMatterSlice(String raw, String content, int endOffset) {
-    }
-
-    private record DetailsSlice(String title, String body, int bodyOffset, boolean open) {
-    }
-
-    private record DetailsOpening(String title, boolean open) {
-    }
-
-    private record DetailsSequence(String title, boolean open, List<Node> bodyNodes, Node openNode, Node closeNode, int endIndex) {
     }
 
     private record Token(String type, int start, int end, String content) {

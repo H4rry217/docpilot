@@ -12,6 +12,17 @@ DocPilot is an open source AI document editor. It follows the Codex idea of lett
 - No dependency on `moonpx-parent` or any `moonpx-*` artifact.
 - `moonpx-*` repositories are only style references for module boundaries and Java coding conventions.
 
+## Backend Coding Conventions
+
+- Backend classes must have class-level comments.
+- Backend fields must have comments that explain their business meaning or infrastructure role.
+- Backend interface methods must have comments describing parameters, return values, and behavior.
+- Key business logic branches must be commented at the exact decision point.
+- Production Java types and members must declare explicit access modifiers instead of relying on package-private defaults.
+- Do not add empty constructors. Omit them unless they contain required initialization or dependency wiring.
+- If a class is final, declare it explicitly as `public final class`.
+- Use Spring's `@Autowired` for dependency injection; do not use `@Resource`.
+
 ## Modules
 
 - `docpilot-shared`: grouping parent for shared backend modules.

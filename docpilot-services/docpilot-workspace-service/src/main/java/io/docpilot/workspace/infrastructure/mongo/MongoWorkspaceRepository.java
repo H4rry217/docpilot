@@ -4,7 +4,7 @@ import io.docpilot.workspace.model.entity.Workspace;
 import io.docpilot.workspace.constant.WorkspaceMongoConstant;
 import io.docpilot.workspace.enums.WorkspaceType;
 import io.docpilot.workspace.repository.WorkspaceRepository;
-import jakarta.annotation.Resource;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -14,10 +14,16 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * MongoDB implementation of the workspace repository.
+ */
 @Repository
 public class MongoWorkspaceRepository implements WorkspaceRepository {
 
-    @Resource
+    /**
+     * Spring Mongo entry point used for workspace persistence.
+     */
+    @Autowired
     private MongoTemplate mongoTemplate;
 
     @Override

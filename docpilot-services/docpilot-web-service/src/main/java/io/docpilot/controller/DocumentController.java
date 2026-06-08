@@ -12,23 +12,35 @@ import io.docpilot.workspace.model.request.SaveDocumentContentRequest;
 import io.docpilot.workspace.model.response.DocumentDetailResponse;
 import io.docpilot.workspace.model.response.DocumentRevisionListResponse;
 import io.docpilot.workspace.processing.WorkspaceIdCodec;
-import jakarta.annotation.Resource;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * REST controller for document content and revision operations.
+ */
 @RestController
 @RequestMapping("/document")
 @RequireAuth
 public class DocumentController {
 
-    @Resource
+    /**
+     * Document application service.
+     */
+    @Autowired
     private DocumentApplicationService documentService;
 
-    @Resource
+    /**
+     * Codec for parsing and formatting public string ids.
+     */
+    @Autowired
     private WorkspaceIdCodec idCodec;
 
+    /**
+     * Creates a document in a workspace tree.
+     */
     @PostMapping("/create")
     public Result<DocumentDetailResponse> createDocument(@RequestBody CreateDocumentRequest request) {
         CreateDocumentCommand command = new CreateDocumentCommand();
@@ -41,11 +53,17 @@ public class DocumentController {
         return Result.success(documentService.createDocument(command));
     }
 
+    /**
+     * Reads one document with editor payloads.
+     */
     @PostMapping("/get")
     public Result<DocumentDetailResponse> getDocument(@RequestBody DocumentIdRequest request) {
         return Result.success(documentService.getDocument(idCodec.parseRequired(request.documentId(), "documentId")));
     }
 
+    /**
+     * Saves document content using baseVersion optimistic locking and client mutation id idempotency.
+     */
     @PostMapping("/content/save")
     public Result<DocumentDetailResponse> saveContent(@RequestBody SaveDocumentContentRequest request) {
         SaveDocumentContentCommand command = new SaveDocumentContentCommand();
@@ -56,6 +74,9 @@ public class DocumentController {
         return Result.success(documentService.saveContent(command));
     }
 
+    /**
+     * Lists recent document revisions.
+     */
     @PostMapping("/revision/list")
     public Result<DocumentRevisionListResponse> listRevisions(@RequestBody ListDocumentRevisionRequest request) {
         int limit = request.limit() == null ? 20 : request.limit();

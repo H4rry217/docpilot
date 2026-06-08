@@ -180,6 +180,71 @@ class DocumentWorkspaceControllerTest {
     }
 
     @Test
+    void saveDocumentContentIsIdempotentByClientMutationId() throws Exception {
+        SeededDocument seededDocument = createDocumentInWorkspace();
+        JsonNode document = postJson("/document/get", """
+                {"documentId":"%s"}
+                """.formatted(seededDocument.documentId())).get("document");
+        String version = document.get("currentVersion").asText();
+        String savedBlockDocument = blockDocumentJson("Saved body");
+
+        JsonNode firstSave = postJson("/document/content/save", """
+                {
+                  "documentId":"%s",
+                  "baseVersion":"%s",
+                  "clientMutationId":"mutation-idempotent",
+                  "blockDocument":%s
+                }
+                """.formatted(seededDocument.documentId(), version, savedBlockDocument)).get("document");
+        assertThat(firstSave.get("currentVersion").asText()).isEqualTo("2");
+
+        JsonNode duplicateSave = postJson("/document/content/save", """
+                {
+                  "documentId":"%s",
+                  "baseVersion":"%s",
+                  "clientMutationId":"mutation-idempotent",
+                  "blockDocument":%s
+                }
+                """.formatted(seededDocument.documentId(), version, savedBlockDocument)).get("document");
+        assertThat(duplicateSave.get("currentVersion").asText()).isEqualTo("2");
+
+        JsonNode revisions = postJson("/document/revision/list", """
+                {"documentId":"%s","limit":10}
+                """.formatted(seededDocument.documentId())).get("revisions");
+        assertThat(revisions).hasSize(2);
+        assertThat(revisions.get(0).get("version").asText()).isEqualTo("2");
+        assertThat(revisions.get(1).get("version").asText()).isEqualTo("1");
+
+        mockMvc.perform(post("/document/content/save")
+                        .header(HttpHeaders.AUTHORIZATION, AUTHORIZATION)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "documentId":"%s",
+                                  "baseVersion":"%s",
+                                  "clientMutationId":"mutation-idempotent",
+                                  "blockDocument":%s
+                                }
+                                """.formatted(seededDocument.documentId(), version, blockDocumentJson("Different body"))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value(StatusCode.CONFLICT.code()));
+
+        mockMvc.perform(post("/document/content/save")
+                        .header(HttpHeaders.AUTHORIZATION, AUTHORIZATION)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "documentId":"%s",
+                                  "baseVersion":"%s",
+                                  "clientMutationId":"mutation-stale",
+                                  "blockDocument":%s
+                                }
+                                """.formatted(seededDocument.documentId(), version, blockDocumentJson("Stale body"))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value(StatusCode.CONFLICT.code()));
+    }
+
+    @Test
     void duplicateActiveNodeNameReturnsConflictButDeletedNameCanBeReused() throws Exception {
         JsonNode workspace = postJson("/workspace/default/ensure", "{}");
         String workspaceId = workspace.get("workspaceId").asText();

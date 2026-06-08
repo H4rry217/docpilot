@@ -7,6 +7,9 @@ import lombok.Getter;
 import lombok.Setter;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+/**
+ * Immutable snapshot written for each successful document save.
+ */
 @Getter
 @Setter
 @Document(collection = WorkspaceMongoConstant.DOCUMENT_REVISION_COLLECTION)
@@ -31,6 +34,11 @@ public class DocumentRevision extends BaseEntity {
      * User id that created this revision.
      */
     private Long authorUserId;
+
+    /**
+     * Optional client-side mutation id used to make save retries idempotent.
+     */
+    private String clientMutationId;
 
     /**
      * Full block snapshot for v1.

@@ -177,6 +177,14 @@ class WorkspaceControllerTestConfig {
         }
 
         @Override
+        public Optional<DocumentRevision> findByDocumentIdAndClientMutationId(Long documentId, String clientMutationId) {
+            return revisions.values().stream()
+                    .filter(revision -> documentId.equals(revision.getDocumentId()))
+                    .filter(revision -> clientMutationId.equals(revision.getClientMutationId()))
+                    .findFirst();
+        }
+
+        @Override
         public List<DocumentRevision> findByDocumentIdOrderByVersionDesc(Long documentId, int limit) {
             return revisions.values().stream()
                     .filter(revision -> documentId.equals(revision.getDocumentId()))

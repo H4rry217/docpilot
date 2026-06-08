@@ -21,21 +21,30 @@ import io.docpilot.workspace.model.response.WorkspaceNodeResponse;
 import io.docpilot.workspace.model.response.WorkspaceResponse;
 import io.docpilot.workspace.model.response.WorkspaceTreeResponse;
 import io.docpilot.workspace.processing.WorkspaceIdCodec;
-import jakarta.annotation.Resource;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * REST controller for workspace and workspace node operations.
+ */
 @RestController
 @RequestMapping("/workspace")
 @RequireAuth
 public class WorkspaceController {
 
-    @Resource
+    /**
+     * Workspace application service.
+     */
+    @Autowired
     private WorkspaceApplicationService workspaceService;
 
-    @Resource
+    /**
+     * Codec for parsing and formatting public string ids.
+     */
+    @Autowired
     private WorkspaceIdCodec idCodec;
 
     @PostMapping("/default/ensure")

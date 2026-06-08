@@ -25,8 +25,8 @@ export type SelectableBlockTarget = {
 }
 
 const BLOCK_MARQUEE_START_DISTANCE_PX = 6
-const BLOCK_SELECTION_COMPACT_END_OUTSET_PX = 2
-const BLOCK_SELECTION_CLOSE_BLOCK_GAP_PX = 18
+const BLOCK_SELECTION_DEFAULT_BLOCK_OUTSET_PX = 8
+const BLOCK_SELECTION_MIN_VISUAL_GAP_PX = 6
 
 export function rectFromPoints(start: Point, end: Point): Rect {
   return {
@@ -88,8 +88,7 @@ export function isInteractiveSelectionTarget(target: HTMLElement): boolean {
   ].join(',')))
 }
 
-export function isSelectableBlockElement(element: HTMLElement, editorDom: HTMLElement): boolean {
-  const blockId = element.dataset.blockId
+export function isSelectableBlockElement(element: HTMLElement, editorDom: HTMLElement, blockId = element.dataset.blockId): boolean {
   if (!blockId || !editorDom.contains(element)) return false
   const style = window.getComputedStyle(element)
   if (style.display === 'none' || style.visibility === 'hidden') return false
@@ -97,9 +96,8 @@ export function isSelectableBlockElement(element: HTMLElement, editorDom: HTMLEl
   return rect.width > 0 && rect.height > 0
 }
 
-export function targetFromElement(element: HTMLElement, editorRect: DOMRect): SelectableBlockTarget | null {
+export function targetFromElement(element: HTMLElement, editorRect: DOMRect, blockId = element.dataset.blockId): SelectableBlockTarget | null {
   const rect = element.getBoundingClientRect()
-  const blockId = element.dataset.blockId
   const blockRect = {
     left: rect.left,
     top: rect.top,
@@ -113,8 +111,16 @@ export function targetFromElement(element: HTMLElement, editorRect: DOMRect): Se
 
   const imageNode = element.querySelector<HTMLElement>('.image-node')
   const imageRect = imageNode?.getBoundingClientRect()
-  const selectionTop = imageRect ? imageRect.top - rect.top : undefined
-  const selectionHeight = imageRect ? imageRect.height : undefined
+  const tableSelection = isTableBlockElement(element)
+    ? {
+      selectionLeft: 0,
+      selectionTop: 0,
+      selectionWidth: rect.width,
+      selectionHeight: rect.height
+    }
+    : null
+  const selectionTop = tableSelection?.selectionTop ?? (imageRect ? imageRect.top - rect.top : undefined)
+  const selectionHeight = tableSelection?.selectionHeight ?? (imageRect ? imageRect.height : undefined)
 
   return {
     element,
@@ -126,9 +132,9 @@ export function targetFromElement(element: HTMLElement, editorRect: DOMRect): Se
       right: Math.max(editorRect.right, blockRect.right),
       bottom: blockRect.bottom
     },
-    selectionLeft: editorRect.left - blockRect.left,
+    selectionLeft: tableSelection?.selectionLeft ?? editorRect.left - blockRect.left,
     selectionTop,
-    selectionWidth: editorRect.width,
+    selectionWidth: tableSelection?.selectionWidth ?? editorRect.width,
     selectionHeight
   }
 }
@@ -174,11 +180,11 @@ export function selectableBlockTargets(editor: Editor): SelectableBlockTarget[] 
     }
 
     const domNode = editor.view.nodeDOM(position)
-    if (!(domNode instanceof HTMLElement) || !isSelectableBlockElement(domNode, editorDom)) {
+    if (!(domNode instanceof HTMLElement) || !isSelectableBlockElement(domNode, editorDom, blockId)) {
       return true
     }
 
-    const target = targetFromElement(domNode, editorRect)
+    const target = targetFromElement(domNode, editorRect, blockId)
     if (target) {
       seenBlockIds.add(blockId)
       targets.push(target)
@@ -210,9 +216,14 @@ export function isPastDragStartDistance(origin: Point, current: Point): boolean 
   return deltaX * deltaX + deltaY * deltaY >= BLOCK_MARQUEE_START_DISTANCE_PX * BLOCK_MARQUEE_START_DISTANCE_PX
 }
 
+function isTableBlockElement(element: HTMLElement): boolean {
+  return element.tagName === 'TABLE' || element.classList.contains('tableWrapper')
+}
+
 export function isVisualContainerTarget(target: SelectableBlockTarget): boolean {
   return target.element.tagName === 'BLOCKQUOTE'
     || target.element.tagName === 'LI'
+    || isTableBlockElement(target.element)
     || target.element.tagName === 'DETAILS'
     || target.element.matches('aside.docpilot-callout')
 }
@@ -247,8 +258,18 @@ export function selectionDecorationFromTarget(target: SelectableBlockTarget): Bl
   }
 }
 
-function isFixedHeightSelectionTarget(target: SelectableBlockTarget): boolean {
-  return Number.isFinite(target.selectionHeight)
+function adjacentSelectionOutsets(previousTarget: SelectableBlockTarget, currentTarget: SelectableBlockTarget) {
+  const gap = currentTarget.rect.top - previousTarget.rect.bottom
+  const totalOutset = gap - BLOCK_SELECTION_MIN_VISUAL_GAP_PX
+  if (totalOutset >= BLOCK_SELECTION_DEFAULT_BLOCK_OUTSET_PX * 2) {
+    return null
+  }
+
+  const previousEndOutset = Math.floor(totalOutset / 2)
+  return {
+    currentStartOutset: totalOutset - previousEndOutset,
+    previousEndOutset
+  }
 }
 
 export function blockSelectionDecorationsFromTargets(targets: SelectableBlockTarget[]): BlockSelectionDecoration[] {
@@ -257,13 +278,16 @@ export function blockSelectionDecorationsFromTargets(targets: SelectableBlockTar
   for (let index = 1; index < targets.length; index += 1) {
     const previousTarget = targets[index - 1]
     const currentTarget = targets[index]
-    const isCloseToPrevious = currentTarget.rect.top - previousTarget.rect.bottom <= BLOCK_SELECTION_CLOSE_BLOCK_GAP_PX
-    if (!isCloseToPrevious) continue
-    if (!isFixedHeightSelectionTarget(previousTarget) && !isFixedHeightSelectionTarget(currentTarget)) continue
+    const outsets = adjacentSelectionOutsets(previousTarget, currentTarget)
+    if (!outsets) continue
 
     decorations[index - 1] = {
       ...decorations[index - 1],
-      selectionBlockEndOutset: BLOCK_SELECTION_COMPACT_END_OUTSET_PX
+      selectionBlockEndOutset: outsets.previousEndOutset
+    }
+    decorations[index] = {
+      ...decorations[index],
+      selectionBlockStartOutset: outsets.currentStartOutset
     }
   }
 

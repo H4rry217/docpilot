@@ -1,4 +1,5 @@
 import { Check, CheckCircle2, Copy, MessageCircle, Send, X } from 'lucide-react'
+import { useAiReviewSessionViewModel, type AiReviewStatus } from '../model/aiReviewSession'
 import { useI18n } from '../../../shared/i18n'
 import { useResizableWidth } from '../../../shared/ui/useResizableWidth'
 import '../../../shared/ui/ResizablePanel.css'
@@ -8,17 +9,7 @@ export const AI_REVIEW_PANEL_DEFAULT_WIDTH = 320
 export const AI_REVIEW_PANEL_MIN_WIDTH = 280
 export const AI_REVIEW_PANEL_MAX_WIDTH = 520
 
-type ReviewStatus = 'accepted' | 'rejected' | 'pending'
-
-const REVIEW_ITEMS = [
-  { labelKey: 'ai.listItem5', status: 'rejected' },
-  { labelKey: 'ai.paragraph8', status: 'pending' },
-  { labelKey: 'ai.paragraph10', status: 'pending' },
-  { labelKey: 'ai.html15', status: 'pending' },
-  { labelKey: 'ai.quote25', status: 'pending' }
-] as const
-
-function reviewStatusKey(status: ReviewStatus) {
+function reviewStatusKey(status: AiReviewStatus) {
   switch (status) {
     case 'accepted':
       return 'ai.accepted'
@@ -38,6 +29,7 @@ export function AiReviewPanel({
   onWidthChange: (width: number) => void
 }) {
   const { t } = useI18n()
+  const reviewSession = useAiReviewSessionViewModel()
   const startResize = useResizableWidth({
     width,
     min: AI_REVIEW_PANEL_MIN_WIDTH,
@@ -60,17 +52,17 @@ export function AiReviewPanel({
           <span>{t('ai.title')}</span>
           <strong>{t('ai.subtitle')}</strong>
         </div>
-        <small>{t('ai.runtime')}</small>
+        <small>{t('ai.runtime', { duration: reviewSession.runtimeDuration })}</small>
       </header>
 
       <section className="review-card">
         <div className="review-card-title">
           <strong>{t('ai.queueTitle')}</strong>
-          <span>5</span>
+          <span>{reviewSession.reviewItems.length}</span>
         </div>
         <div className="review-list">
-          {REVIEW_ITEMS.map((item) => (
-            <article className={`review-item review-${item.status}`} key={item.labelKey}>
+          {reviewSession.reviewItems.map((item) => (
+            <article className={`review-item review-${item.status}`} key={item.id}>
               <div>
                 <strong>{t(item.labelKey)}</strong>
                 <span>{t('ai.modify')}</span>
@@ -108,7 +100,7 @@ export function AiReviewPanel({
       <section className="agent-chat-shell">
         <div className="agent-session-pill">
           <span>{t('ai.session')}</span>
-          <strong>4f5f426f-8...7243ff36</strong>
+          <strong>{reviewSession.sessionId}</strong>
         </div>
         <label className="agent-chat-input">
           <textarea placeholder={t('ai.chatPlaceholder')} />

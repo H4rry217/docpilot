@@ -309,9 +309,50 @@
   line-height: 1.9;
 }
 
+.editor-layout.block-debug-mode .prose-editor {
+  --docpilot-block-debug-outline-0: rgb(37 99 235 / 88%);
+  --docpilot-block-debug-outline-1: rgb(225 29 72 / 88%);
+  --docpilot-block-debug-outline-2: rgb(217 119 6 / 90%);
+  --docpilot-block-debug-outline-3: rgb(5 150 105 / 90%);
+  --docpilot-block-debug-outline-4: rgb(124 58 237 / 88%);
+  --docpilot-block-debug-outline-5: rgb(8 145 178 / 90%);
+  --docpilot-block-debug-outline-6: rgb(190 24 93 / 88%);
+  --docpilot-block-debug-outline-7: rgb(77 124 15 / 90%);
+}
+
 .editor-layout.block-debug-mode .prose-editor [data-block-id] {
-  outline: 2px solid rgb(37 111 197 / 86%);
+  --docpilot-block-debug-outline: var(--docpilot-block-debug-outline-0);
+
+  outline: 2px solid var(--docpilot-block-debug-outline);
   outline-offset: 4px;
+}
+
+.editor-layout.block-debug-mode .prose-editor [data-block-id] [data-block-id] {
+  --docpilot-block-debug-outline: var(--docpilot-block-debug-outline-1);
+}
+
+.editor-layout.block-debug-mode .prose-editor [data-block-id] [data-block-id] [data-block-id] {
+  --docpilot-block-debug-outline: var(--docpilot-block-debug-outline-2);
+}
+
+.editor-layout.block-debug-mode .prose-editor [data-block-id] [data-block-id] [data-block-id] [data-block-id] {
+  --docpilot-block-debug-outline: var(--docpilot-block-debug-outline-3);
+}
+
+.editor-layout.block-debug-mode .prose-editor [data-block-id] [data-block-id] [data-block-id] [data-block-id] [data-block-id] {
+  --docpilot-block-debug-outline: var(--docpilot-block-debug-outline-4);
+}
+
+.editor-layout.block-debug-mode .prose-editor [data-block-id] [data-block-id] [data-block-id] [data-block-id] [data-block-id] [data-block-id] {
+  --docpilot-block-debug-outline: var(--docpilot-block-debug-outline-5);
+}
+
+.editor-layout.block-debug-mode .prose-editor [data-block-id] [data-block-id] [data-block-id] [data-block-id] [data-block-id] [data-block-id] [data-block-id] {
+  --docpilot-block-debug-outline: var(--docpilot-block-debug-outline-6);
+}
+
+.editor-layout.block-debug-mode .prose-editor [data-block-id] [data-block-id] [data-block-id] [data-block-id] [data-block-id] [data-block-id] [data-block-id] [data-block-id] {
+  --docpilot-block-debug-outline: var(--docpilot-block-debug-outline-7);
 }
 
 .editor-layout.block-debug-mode .prose-editor table [data-block-id] {
@@ -998,11 +1039,51 @@
   background: #d5e1fa;
 }
 
-.prose-editor table.docpilot-block-selected,
+.prose-editor .tableWrapper.docpilot-block-selected::before,
+.prose-editor table.docpilot-block-selected::before,
+.prose-editor tr.docpilot-block-selected::before,
+.prose-editor td.docpilot-block-selected::before,
+.prose-editor th.docpilot-block-selected::before {
+  display: none;
+}
+
+.prose-editor .tableWrapper.docpilot-block-selected {
+  border-color: rgb(59 130 246 / 70%);
+  background: rgb(59 130 246 / 8%);
+  box-shadow:
+    0 0 0 2px rgb(59 130 246 / 68%),
+    0 8px 22px rgb(59 130 246 / 12%);
+}
+
+.prose-editor .tableWrapper.docpilot-block-selected table,
+.prose-editor table.docpilot-block-selected {
+  background: rgb(59 130 246 / 6%);
+  box-shadow: inset 0 0 0 1px rgb(59 130 246 / 38%);
+}
+
 .prose-editor tr.docpilot-block-selected,
 .prose-editor td.docpilot-block-selected,
 .prose-editor th.docpilot-block-selected {
-  background: #d5e1fa;
+  background: transparent;
+}
+
+.prose-editor td.docpilot-block-selected,
+.prose-editor th.docpilot-block-selected {
+  background: rgb(59 130 246 / 8%);
+  box-shadow: inset 0 0 0 2px rgb(59 130 246 / 45%);
+}
+
+.prose-editor .tableWrapper.docpilot-block-selected td,
+.prose-editor .tableWrapper.docpilot-block-selected th,
+.prose-editor table.docpilot-block-selected td,
+.prose-editor table.docpilot-block-selected th {
+  border-color: rgb(151 178 229 / 82%);
+  background: rgb(59 130 246 / 7%);
+}
+
+.prose-editor .tableWrapper.docpilot-block-selected th,
+.prose-editor table.docpilot-block-selected th {
+  background: rgb(59 130 246 / 13%);
 }
 
 .document-empty {

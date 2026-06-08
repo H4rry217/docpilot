@@ -43,29 +43,93 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Application service for document creation, content save, and revision read use cases.
+ */
 @Setter
 public class DocumentApplicationService {
 
+    /**
+     * Workspace ownership and node access service.
+     */
     private WorkspaceApplicationService workspaceService;
+
+    /**
+     * Repository for workspace tree nodes.
+     */
     private WorkspaceNodeRepository nodeRepository;
+
+    /**
+     * Repository for document aggregates.
+     */
     private WorkspaceDocumentRepository documentRepository;
+
+    /**
+     * Repository for immutable document revisions.
+     */
     private DocumentRevisionRepository revisionRepository;
+
+    /**
+     * Current authenticated subject provider.
+     */
     private AuthContextProvider authContextProvider;
+
+    /**
+     * Snowflake id generator for documents, revisions, and nodes.
+     */
     private SnowflakeIdGenerator idGenerator;
+
+    /**
+     * Codec that formats internal numeric ids for API responses.
+     */
     private WorkspaceIdCodec idCodec;
+
+    /**
+     * Workspace node name normalizer.
+     */
     private WorkspaceNodeName workspaceNodeName;
+
+    /**
+     * Transaction boundary for write use cases.
+     */
     private WorkspaceTransactionRunner transactionRunner;
+
+    /**
+     * Markdown parser used when a create command supplies raw Markdown.
+     */
     private MarkdownBlockParser markdownBlockParser;
+
+    /**
+     * Renderer that turns block snapshots into canonical Markdown.
+     */
     private MarkdownBlockRenderer markdownBlockRenderer;
+
+    /**
+     * Normalizer for legacy block snapshots before editor responses.
+     */
     private BlockDocumentNormalizer blockDocumentNormalizer = new BlockDocumentNormalizer();
+
+    /**
+     * Converter that prepares ProseMirror JSON for the frontend editor.
+     */
     private ProseMirrorJsonConverter proseMirrorJsonConverter = new ProseMirrorJsonConverter();
+
+    /**
+     * Clock reserved for time-dependent document workflows.
+     */
     private Clock clock = Clock.systemDefaultZone();
 
+    /**
+     * Replaces the Markdown parser and keeps the normalizer wired to the same parser behavior.
+     */
     public void setMarkdownBlockParser(MarkdownBlockParser markdownBlockParser) {
         this.markdownBlockParser = markdownBlockParser;
         this.blockDocumentNormalizer = new BlockDocumentNormalizer(markdownBlockParser);
     }
 
+    /**
+     * Creates a document aggregate, its first revision, and the corresponding workspace tree node.
+     */
     public DocumentDetailResponse createDocument(CreateDocumentCommand command) {
         AuthSubject subject = requireSubject();
         WorkspaceDocument savedDocument = transactionRunner.run(() -> {
@@ -103,7 +167,7 @@ public class DocumentApplicationService {
             document.setContent(content(blockDocument, markdown, checksum));
             document.markCreated();
 
-            DocumentRevision revision = revision(revisionId, documentId, 1L, 0L, subject.getUserId(), blockDocument, markdown, checksum);
+            DocumentRevision revision = revision(revisionId, documentId, 1L, 0L, subject.getUserId(), null, blockDocument, markdown, checksum);
 
             WorkspaceNode node = new WorkspaceNode();
             node.setId(idGenerator.nextId());
@@ -124,12 +188,18 @@ public class DocumentApplicationService {
         return toDetailResponse(savedDocument);
     }
 
+    /**
+     * Reads an active document that belongs to a workspace owned by the current subject.
+     */
     public DocumentDetailResponse getDocument(Long documentId) {
         WorkspaceDocument document = requireActiveDocument(documentId);
         workspaceService.requireOwnedWorkspace(document.getOriginWorkspaceId());
         return toDetailResponse(document);
     }
 
+    /**
+     * Saves a new document block snapshot with optimistic locking and client mutation id idempotency.
+     */
     public DocumentDetailResponse saveContent(SaveDocumentContentCommand command) {
         AuthSubject subject = requireSubject();
         WorkspaceDocument savedDocument = transactionRunner.run(() -> {
@@ -138,15 +208,34 @@ public class DocumentApplicationService {
             if (!Objects.equals(document.getOwnerUserId(), subject.getUserId())) {
                 throw new ForbiddenException("Document access denied");
             }
+
+            BlockDocument blockDocument = command.getBlockDocument() == null ? new BlockDocument() : command.getBlockDocument();
+            String markdown = markdownBlockRenderer.render(blockDocument);
+            String checksum = checksum(markdown);
+            String clientMutationId = normalizeClientMutationId(command.getClientMutationId());
+
+            if (clientMutationId != null) {
+                // Idempotent retries are checked before baseVersion so a stale retry can still return success.
+                DocumentRevision duplicateRevision = revisionRepository
+                        .findByDocumentIdAndClientMutationId(document.getId(), clientMutationId)
+                        .orElse(null);
+                if (duplicateRevision != null) {
+                    // Same mutation and same content means the client is retrying an already-applied save.
+                    if (Objects.equals(duplicateRevision.getChecksum(), checksum)) {
+                        return document;
+                    }
+                    // Reusing a mutation id for different content would make retries ambiguous.
+                    throw new ConflictException("Client mutation id already saved different content");
+                }
+            }
+
+            // New mutations still honor the document version optimistic lock.
             if (!Objects.equals(document.getCurrentVersion(), command.getBaseVersion())) {
                 throw new ConflictException("Document version conflict. Current version: " + document.getCurrentVersion());
             }
 
             long nextVersion = document.getCurrentVersion() + 1L;
             long revisionId = idGenerator.nextId();
-            BlockDocument blockDocument = command.getBlockDocument() == null ? new BlockDocument() : command.getBlockDocument();
-            String markdown = markdownBlockRenderer.render(blockDocument);
-            String checksum = checksum(markdown);
 
             DocumentRevision revision = revision(
                     revisionId,
@@ -154,6 +243,7 @@ public class DocumentApplicationService {
                     nextVersion,
                     document.getCurrentVersion(),
                     subject.getUserId(),
+                    clientMutationId,
                     blockDocument,
                     markdown,
                     checksum
@@ -169,6 +259,9 @@ public class DocumentApplicationService {
         return toDetailResponse(savedDocument);
     }
 
+    /**
+     * Lists recent document revisions for the current workspace owner.
+     */
     public DocumentRevisionListResponse listRevisions(Long documentId, int limit) {
         WorkspaceDocument document = requireActiveDocument(documentId);
         workspaceService.requireOwnedWorkspace(document.getOriginWorkspaceId());
@@ -224,6 +317,7 @@ public class DocumentApplicationService {
                                       long version,
                                       long baseVersion,
                                       long authorUserId,
+                                      String clientMutationId,
                                       BlockDocument blockDocument,
                                       String markdown,
                                       String checksum) {
@@ -233,6 +327,7 @@ public class DocumentApplicationService {
         revision.setVersion(version);
         revision.setBaseVersion(baseVersion);
         revision.setAuthorUserId(authorUserId);
+        revision.setClientMutationId(clientMutationId);
         revision.setSnapshot(blockDocument);
         revision.setMarkdownSnapshot(markdown);
         revision.setChecksum(checksum);
@@ -253,6 +348,13 @@ public class DocumentApplicationService {
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    private String normalizeClientMutationId(String clientMutationId) {
+        if (clientMutationId == null || clientMutationId.isBlank()) {
+            return null;
+        }
+        return clientMutationId.strip();
     }
 
     private DocumentDetailResponse toDetailResponse(WorkspaceDocument document) {

@@ -1,0 +1,285 @@
+{
+  "type": "doc",
+  "attrs": {
+    "schemaVersion": "docpilot-block/2"
+  },
+  "content": [
+    {
+      "type": "heading",
+      "attrs": {
+        "level": 1,
+        "blockId": "heading1"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Contract Fixture"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "attrs": {
+        "blockId": "paragraph1"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Intro "
+        },
+        {
+          "type": "text",
+          "text": "bold",
+          "marks": [
+            {
+              "type": "bold"
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": " and "
+        },
+        {
+          "type": "text",
+          "text": "under",
+          "marks": [
+            {
+              "type": "underline"
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": " with "
+        },
+        {
+          "type": "docpilotMathInline",
+          "attrs": {
+            "text": "x+1",
+            "notation": "latex",
+            "delimiter": "$"
+          }
+        },
+        {
+          "type": "text",
+          "text": " and footnote"
+        },
+        {
+          "type": "docpilotFootnoteRef",
+          "attrs": {
+            "label": "one"
+          }
+        },
+        {
+          "type": "text",
+          "text": "."
+        }
+      ]
+    },
+    {
+      "type": "docpilotCallout",
+      "attrs": {
+        "kind": "tip",
+        "title": "Heads up",
+        "collapsible": false,
+        "open": true,
+        "blockId": "callout1"
+      },
+      "content": [
+        {
+          "type": "paragraph",
+          "attrs": {
+            "blockId": "calloutParagraph1"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "Callout body."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "attrs": {
+        "blockId": "table1"
+      },
+      "content": [
+        {
+          "type": "tableRow",
+          "attrs": {
+            "blockId": "tableRow1"
+          },
+          "content": [
+            {
+              "type": "tableHeader",
+              "attrs": {
+                "header": true,
+                "alignment": "none",
+                "blockId": "tableCell1"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Name"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableHeader",
+              "attrs": {
+                "header": true,
+                "alignment": "none",
+                "blockId": "tableCell2"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Value"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "attrs": {
+            "blockId": "tableRow2"
+          },
+          "content": [
+            {
+              "type": "tableCell",
+              "attrs": {
+                "header": false,
+                "alignment": "none",
+                "blockId": "tableCell3"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "A"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "attrs": {
+                "header": false,
+                "alignment": "none",
+                "blockId": "tableCell4"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "1"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "ts",
+        "blockId": "code1"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "console.log(\"hi\");\n"
+        }
+      ]
+    },
+    {
+      "type": "docpilotMathBlock",
+      "attrs": {
+        "notation": "latex",
+        "text": "x^2",
+        "delimiter": "$$",
+        "blockId": "math1"
+      }
+    },
+    {
+      "type": "docpilotCallout",
+      "attrs": {
+        "kind": "details",
+        "title": "More",
+        "collapsible": true,
+        "open": true,
+        "blockId": "details1"
+      },
+      "content": [
+        {
+          "type": "paragraph",
+          "attrs": {
+            "blockId": "detailsParagraph1"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "Hidden line."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "docpilotHtmlBlock",
+      "attrs": {
+        "id": "html1",
+        "title": "HTML",
+        "source": "<div data-docpilot=\"yes\">HTML</div>",
+        "displayMode": "fixed",
+        "fixedHeightPx": 320,
+        "allowScripts": false,
+        "blockId": "html1"
+      }
+    },
+    {
+      "type": "docpilotFootnoteDefinition",
+      "attrs": {
+        "label": "one",
+        "raw": "[^one]: Footnote text.",
+        "blockId": "footnote1"
+      },
+      "content": [
+        {
+          "type": "paragraph",
+          "attrs": {
+            "blockId": "footnoteParagraph1"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "Footnote text."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

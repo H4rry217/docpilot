@@ -1,10 +1,16 @@
+import { Editor } from '@tiptap/core'
 import { describe, expect, it } from 'vitest'
+import { editorExtensions } from '../model/extensions'
 import {
+  blockSelectionDecorationsFromTargets,
   blockSelectionSignature,
+  isSelectableBlockElement,
   isPastDragStartDistance,
   rectFromPoints,
   rectsOverlap,
+  selectableBlockTargets,
   shouldRenderBlockOverlay,
+  targetFromElement,
   visualBlockSelectionTargets,
   type SelectableBlockTarget
 } from './blockSelectionGeometry'
@@ -20,6 +26,15 @@ function target(element: HTMLElement, id: string): SelectableBlockTarget {
     selectionWidth: 100,
     selectionHeight: 20
   }
+}
+
+function setRect(element: HTMLElement, rect: Pick<DOMRect, 'bottom' | 'height' | 'left' | 'right' | 'top' | 'width'>): void {
+  element.getBoundingClientRect = () => ({
+    ...rect,
+    x: rect.left,
+    y: rect.top,
+    toJSON: () => rect
+  }) as DOMRect
 }
 
 describe('block selection geometry', () => {
@@ -65,6 +80,163 @@ describe('block selection geometry', () => {
     const child = target(paragraph, 'child')
 
     expect(visualBlockSelectionTargets([container, child]).map((item) => item.id)).toEqual(['details'])
+  })
+
+  it('renders table marquee selection as one table overlay', () => {
+    const wrapper = document.createElement('div')
+    wrapper.className = 'tableWrapper'
+    const table = document.createElement('table')
+    const row = document.createElement('tr')
+    const cell = document.createElement('td')
+    row.append(cell)
+    table.append(row)
+    wrapper.append(table)
+    const tableTarget = target(wrapper, 'table')
+    const rowTarget = target(row, 'row')
+    const cellTarget = target(cell, 'cell')
+
+    expect(visualBlockSelectionTargets([tableTarget, rowTarget, cellTarget]).map((item) => item.id))
+      .toEqual(['table'])
+  })
+
+  it('keeps table selection geometry on the table box', () => {
+    const editorRect = {
+      bottom: 500,
+      height: 500,
+      left: 20,
+      right: 620,
+      top: 0,
+      width: 600
+    } as DOMRect
+    const wrapper = document.createElement('div')
+    wrapper.className = 'tableWrapper'
+    wrapper.dataset.blockId = 'table'
+    setRect(wrapper, {
+      bottom: 320,
+      height: 260,
+      left: 80,
+      right: 480,
+      top: 60,
+      width: 400
+    })
+
+    expect(targetFromElement(wrapper, editorRect)).toMatchObject({
+      id: 'table',
+      selectionHeight: 260,
+      selectionLeft: 0,
+      selectionTop: 0,
+      selectionWidth: 400
+    })
+  })
+
+  it('accepts a ProseMirror block id for table NodeView wrappers', () => {
+    const editorDom = document.createElement('div')
+    const wrapper = document.createElement('div')
+    wrapper.className = 'tableWrapper'
+    editorDom.append(wrapper)
+    setRect(wrapper, {
+      bottom: 320,
+      height: 260,
+      left: 80,
+      right: 480,
+      top: 60,
+      width: 400
+    })
+
+    expect(wrapper.dataset.blockId).toBeUndefined()
+    expect(isSelectableBlockElement(wrapper, editorDom, 'table')).toBe(true)
+    expect(targetFromElement(wrapper, editorDom.getBoundingClientRect(), 'table')).toMatchObject({
+      id: 'table',
+      selectionHeight: 260,
+      selectionLeft: 0,
+      selectionTop: 0,
+      selectionWidth: 400
+    })
+  })
+
+  it('collects real TipTap table NodeView wrappers as selectable targets', () => {
+    const element = document.createElement('div')
+    document.body.append(element)
+    const editor = new Editor({
+      element,
+      extensions: editorExtensions,
+      content: {
+        type: 'doc',
+        content: [
+          {
+            type: 'table',
+            attrs: { blockId: 'table1' },
+            content: [
+              {
+                type: 'tableRow',
+                attrs: { blockId: 'row1' },
+                content: [
+                  {
+                    type: 'tableCell',
+                    attrs: { blockId: 'cell1' },
+                    content: [{ type: 'paragraph', attrs: { blockId: 'cellParagraph' } }]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    })
+
+    try {
+      const editorDom = editor.view.dom as HTMLElement
+      const wrapper = editorDom.querySelector<HTMLElement>('.tableWrapper')
+      expect(wrapper).not.toBeNull()
+      if (!wrapper) return
+      expect(wrapper.dataset.blockId).toBeUndefined()
+      setRect(editorDom, {
+        bottom: 500,
+        height: 500,
+        left: 20,
+        right: 620,
+        top: 0,
+        width: 600
+      })
+      setRect(wrapper, {
+        bottom: 320,
+        height: 260,
+        left: 80,
+        right: 480,
+        top: 60,
+        width: 400
+      })
+
+      expect(selectableBlockTargets(editor).some((item) => item.id === 'table1' && item.element === wrapper))
+        .toBe(true)
+    } finally {
+      editor.destroy()
+      element.remove()
+    }
+  })
+
+  it('shrinks block selection outsets to keep adjacent blocks separated', () => {
+    const previous = target(document.createElement('h2'), 'previous')
+    const current = target(document.createElement('h3'), 'current')
+    previous.rect = { left: 0, top: 0, right: 100, bottom: 40 }
+    current.rect = { left: 0, top: 48, right: 100, bottom: 88 }
+
+    expect(blockSelectionDecorationsFromTargets([previous, current])).toMatchObject([
+      { blockId: 'previous', selectionBlockEndOutset: 1 },
+      { blockId: 'current', selectionBlockStartOutset: 1 }
+    ])
+  })
+
+  it('insets touching block selection backgrounds to preserve a visible gap', () => {
+    const previous = target(document.createElement('li'), 'previous')
+    const current = target(document.createElement('li'), 'current')
+    previous.rect = { left: 0, top: 0, right: 100, bottom: 40 }
+    current.rect = { left: 0, top: 40, right: 100, bottom: 80 }
+
+    expect(blockSelectionDecorationsFromTargets([previous, current])).toMatchObject([
+      { blockId: 'previous', selectionBlockEndOutset: -3 },
+      { blockId: 'current', selectionBlockStartOutset: -3 }
+    ])
   })
 
   it('creates stable selection signatures', () => {

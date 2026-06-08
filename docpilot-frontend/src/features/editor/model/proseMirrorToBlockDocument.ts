@@ -45,7 +45,7 @@ function blockFromNode(node: JSONContent, path: string): BlockNode {
   }
 
   if (node.type === 'tableCell' || node.type === 'tableHeader') {
-    return block(path, type, { ...attrs, header: node.type === 'tableHeader' }, inlineContent(node), childBlocks(node, path))
+    return block(path, type, { ...attrs, header: node.type === 'tableHeader' }, inlineContent(node))
   }
 
   if (type === 'PARAGRAPH' || type === 'HEADING' || type === 'DEFINITION_TERM') {

@@ -6,6 +6,7 @@ package io.docpilot.workspace.constant;
 public final class WorkspaceMongoConstant {
 
     private WorkspaceMongoConstant() {
+        throw new UnsupportedOperationException("Constants class");
     }
 
     /**
@@ -87,5 +88,10 @@ public final class WorkspaceMongoConstant {
      * Document revision version field.
      */
     public static final String VERSION = "version";
+
+    /**
+     * Client mutation id field on document revisions.
+     */
+    public static final String CLIENT_MUTATION_ID = "clientMutationId";
 
 }

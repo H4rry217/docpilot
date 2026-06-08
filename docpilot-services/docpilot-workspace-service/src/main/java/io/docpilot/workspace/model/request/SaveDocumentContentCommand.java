@@ -4,6 +4,9 @@ import io.docpilot.block.model.BlockDocument;
 import lombok.Getter;
 import lombok.Setter;
 
+/**
+ * Command for replacing a document's current block snapshot.
+ */
 @Getter
 @Setter
 public class SaveDocumentContentCommand {
@@ -24,7 +27,7 @@ public class SaveDocumentContentCommand {
     private BlockDocument blockDocument;
 
     /**
-     * Client mutation id for tracing duplicate saves.
+     * Client mutation id used to identify save retries.
      */
     private String clientMutationId;
 

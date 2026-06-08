@@ -17,6 +17,9 @@ import io.docpilot.workspace.model.entity.WorkspaceNode;
 import io.docpilot.workspace.repository.WorkspaceDocumentRepository;
 import io.docpilot.workspace.repository.WorkspaceNodeRepository;
 import io.docpilot.workspace.repository.WorkspaceRepository;
+import io.docpilot.workspace.search.LinearWorkspaceSearchService;
+import io.docpilot.workspace.search.WorkspaceSearchDocument;
+import io.docpilot.workspace.search.WorkspaceSearchService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,6 +31,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Read-only filesystem projection of one workspace tree.
@@ -37,17 +41,54 @@ import java.util.Map;
  */
 public class WorkspaceFilesystem implements Filesystem {
 
+    /**
+     * Logger for workspace filesystem operations.
+     */
     private static final Logger log = LoggerFactory.getLogger(WorkspaceFilesystem.class);
 
+    /**
+     * Workspace id projected by this filesystem instance.
+     */
     private final Long workspaceId;
+
+    /**
+     * Workspace aggregate repository.
+     */
     private final WorkspaceRepository workspaceRepository;
+
+    /**
+     * Workspace tree node repository.
+     */
     private final WorkspaceNodeRepository nodeRepository;
+
+    /**
+     * Workspace document content repository.
+     */
     private final WorkspaceDocumentRepository documentRepository;
 
+    /**
+     * Search implementation used after path scoping resolves candidate documents.
+     */
+    private final WorkspaceSearchService searchService;
+
+    /**
+     * Creates a workspace filesystem with the default linear search implementation.
+     */
     public WorkspaceFilesystem(Long workspaceId,
                                WorkspaceRepository workspaceRepository,
                                WorkspaceNodeRepository nodeRepository,
                                WorkspaceDocumentRepository documentRepository) {
+        this(workspaceId, workspaceRepository, nodeRepository, documentRepository, new LinearWorkspaceSearchService());
+    }
+
+    /**
+     * Creates a workspace filesystem with an injectable search implementation.
+     */
+    public WorkspaceFilesystem(Long workspaceId,
+                               WorkspaceRepository workspaceRepository,
+                               WorkspaceNodeRepository nodeRepository,
+                               WorkspaceDocumentRepository documentRepository,
+                               WorkspaceSearchService searchService) {
         if (workspaceId == null || workspaceId <= 0) {
             throw new IllegalArgumentException("workspaceId is required");
         }
@@ -56,6 +97,7 @@ public class WorkspaceFilesystem implements Filesystem {
         this.workspaceRepository = workspaceRepository;
         this.nodeRepository = nodeRepository;
         this.documentRepository = documentRepository;
+        this.searchService = Objects.requireNonNull(searchService, "searchService");
     }
 
     @Override
@@ -157,10 +199,6 @@ public class WorkspaceFilesystem implements Filesystem {
                 grepOptions.maxFiles(), grepOptions.maxMatches());
         Map<String, WorkspaceNode> paths = workspacePaths();
         WorkspaceNode root = resolveNode(normalizedPath);
-        List<GrepMatch> matches = new ArrayList<>();
-        long searchedFiles = 0L;
-        String truncationReason = null;
-
         // A workspace document resource is the file-equivalent unit for grep budgeting.
         List<Map.Entry<String, WorkspaceNode>> candidates = paths.entrySet().stream()
                 .filter(entry -> entry.getValue().isDocumentResource())
@@ -169,44 +207,15 @@ public class WorkspaceFilesystem implements Filesystem {
                         : FilesystemPath.isSameOrDescendant(normalizedPath, entry.getKey()))
                 .sorted(Map.Entry.comparingByKey())
                 .toList();
-
-        for (Map.Entry<String, WorkspaceNode> entry : candidates) {
-            if (grepOptions.isMaxFilesReached(searchedFiles)) {
-                truncationReason = GrepResult.TRUNCATED_BY_MAX_FILES;
-                break;
-            }
-            if (grepOptions.isMaxMatchesReached(matches.size())) {
-                truncationReason = GrepResult.TRUNCATED_BY_MAX_MATCHES;
-                break;
-            }
-
-            searchedFiles++;
-            if (grepDocument(entry.getKey(), entry.getValue(), text, matches, grepOptions)) {
-                truncationReason = GrepResult.TRUNCATED_BY_MAX_MATCHES;
-                break;
-            }
-        }
-
-        GrepResult result = new GrepResult(matches, truncationReason != null, truncationReason, 0L, searchedFiles);
+        // The filesystem layer owns path scoping; the search service owns text scanning and result budgets.
+        List<WorkspaceSearchDocument> documents = candidates.stream()
+                .map(entry -> new WorkspaceSearchDocument(entry.getKey(), markdown(entry.getValue())))
+                .toList();
+        GrepResult result = searchService.grep(documents, text, grepOptions);
         log.debug("workspace filesystem grep done workspaceId={} path={} normalizedPath={} candidates={} matches={} truncated={} reason={} searchedFiles={}",
                 workspaceId, path, normalizedPath, candidates.size(), result.matches().size(), result.truncated(),
                 result.truncationReason(), result.searchedFiles());
         return result;
-    }
-
-    private boolean grepDocument(String path, WorkspaceNode node, String text, List<GrepMatch> matches, GrepOptions options) {
-        String[] lines = markdown(node).split("\\R", -1);
-
-        for (int index = 0; index < lines.length; index++) {
-            if (lines[index].contains(text)) {
-                matches.add(new GrepMatch(path, index + 1L, lines[index]));
-                if (options.isMaxMatchesReached(matches.size())) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
     }
 
     private WorkspaceNode resolveNode(String path) {

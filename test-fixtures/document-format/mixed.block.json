@@ -1,0 +1,307 @@
+{
+  "schemaVersion": "docpilot-block/2",
+  "blocks": [
+    {
+      "id": "heading1",
+      "type": "HEADING",
+      "attrs": {
+        "level": 1
+      },
+      "inlines": [
+        {
+          "type": "TEXT",
+          "text": "Contract Fixture",
+          "attrs": {},
+          "marks": []
+        }
+      ],
+      "children": []
+    },
+    {
+      "id": "paragraph1",
+      "type": "PARAGRAPH",
+      "attrs": {},
+      "inlines": [
+        {
+          "type": "TEXT",
+          "text": "Intro ",
+          "attrs": {},
+          "marks": []
+        },
+        {
+          "type": "TEXT",
+          "text": "bold",
+          "attrs": {},
+          "marks": [
+            {
+              "type": "BOLD",
+              "attrs": {}
+            }
+          ]
+        },
+        {
+          "type": "TEXT",
+          "text": " and ",
+          "attrs": {},
+          "marks": []
+        },
+        {
+          "type": "TEXT",
+          "text": "under",
+          "attrs": {},
+          "marks": [
+            {
+              "type": "UNDERLINE",
+              "attrs": {}
+            }
+          ]
+        },
+        {
+          "type": "TEXT",
+          "text": " with ",
+          "attrs": {},
+          "marks": []
+        },
+        {
+          "type": "MATH_INLINE",
+          "text": "x+1",
+          "attrs": {
+            "text": "x+1",
+            "notation": "latex",
+            "delimiter": "$"
+          },
+          "marks": []
+        },
+        {
+          "type": "TEXT",
+          "text": " and footnote",
+          "attrs": {},
+          "marks": []
+        },
+        {
+          "type": "FOOTNOTE_REF",
+          "attrs": {
+            "label": "one"
+          },
+          "marks": []
+        },
+        {
+          "type": "TEXT",
+          "text": ".",
+          "attrs": {},
+          "marks": []
+        }
+      ],
+      "children": []
+    },
+    {
+      "id": "callout1",
+      "type": "CALLOUT",
+      "attrs": {
+        "kind": "tip",
+        "title": "Heads up",
+        "collapsible": false,
+        "open": true
+      },
+      "inlines": [],
+      "children": [
+        {
+          "id": "calloutParagraph1",
+          "type": "PARAGRAPH",
+          "attrs": {},
+          "inlines": [
+            {
+              "type": "TEXT",
+              "text": "Callout body.",
+              "attrs": {},
+              "marks": []
+            }
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "table1",
+      "type": "TABLE",
+      "attrs": {},
+      "inlines": [],
+      "children": [
+        {
+          "id": "tableRow1",
+          "type": "TABLE_ROW",
+          "attrs": {},
+          "inlines": [],
+          "children": [
+            {
+              "id": "tableCell1",
+              "type": "TABLE_CELL",
+              "attrs": {
+                "header": true,
+                "alignment": "none"
+              },
+              "inlines": [
+                {
+                  "type": "TEXT",
+                  "text": "Name",
+                  "attrs": {},
+                  "marks": []
+                }
+              ],
+              "children": []
+            },
+            {
+              "id": "tableCell2",
+              "type": "TABLE_CELL",
+              "attrs": {
+                "header": true,
+                "alignment": "none"
+              },
+              "inlines": [
+                {
+                  "type": "TEXT",
+                  "text": "Value",
+                  "attrs": {},
+                  "marks": []
+                }
+              ],
+              "children": []
+            }
+          ]
+        },
+        {
+          "id": "tableRow2",
+          "type": "TABLE_ROW",
+          "attrs": {},
+          "inlines": [],
+          "children": [
+            {
+              "id": "tableCell3",
+              "type": "TABLE_CELL",
+              "attrs": {
+                "header": false,
+                "alignment": "none"
+              },
+              "inlines": [
+                {
+                  "type": "TEXT",
+                  "text": "A",
+                  "attrs": {},
+                  "marks": []
+                }
+              ],
+              "children": []
+            },
+            {
+              "id": "tableCell4",
+              "type": "TABLE_CELL",
+              "attrs": {
+                "header": false,
+                "alignment": "none"
+              },
+              "inlines": [
+                {
+                  "type": "TEXT",
+                  "text": "1",
+                  "attrs": {},
+                  "marks": []
+                }
+              ],
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "code1",
+      "type": "CODE_BLOCK",
+      "attrs": {
+        "language": "ts",
+        "text": "console.log(\"hi\");\n"
+      },
+      "inlines": [],
+      "children": []
+    },
+    {
+      "id": "math1",
+      "type": "MATH_BLOCK",
+      "attrs": {
+        "notation": "latex",
+        "text": "x^2",
+        "delimiter": "$$"
+      },
+      "inlines": [],
+      "children": []
+    },
+    {
+      "id": "details1",
+      "type": "CALLOUT",
+      "attrs": {
+        "kind": "details",
+        "title": "More",
+        "collapsible": true,
+        "open": true
+      },
+      "inlines": [],
+      "children": [
+        {
+          "id": "detailsParagraph1",
+          "type": "PARAGRAPH",
+          "attrs": {},
+          "inlines": [
+            {
+              "type": "TEXT",
+              "text": "Hidden line.",
+              "attrs": {},
+              "marks": []
+            }
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "html1",
+      "type": "HTML_BLOCK",
+      "attrs": {
+        "id": "html1",
+        "title": "HTML",
+        "source": "<div data-docpilot=\"yes\">HTML</div>",
+        "displayMode": "fixed",
+        "fixedHeightPx": 320,
+        "allowScripts": false
+      },
+      "inlines": [],
+      "children": []
+    },
+    {
+      "id": "footnote1",
+      "type": "FOOTNOTE_DEFINITION",
+      "attrs": {
+        "label": "one",
+        "raw": "[^one]: Footnote text."
+      },
+      "inlines": [],
+      "children": [
+        {
+          "id": "footnoteParagraph1",
+          "type": "PARAGRAPH",
+          "attrs": {},
+          "inlines": [
+            {
+              "type": "TEXT",
+              "text": "Footnote text.",
+              "attrs": {},
+              "marks": []
+            }
+          ],
+          "children": []
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "source": "golden-fixture"
+  }
+}

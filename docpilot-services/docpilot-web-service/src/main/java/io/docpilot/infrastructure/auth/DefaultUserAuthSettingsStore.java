@@ -14,11 +14,24 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
 
+/**
+ * JDBC-backed store for authentication runtime settings.
+ */
 public class DefaultUserAuthSettingsStore {
 
-    static final String PASSWORD_PEPPER_KEY = "auth.password-pepper";
+    /**
+     * Setting key used to persist the generated password pepper.
+     */
+    public static final String PASSWORD_PEPPER_KEY = "auth.password-pepper";
 
+    /**
+     * Secure random source used for generated authentication secrets.
+     */
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+
+    /**
+     * Schema DDL for the settings table used by local authentication.
+     */
     private static final String CREATE_SETTINGS_TABLE_SQL = """
             CREATE TABLE IF NOT EXISTS docpilot_setting (
                 setting_key VARCHAR(120) NOT NULL,
@@ -29,15 +42,38 @@ public class DefaultUserAuthSettingsStore {
             )
             """;
 
+    /**
+     * JDBC access object for settings reads and writes.
+     */
     private final JdbcTemplate jdbcTemplate;
+
+    /**
+     * Whether this store is allowed to create the settings table on demand.
+     */
     private final boolean initializeSchema;
+
+    /**
+     * In-process guard that prevents repeated schema initialization attempts.
+     */
     private volatile boolean schemaInitialized;
 
+    /**
+     * Creates an authentication settings store.
+     *
+     * @param dataSource settings database connection source.
+     * @param initializeSchema whether the settings table should be created on demand.
+     */
     public DefaultUserAuthSettingsStore(DataSource dataSource, boolean initializeSchema) {
         this.jdbcTemplate = new JdbcTemplate(dataSource);
         this.initializeSchema = initializeSchema;
     }
 
+    /**
+     * Returns the configured pepper or creates one for new installations.
+     *
+     * @param configuredPepper pepper supplied by configuration.
+     * @return effective password pepper.
+     */
     public String passwordPepper(String configuredPepper) {
         if (StringUtils.hasText(configuredPepper)) {
             return configuredPepper;
@@ -61,6 +97,7 @@ public class DefaultUserAuthSettingsStore {
                     """, key, value, Timestamp.from(now), Timestamp.from(now));
             return value;
         } catch (DuplicateKeyException e) {
+            // A concurrent process may have created the same setting after our read; use its value.
             return findSetting(key)
                     .orElseThrow(() -> new IllegalStateException("Failed to read initialized setting: " + key, e));
         }
