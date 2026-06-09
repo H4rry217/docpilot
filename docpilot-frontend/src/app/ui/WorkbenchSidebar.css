@@ -1,0 +1,30 @@
+.workbench-activity-bar {
+  background: #fafafa;
+  box-shadow: inset -1px 0 0 #e5e7eb;
+}
+
+.workbench-sidebar-panel {
+  background: #fafafa;
+  box-shadow: inset -1px 0 0 #e5e7eb;
+}
+
+.workbench-sidebar-panel::after {
+  position: absolute;
+  z-index: 40;
+  top: 0;
+  right: -12px;
+  bottom: 0;
+  width: 12px;
+  pointer-events: none;
+  content: "";
+  background: linear-gradient(
+    90deg,
+    rgb(229 231 235 / 40%),
+    rgb(229 231 235 / 14%) 42%,
+    transparent 100%
+  );
+}
+
+.workbench-sidebar-panel.is-collapsed::after {
+  display: none;
+}

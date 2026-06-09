@@ -1,0 +1,34 @@
+<svg width="1160" height="360" viewBox="0 0 1160 360" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <title>DocPilot Horizontal Logo</title>
+  <defs>
+    <linearGradient id="blue" x1="48" y1="38" x2="208" y2="198" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3B82F6"/>
+      <stop offset="1" stop-color="#2563EB"/>
+    </linearGradient>
+    <linearGradient id="navy" x1="143" y1="143" x2="209" y2="209" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#172033"/>
+      <stop offset="1" stop-color="#0F172A"/>
+    </linearGradient>
+  </defs>
+
+  <g transform="translate(42 42) scale(0.54)">
+    <path fill="url(#blue)" d="
+      M150 76 H318 C326.5 76 334.6 79.4 340.6 85.4 L426.6 171.4
+      C432.6 177.4 436 185.5 436 194 V260 C436 277.7 421.7 292 404 292
+      H300 C274.5 292 250.1 302.1 232.1 320.1 L156.6 395.6
+      C134.5 417.7 96 402.1 96 370.8 V130 C96 100.2 120.2 76 150 76 Z"/>
+    <path fill="white" d="
+      M231.8 319.8 C249.9 301.8 274.4 291.6 300 291.6 H436 V311.8
+      C436 320.3 432.6 328.4 426.6 334.4 L312.4 448.6
+      C290.3 470.7 252 455.1 252 423.8 V365.5
+      C252 354.9 247.8 344.8 240.3 337.3 L231.8 328.8
+      C229.3 326.3 229.3 322.3 231.8 319.8 Z"/>
+    <path fill="url(#navy)" d="
+      M304 308 H404 C424.5 308 434.8 332.8 420.3 347.3 L313.3 454.3
+      C298.8 468.8 274 458.5 274 438 V338 C274 321.4 287.4 308 304 308 Z"/>
+  </g>
+
+  <text x="320" y="220" font-family="Inter, SF Pro Display, Segoe UI, Arial, sans-serif" font-size="136" font-weight="750" letter-spacing="-5">
+    <tspan fill="#2563EB">Doc</tspan><tspan fill="#0F172A">Pilot</tspan>
+  </text>
+</svg>

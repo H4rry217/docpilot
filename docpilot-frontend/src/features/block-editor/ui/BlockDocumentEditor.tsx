@@ -13,6 +13,7 @@ import type { BlockDocument } from '../../../entities/block/types'
 import { blockDocumentToProseMirrorJson } from '../model/blockDocumentToProseMirror'
 import { editorExtensions } from '../model/extensions'
 import { proseMirrorJsonToBlockDocument } from '../model/proseMirrorToBlockDocument'
+import './BlockDocumentEditor.css'
 import { TableDividerControls, TableHoverIndicators } from './TableAffordanceOverlay'
 import { useBlockMarqueeSelection } from './useBlockMarqueeSelection'
 import { useTableAffordances } from './useTableAffordances'
@@ -32,6 +33,7 @@ export type BlockDocumentEditorHandle = {
 export type BlockDocumentEditorProps = {
   contentKey?: string
   blockDocument?: BlockDocument
+  debugMode?: boolean
   proseMirrorFallback?: JSONContent
   onSnapshotChange: (
     snapshot: BlockDocumentEditorSnapshot,
@@ -53,7 +55,7 @@ function blockIdSelector(blockId: string): string {
 
 export const BlockDocumentEditor = forwardRef<BlockDocumentEditorHandle, BlockDocumentEditorProps>(
   function BlockDocumentEditor(
-    { contentKey, blockDocument, proseMirrorFallback, onSnapshotChange },
+    { contentKey, blockDocument, debugMode = false, proseMirrorFallback, onSnapshotChange },
     ref
   ) {
     const applyingContentRef = useRef(false)
@@ -158,7 +160,7 @@ export const BlockDocumentEditor = forwardRef<BlockDocumentEditorHandle, BlockDo
     return (
       <div
         ref={surfaceRef}
-        className="block-editor-surface"
+        className={`block-editor-surface ${debugMode ? 'is-debug-mode' : ''}`}
         onClickCapture={handleSurfaceClickCapture}
         onPointerDownCapture={handleSurfacePointerDown}
         onPointerLeave={handleSurfacePointerLeave}

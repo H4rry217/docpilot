@@ -7,8 +7,11 @@ import type { Workspace, WorkspaceTreeNode } from '../../entities/workspace/type
 import { WorkspaceTree } from '../../features/workspace-tree/ui/WorkspaceTree'
 import { useI18n } from '../../shared/i18n'
 import { useResizableWidth } from '../../shared/ui/useResizableWidth'
+import './WorkbenchSidebar.css'
 
 export type SidebarMode = 'files'
+
+const docpilotLogoMarkUrl = new URL('../../assets/brand/docpilot-logo-mark.svg', import.meta.url).href
 
 export const WORKSPACE_SIDEBAR_DEFAULT_WIDTH = 200
 export const WORKSPACE_SIDEBAR_MIN_WIDTH = 180
@@ -28,13 +31,14 @@ function ActivityButton({ active, expanded, icon, label, onClick }: ActivityButt
       <TooltipTrigger asChild>
         <Button
           className={cn(
-            'relative size-9',
-            active && 'text-primary before:absolute before:-left-[7px] before:h-4 before:w-0.5 before:rounded-full before:bg-primary'
+            'relative size-[38px] text-muted-foreground hover:bg-[#F3F4F6] hover:text-foreground [&_svg]:size-[18px]',
+            active && expanded && 'bg-[#F5F8FF] text-[#3D6EFF] hover:bg-[#EEF4FF] hover:text-[#3D6EFF] before:absolute before:left-0.5 before:top-1/2 before:h-4 before:w-0.5 before:-translate-y-1/2 before:rounded-full before:bg-[#4F7CFF]',
+            active && !expanded && 'bg-transparent text-muted-foreground hover:bg-[#F3F4F6] hover:text-[#3D6EFF]'
           )}
           type="button"
           aria-label={label}
           aria-expanded={active ? expanded : false}
-          variant={active ? 'secondary' : 'ghost'}
+          variant="ghost"
           size="icon"
           onClick={onClick}
         >
@@ -163,8 +167,11 @@ export function WorkbenchSidebar({
 
   return (
     <>
-      <aside className="flex min-w-0 flex-col justify-between border-r bg-sidebar p-1.5" aria-label="DocPilot">
+      <aside className="workbench-activity-bar flex min-w-0 flex-col justify-between p-1.5" aria-label="DocPilot">
         <div className="grid gap-2">
+          <div className="flex h-[38px] items-center justify-center" aria-hidden="true">
+            <img className="size-6 select-none" src={docpilotLogoMarkUrl} alt="" draggable={false} />
+          </div>
           <ActivityButton
             active={mode === 'files'}
             expanded={expanded}
@@ -184,7 +191,7 @@ export function WorkbenchSidebar({
         </div>
       </aside>
 
-      <aside className={cn('relative min-w-0 overflow-visible border-r bg-sidebar', !expanded && 'overflow-hidden border-r-0')} aria-hidden={!expanded}>
+      <aside className={cn('workbench-sidebar-panel relative min-w-0 overflow-visible', !expanded && 'is-collapsed overflow-hidden')} aria-hidden={!expanded}>
         {expanded ? (
           <>
             <SidebarPanel

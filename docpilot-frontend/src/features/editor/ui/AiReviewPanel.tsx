@@ -1,4 +1,4 @@
-import { Send } from 'lucide-react'
+import { ArrowUp } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -86,18 +86,18 @@ export function AiChatPanelContent({ focusRequest = 0 }: { focusRequest?: number
         >
           <Textarea
             ref={textareaRef}
-            className="min-h-20 resize-none border-0 bg-transparent pb-11 pr-12 shadow-none focus-visible:border-transparent focus-visible:ring-0"
+            className="min-h-20 resize-none border-0 bg-transparent pb-12 pr-12 shadow-none focus-visible:border-transparent focus-visible:ring-0"
             placeholder={t('ai.chat.inputPlaceholder')}
           />
           <Button
             data-testid="chat-send-button"
             type="button"
-            size="icon-sm"
-            className="absolute bottom-2 right-2"
+            size="icon"
+            className="absolute bottom-2 right-2 size-8 rounded-full bg-foreground text-background shadow-sm hover:bg-foreground/90 focus-visible:ring-foreground/20 [&_svg]:size-4"
             aria-label={t('ai.chat.sendMessage')}
             title={t('ai.chat.sendMessage')}
           >
-            <Send />
+            <ArrowUp strokeWidth={2.4} />
           </Button>
         </div>
       </footer>

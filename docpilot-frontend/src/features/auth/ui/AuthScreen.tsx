@@ -13,6 +13,8 @@ import { login, register, type AuthSession } from '../api/authApi'
 
 type AuthMode = 'login' | 'register'
 
+const docpilotLogoHorizontalUrl = new URL('../../../assets/brand/docpilot-logo-horizontal.svg', import.meta.url).href
+
 export function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSession) => void }) {
   const { t } = useI18n()
   const [mode, setMode] = useState<AuthMode>('login')
@@ -51,7 +53,9 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: Aut
     <main className="grid h-screen w-screen place-items-center bg-muted/40 p-6">
       <Card className="w-full max-w-sm" aria-label={t('auth.panel')}>
         <CardHeader className="gap-1">
-          <CardTitle className="text-2xl">DocPilot</CardTitle>
+          <CardTitle>
+            <img className="h-12 w-auto" src={docpilotLogoHorizontalUrl} alt="DocPilot" />
+          </CardTitle>
           <p className="text-sm font-medium text-muted-foreground">{t('auth.brandSubtitle')}</p>
         </CardHeader>
         <CardContent>

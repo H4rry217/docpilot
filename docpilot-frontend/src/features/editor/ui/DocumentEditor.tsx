@@ -17,7 +17,7 @@ import {
   type BlockDocumentEditorHandle,
   type BlockDocumentEditorSnapshot,
   type BlockDocumentEditorSnapshotSource
-} from './BlockDocumentEditor'
+} from '../../block-editor'
 import { DocumentCanvas } from './DocumentCanvas'
 import { DocumentEditorToolbar } from './DocumentEditorToolbar'
 import { DocumentOutlineNav } from './DocumentOutlineNav'
@@ -242,7 +242,7 @@ export function DocumentEditor({
   return (
     <main
       ref={editorLayoutRef}
-      className={`editor-layout ${hasDocument ? '' : 'is-empty'} ${aiWorkspaceDockedOpen ? 'has-ai-dock' : ''} ${aiWorkspaceDockedMinimized ? 'has-ai-rail' : ''} ${outlineCompact ? 'outline-compact' : ''} ${blockDebugMode ? 'block-debug-mode' : ''}`}
+      className={`editor-layout ${hasDocument ? '' : 'is-empty'} ${aiWorkspaceDockedOpen ? 'has-ai-dock' : ''} ${aiWorkspaceDockedMinimized ? 'has-ai-rail' : ''} ${outlineCompact ? 'outline-compact' : ''}`}
       style={editorLayoutStyle}
     >
       {hasDocument ? (
@@ -289,6 +289,7 @@ export function DocumentEditor({
             ref={blockEditorRef}
             contentKey={contentKey}
             blockDocument={documentQuery.data?.document.content.blockDocument}
+            debugMode={blockDebugMode}
             proseMirrorFallback={documentQuery.data?.prosemirror as JSONContent | undefined}
             onSnapshotChange={handleSnapshotChange}
           />
