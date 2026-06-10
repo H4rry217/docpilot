@@ -2,7 +2,6 @@ import { ArrowUp } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { useI18n } from '../../../shared/i18n'
@@ -68,8 +67,8 @@ export function AiChatPanelContent({ focusRequest = 0 }: { focusRequest?: number
   }, [focusRequest])
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-background">
-      <ScrollArea className="min-h-0 flex-1">
+    <div className="flex h-full min-h-0 flex-1 flex-col bg-background">
+      <ScrollArea className="min-h-0 flex-1 overflow-hidden">
         <div className="flex flex-col gap-3 px-3 py-3">
           {MOCK_CHAT_MESSAGES.map((message) => (
             <ChatMessage key={message.id} message={message} />
@@ -77,9 +76,7 @@ export function AiChatPanelContent({ focusRequest = 0 }: { focusRequest?: number
         </div>
       </ScrollArea>
 
-      <Separator />
-
-      <footer className="flex shrink-0 flex-col gap-2.5 p-3">
+      <footer className="mt-auto flex shrink-0 flex-col gap-2.5 border-t bg-background/95 p-3">
         <div
           data-testid="chat-composer"
           className="relative rounded-lg border bg-background transition-colors focus-within:border-ring/70"

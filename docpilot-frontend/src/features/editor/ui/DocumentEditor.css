@@ -17,6 +17,15 @@
   grid-template-columns: minmax(0, 1fr) 36px;
 }
 
+.editor-layout.has-bottom-tool-panel {
+  grid-template-rows: auto minmax(0, 1fr) var(--bottom-tool-panel-height, 300px);
+}
+
+.editor-layout.has-bottom-tool-panel .ai-workspace-docked-panel,
+.editor-layout.has-bottom-tool-panel .ai-workspace-docked-rail {
+  grid-row: 2 / 4;
+}
+
 .editor-layout.is-empty {
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
@@ -100,6 +109,7 @@
 .document-main {
   position: relative;
   grid-column: 1;
+  grid-row: 2;
   min-height: 0;
   overflow: hidden;
   background: #fff;
@@ -111,6 +121,31 @@
   overflow: auto;
   padding: 54px clamp(40px, 8vw, 120px) 88px;
   background: #fff;
+  scrollbar-color: #b9c5d4 transparent;
+  scrollbar-gutter: stable;
+  scrollbar-width: auto;
+}
+
+.document-canvas::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+
+.document-canvas::-webkit-scrollbar-thumb {
+  min-height: 44px;
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: #b9c5d4;
+  background-clip: content-box;
+}
+
+.document-canvas::-webkit-scrollbar-thumb:hover {
+  background: #9fabbc;
+  background-clip: content-box;
+}
+
+.document-canvas::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .document-canvas.is-empty {
@@ -359,6 +394,10 @@
 @media (max-width: 1180px) {
   .editor-layout {
     grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .editor-layout.has-bottom-tool-panel {
+    grid-template-rows: auto minmax(0, 1fr) var(--bottom-tool-panel-height, 300px);
   }
 
   .editor-layout.is-empty {

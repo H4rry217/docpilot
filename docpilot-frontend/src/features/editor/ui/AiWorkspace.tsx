@@ -384,7 +384,7 @@ function DockedMinimizedRail({ onRestore }: { onRestore: () => void }) {
   return (
     <button
       type="button"
-      className="group col-start-2 row-start-2 flex h-full min-h-0 w-full flex-col items-center overflow-hidden border-l bg-background/95 px-0 py-2 text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="ai-workspace-docked-rail group col-start-2 row-start-2 row-end-3 flex h-full min-h-0 w-full flex-col items-center overflow-hidden border-l bg-background/95 px-0 py-2 text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       aria-label={t('ai.workspace.restore')}
       title={t('ai.workspace.restore')}
       onClick={onRestore}
@@ -507,7 +507,7 @@ function DockedAiWorkspace({
     <aside
       data-testid="ai-workspace-panel"
       className={cn(
-        'relative col-start-2 row-start-2 flex min-h-0 min-w-0 overflow-visible border-l bg-background transition-[border-color,box-shadow]',
+        'ai-workspace-docked-panel relative col-start-2 row-start-2 row-end-3 flex h-full min-h-0 min-w-0 overflow-visible border-l bg-background transition-[border-color,box-shadow]',
         dragCue === 'detach' && 'border-blue-400/80 ring-2 ring-inset ring-blue-300/70'
       )}
       aria-label={t('ai.workspace.label')}

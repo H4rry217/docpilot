@@ -1,0 +1,145 @@
+.document-operation-composer-dialog {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  max-height: min(92vh, 860px);
+  max-width: min(920px, calc(100vw - 48px));
+  overflow: hidden;
+  padding: 0;
+}
+
+.document-operation-composer-dialog [data-slot="dialog-header"] {
+  border-bottom: 1px solid #e6ebf2;
+  padding: 18px 22px 14px;
+}
+
+.document-operation-composer {
+  display: grid;
+  gap: 12px;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px 22px 18px;
+  scrollbar-color: #cbd5e1 transparent;
+  scrollbar-width: thin;
+}
+
+.document-operation-composer::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.document-operation-composer::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: #cbd5e1;
+  background-clip: content-box;
+}
+
+.document-operation-composer-section {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.document-operation-composer-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.document-operation-composer-field {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  color: #334155;
+  font-size: 0.76rem;
+  font-weight: 650;
+}
+
+.document-operation-composer-checkbox-field {
+  display: inline-flex;
+  align-items: center;
+  align-self: end;
+  gap: 8px;
+  min-height: 32px;
+  color: #334155;
+  font-size: 0.76rem;
+  font-weight: 650;
+}
+
+.document-operation-composer-checkbox-field input {
+  width: 14px;
+  height: 14px;
+  accent-color: #4f7cff;
+}
+
+.document-operation-composer-select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  border: 1px solid #d7dfeb;
+  border-radius: 8px;
+  background: #fff;
+  color: #273344;
+  padding: 0 10px;
+  font-size: 0.82rem;
+  outline: none;
+}
+
+.document-operation-composer-select:focus-visible {
+  border-color: #b9cdfd;
+  box-shadow: 0 0 0 3px rgb(79 124 255 / 10%);
+}
+
+.document-operation-composer-json {
+  min-height: 112px;
+  max-height: 190px;
+  resize: vertical;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.document-operation-composer-feedback {
+  display: grid;
+  gap: 8px;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.78rem;
+}
+
+.document-operation-composer-feedback.is-success {
+  background: #effaf5;
+  color: #21734c;
+}
+
+.document-operation-composer-feedback.is-error {
+  background: #fff1f1;
+  color: #a33636;
+}
+
+.document-operation-composer-result-list {
+  display: grid;
+  gap: 4px;
+}
+
+.document-operation-composer-result-list code {
+  overflow: hidden;
+  color: inherit;
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.document-operation-composer-dialog [data-slot="dialog-footer"] {
+  border-top: 1px solid #e6ebf2;
+  background: #fff;
+  margin: 0;
+  padding: 12px 22px 16px;
+}
+
+@media (max-width: 780px) {
+  .document-operation-composer-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

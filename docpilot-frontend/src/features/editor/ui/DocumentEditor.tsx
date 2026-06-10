@@ -1,5 +1,12 @@
 import type { JSONContent } from '@tiptap/core'
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties
+} from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   documentOutlineFromBlockDocument,
@@ -11,6 +18,10 @@ import type { Workspace, WorkspaceTreeNode } from '../../../entities/workspace/t
 import { useI18n, type Locale } from '../../../shared/i18n'
 import { getDocument, saveDocumentContent } from '../api/documentApi'
 import { useAiWorkspaceLayout } from '../model/aiWorkspaceLayout'
+import {
+  TOOL_PANEL_BOTTOM_COLLAPSED_HEIGHT,
+  useToolPanelLayout
+} from '../model/toolPanelLayout'
 import { AiWorkspace } from './AiWorkspace'
 import {
   BlockDocumentEditor,
@@ -21,14 +32,16 @@ import {
 import { DocumentCanvas } from './DocumentCanvas'
 import { DocumentEditorToolbar } from './DocumentEditorToolbar'
 import { DocumentOutlineNav } from './DocumentOutlineNav'
+import { useDocumentOperationsConsoleState } from './DocumentOperationsConsole'
+import { WorkbenchToolPanels } from './WorkbenchToolPanels'
 import './DocumentEditor.css'
 
 const AUTOSAVE_DELAY_MS = 650
 const OUTLINE_AUTO_COLLAPSE_CANVAS_WIDTH = 1230
-
 type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error'
 
 export type DocumentEditorProps = {
+  developerMode?: boolean
   workspace?: Workspace
   documentNode?: WorkspaceTreeNode
   outline: DocumentOutlineItem[]
@@ -68,6 +81,7 @@ function saveStateKey(saveState: SaveState) {
 }
 
 export function DocumentEditor({
+  developerMode = false,
   workspace,
   documentNode,
   outline,
@@ -78,6 +92,8 @@ export function DocumentEditor({
 }: DocumentEditorProps) {
   const { locale, t } = useI18n()
   const aiWorkspaceLayout = useAiWorkspaceLayout()
+  const toolPanelLayout = useToolPanelLayout()
+  const documentOperationsConsole = useDocumentOperationsConsoleState()
   const [saveState, setSaveState] = useState<SaveState>('idle')
   const [saveError, setSaveError] = useState<string | null>(null)
   const [blockDebugMode, setBlockDebugMode] = useState(false)
@@ -166,6 +182,23 @@ export function DocumentEditor({
     saveBlockDocument(snapshot.blockDocument)
   }
 
+  const getDeveloperBlockDocument = useCallback(() => {
+    const snapshot = blockEditorRef.current?.getSnapshot() ?? latestSnapshotRef.current
+    return snapshot?.blockDocument ?? documentQuery.data?.document.content.blockDocument ?? null
+  }, [documentQuery.data])
+
+  const jumpToDeveloperBlock = useCallback((blockId: string) => {
+    blockEditorRef.current?.scrollToOutlineItem({
+      id: blockId,
+      headingIndex: 0,
+      requestId: Date.now()
+    })
+  }, [])
+
+  const applyDeveloperBlockDocument = useCallback((blockDocument: BlockDocument) => {
+    blockEditorRef.current?.setBlockDocument(blockDocument)
+  }, [])
+
   useEffect(() => {
     return () => window.clearTimeout(autosaveTimerRef.current)
   }, [])
@@ -192,6 +225,12 @@ export function DocumentEditor({
     if (!outlineJumpRequest) return
     blockEditorRef.current?.scrollToOutlineItem(outlineJumpRequest)
   }, [outlineJumpRequest])
+
+  useEffect(() => {
+    if (!developerMode) {
+      setBlockDebugMode(false)
+    }
+  }, [developerMode])
 
   useEffect(() => {
     if (!hasDocument) return
@@ -235,14 +274,22 @@ export function DocumentEditor({
   const aiWorkspaceDockedMinimized = hasDocument
     && aiWorkspaceLayout.state.dockMode === 'docked'
     && aiWorkspaceLayout.state.minimized
+  const documentOperationsInBottom = developerMode
+    && hasDocument
+    && toolPanelLayout.state.placements.documentOperations === 'bottom'
   const editorLayoutStyle = {
-    '--ai-workspace-dock-width': `${aiWorkspaceLayout.state.dockWidth}px`
-  } as CSSProperties
+    '--ai-workspace-dock-width': `${aiWorkspaceLayout.state.dockWidth}px`,
+    '--bottom-tool-panel-height': `${
+      toolPanelLayout.state.bottomCollapsed
+        ? TOOL_PANEL_BOTTOM_COLLAPSED_HEIGHT
+        : toolPanelLayout.state.bottomHeight
+    }px`
+  } as CSSProperties & Record<string, string>
 
   return (
     <main
       ref={editorLayoutRef}
-      className={`editor-layout ${hasDocument ? '' : 'is-empty'} ${aiWorkspaceDockedOpen ? 'has-ai-dock' : ''} ${aiWorkspaceDockedMinimized ? 'has-ai-rail' : ''} ${outlineCompact ? 'outline-compact' : ''}`}
+      className={`editor-layout ${hasDocument ? '' : 'is-empty'} ${documentOperationsInBottom ? 'has-bottom-tool-panel' : ''} ${toolPanelLayout.state.bottomCollapsed ? 'bottom-tool-panel-collapsed' : ''} ${aiWorkspaceDockedOpen ? 'has-ai-dock' : ''} ${aiWorkspaceDockedMinimized ? 'has-ai-rail' : ''} ${outlineCompact ? 'outline-compact' : ''}`}
       style={editorLayoutStyle}
     >
       {hasDocument ? (
@@ -257,6 +304,7 @@ export function DocumentEditor({
           </div>
           <DocumentEditorToolbar
             blockDebugMode={blockDebugMode}
+            developerMode={developerMode}
             canSave={Boolean(documentId && latestSnapshotRef.current)}
             isSaving={saveMutation.isPending}
             onSave={saveNow}
@@ -298,6 +346,17 @@ export function DocumentEditor({
 
       {hasDocument ? (
         <AiWorkspace layout={aiWorkspaceLayout} />
+      ) : null}
+
+      {developerMode && hasDocument ? (
+        <WorkbenchToolPanels
+          consoleController={documentOperationsConsole}
+          getBlockDocument={getDeveloperBlockDocument}
+          getDocumentVersion={() => versionRef.current}
+          layout={toolPanelLayout}
+          onApplyBlockDocument={applyDeveloperBlockDocument}
+          onJumpToBlock={jumpToDeveloperBlock}
+        />
       ) : null}
     </main>
   )

@@ -27,6 +27,7 @@ import { DocumentEditor } from '../features/editor/ui/DocumentEditor'
 import { useI18n } from '../shared/i18n'
 import { useAppDialogs } from './model/useAppDialogs'
 import { useAuthSession } from './model/useAuthSession'
+import { useDeveloperSettings } from './model/useDeveloperSettings'
 import { useDocumentOutlineState } from './model/useDocumentOutlineState'
 import { useWorkspaceShell } from './model/useWorkspaceShell'
 import { WorkbenchSidebar } from './ui/WorkbenchSidebar'
@@ -37,6 +38,7 @@ export function App() {
   const queryClient = useQueryClient()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const dialogs = useAppDialogs()
+  const developerSettings = useDeveloperSettings()
   const authSession = useAuthSession()
   const workspaceShell = useWorkspaceShell({
     authStatus: authSession.authStatus,
@@ -112,6 +114,7 @@ export function App() {
       />
 
       <DocumentEditor
+        developerMode={developerSettings.developerMode}
         workspace={workspaceShell.workspace}
         documentNode={workspaceShell.selectedNode}
         outline={outlineState.documentOutline}
@@ -123,7 +126,9 @@ export function App() {
       {settingsOpen ? (
         <SettingsDialog
           user={currentUser}
+          developerMode={developerSettings.developerMode}
           onClose={() => setSettingsOpen(false)}
+          onDeveloperModeChange={developerSettings.setDeveloperMode}
           onLogout={clearAuthenticatedSession}
           onUserChange={setCurrentUser}
         />

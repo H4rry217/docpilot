@@ -73,6 +73,24 @@
   outline: 0;
 }
 
+.prose-editor [data-block-id].docpilot-block-jump-target {
+  border-radius: 4px;
+  animation: docpilot-block-jump-highlight 1400ms ease;
+}
+
+@keyframes docpilot-block-jump-highlight {
+  0%,
+  72% {
+    box-shadow: 0 0 0 4px rgb(79 124 255 / 18%);
+    background: rgb(79 124 255 / 7%);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgb(79 124 255 / 0%);
+    background: transparent;
+  }
+}
+
 .prose-editor :first-child {
   margin-top: 0;
 }

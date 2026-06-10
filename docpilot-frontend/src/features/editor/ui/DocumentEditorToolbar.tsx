@@ -5,12 +5,14 @@ import { useI18n } from '../../../shared/i18n'
 
 export function DocumentEditorToolbar({
   blockDebugMode,
+  developerMode,
   canSave,
   isSaving,
   onSave,
   onToggleBlockDebugMode
 }: {
   blockDebugMode: boolean
+  developerMode: boolean
   canSave: boolean
   isSaving: boolean
   onSave: () => void
@@ -28,15 +30,17 @@ export function DocumentEditorToolbar({
         <Share2 data-icon="inline-start" />
         {t('editor.share')}
       </Button>
-      <Button
-        variant="outline"
-        className={cn(blockDebugMode && 'border-primary/30 bg-primary/10 text-primary')}
-        aria-pressed={blockDebugMode}
-        onClick={onToggleBlockDebugMode}
-      >
-        <Braces data-icon="inline-start" />
-        {t('editor.blockMode')}
-      </Button>
+      {developerMode ? (
+        <Button
+          variant="outline"
+          className={cn(blockDebugMode && 'border-primary/30 bg-primary/10 text-primary')}
+          aria-pressed={blockDebugMode}
+          onClick={onToggleBlockDebugMode}
+        >
+          <Braces data-icon="inline-start" />
+          {t('editor.blockMode')}
+        </Button>
+      ) : null}
     </div>
   )
 }

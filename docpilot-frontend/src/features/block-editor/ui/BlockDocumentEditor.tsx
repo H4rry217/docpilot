@@ -28,6 +28,7 @@ export type BlockDocumentEditorSnapshotSource = 'load' | 'edit' | 'programmatic'
 export type BlockDocumentEditorHandle = {
   getSnapshot: () => BlockDocumentEditorSnapshot | null
   scrollToOutlineItem: (request: DocumentOutlineJumpRequest) => void
+  setBlockDocument: (blockDocument: BlockDocument) => BlockDocumentEditorSnapshot | null
 }
 
 export type BlockDocumentEditorProps = {
@@ -60,6 +61,7 @@ export const BlockDocumentEditor = forwardRef<BlockDocumentEditorHandle, BlockDo
   ) {
     const applyingContentRef = useRef(false)
     const lastAppliedContentKeyRef = useRef<string | undefined>(undefined)
+    const jumpHighlightTimeoutRef = useRef<number | undefined>(undefined)
     const surfaceRef = useRef<HTMLDivElement | null>(null)
     const marqueeRef = useRef<HTMLDivElement | null>(null)
 
@@ -124,15 +126,30 @@ export const BlockDocumentEditor = forwardRef<BlockDocumentEditorHandle, BlockDo
       ref,
       () => ({
         getSnapshot: () => (editor ? snapshotFromEditor(editor) : null),
+        setBlockDocument: (nextBlockDocument) => {
+          if (!editor) return null
+          return applyProseMirrorJson(
+            editor,
+            blockDocumentToProseMirrorJson(nextBlockDocument),
+            'programmatic'
+          )
+        },
         scrollToOutlineItem: (request) => {
           if (!editor) return
           const headings = editor.view.dom.querySelectorAll<HTMLElement>('h1, h2, h3, h4, h5, h6')
           const target = editor.view.dom.querySelector<HTMLElement>(blockIdSelector(request.id))
             ?? headings.item(request.headingIndex)
-          target?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          if (!target) return
+
+          target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          window.clearTimeout(jumpHighlightTimeoutRef.current)
+          target.classList.add('docpilot-block-jump-target')
+          jumpHighlightTimeoutRef.current = window.setTimeout(() => {
+            target.classList.remove('docpilot-block-jump-target')
+          }, 1400)
         }
       }),
-      [editor]
+      [applyProseMirrorJson, editor]
     )
 
     useEffect(() => {
@@ -147,6 +164,10 @@ export const BlockDocumentEditor = forwardRef<BlockDocumentEditorHandle, BlockDo
       clearBlockSelection()
       resetTableAffordances()
     }, [clearBlockSelection, contentKey, resetTableAffordances])
+
+    useEffect(() => {
+      return () => window.clearTimeout(jumpHighlightTimeoutRef.current)
+    }, [])
 
     function handleSurfacePointerMove(event: ReactPointerEvent<HTMLDivElement>) {
       if (isBlockSelectionDragging()) return

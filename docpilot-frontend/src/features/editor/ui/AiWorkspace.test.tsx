@@ -103,7 +103,9 @@ describe('AiWorkspace', () => {
 
     renderWorkspace(layout)
 
-    expect(screen.getByRole('complementary', { name: 'AI chat' })).toBeInTheDocument()
+    const panel = screen.getByRole('complementary', { name: 'AI chat' })
+    expect(panel).toBeInTheDocument()
+    expect(panel.className).toContain('row-end-3')
     expect(screen.queryByText('AI Status')).not.toBeInTheDocument()
     expect(screen.queryByText('Review')).not.toBeInTheDocument()
     expect(screen.getByText('I can help organize documents, explain changes, and draft rewrite suggestions.')).toBeInTheDocument()
