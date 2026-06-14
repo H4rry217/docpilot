@@ -16,6 +16,7 @@ import io.docpilot.workspace.repository.DocumentRevisionRepository;
 import io.docpilot.workspace.repository.WorkspaceDocumentRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -25,6 +26,7 @@ import java.util.Objects;
 /**
  * Handles document knowledge indexing commands.
  */
+@Service
 public class KnowledgeIndexCommandHandler {
 
     /**

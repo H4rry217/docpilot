@@ -26,10 +26,10 @@ import io.docpilot.workspace.processing.WorkspaceNodeName;
 import io.docpilot.workspace.repository.WorkspaceDocumentRepository;
 import io.docpilot.workspace.repository.WorkspaceNodeRepository;
 import io.docpilot.workspace.repository.WorkspaceRepository;
-import lombok.Setter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.stereotype.Service;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -37,21 +37,41 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-@Setter
+@Service
 public class WorkspaceApplicationService {
 
     private static final Logger log = LoggerFactory.getLogger(WorkspaceApplicationService.class);
 
-    private WorkspaceRepository workspaceRepository;
-    private WorkspaceNodeRepository nodeRepository;
-    private WorkspaceDocumentRepository documentRepository;
-    private AuthContextProvider authContextProvider;
-    private SnowflakeIdGenerator idGenerator;
-    private WorkspaceIdCodec idCodec;
-    private WorkspaceNodeName workspaceNodeName;
-    private WorkspaceTransactionRunner transactionRunner;
-    private ApplicationEventPublisher eventPublisher;
-    private Clock clock = Clock.systemDefaultZone();
+    private final WorkspaceRepository workspaceRepository;
+    private final WorkspaceNodeRepository nodeRepository;
+    private final WorkspaceDocumentRepository documentRepository;
+    private final AuthContextProvider authContextProvider;
+    private final SnowflakeIdGenerator idGenerator;
+    private final WorkspaceIdCodec idCodec;
+    private final WorkspaceNodeName workspaceNodeName;
+    private final WorkspaceTransactionRunner transactionRunner;
+    private final ApplicationEventPublisher eventPublisher;
+    private final Clock clock = Clock.systemDefaultZone();
+
+    public WorkspaceApplicationService(WorkspaceRepository workspaceRepository,
+                                       WorkspaceNodeRepository nodeRepository,
+                                       WorkspaceDocumentRepository documentRepository,
+                                       AuthContextProvider authContextProvider,
+                                       SnowflakeIdGenerator idGenerator,
+                                       WorkspaceIdCodec idCodec,
+                                       WorkspaceNodeName workspaceNodeName,
+                                       WorkspaceTransactionRunner transactionRunner,
+                                       ApplicationEventPublisher eventPublisher) {
+        this.workspaceRepository = workspaceRepository;
+        this.nodeRepository = nodeRepository;
+        this.documentRepository = documentRepository;
+        this.authContextProvider = authContextProvider;
+        this.idGenerator = idGenerator;
+        this.idCodec = idCodec;
+        this.workspaceNodeName = workspaceNodeName;
+        this.transactionRunner = transactionRunner;
+        this.eventPublisher = eventPublisher;
+    }
 
     public WorkspaceResponse ensureDefaultWorkspace() {
         AuthSubject subject = requireSubject();

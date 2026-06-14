@@ -1,24 +1,15 @@
 package io.docpilot.workspace.config;
 
-import io.docpilot.block.processing.MarkdownBlockParser;
-import io.docpilot.block.processing.MarkdownBlockRenderer;
-import io.docpilot.ai.AiEmbeddingRegistry;
 import io.docpilot.ai.AiModelRegistry;
-import io.docpilot.common.auth.AuthContextProvider;
-import io.docpilot.common.id.SnowflakeIdGenerator;
 import io.docpilot.workspace.infrastructure.mongo.MongoWorkspaceTransactionRunner;
-import io.docpilot.workspace.application.DocumentApplicationService;
-import io.docpilot.workspace.application.WorkspaceApplicationService;
 import io.docpilot.workspace.application.WorkspaceTransactionRunner;
 import io.docpilot.workspace.knowledge.AiKnowledgeSummaryService;
 import io.docpilot.workspace.knowledge.KnowledgeChunker;
 import io.docpilot.workspace.knowledge.KnowledgeIndexCommandHandler;
 import io.docpilot.workspace.knowledge.KnowledgeRetrievalProvider;
-import io.docpilot.workspace.knowledge.KnowledgeRetrievalService;
 import io.docpilot.workspace.knowledge.KnowledgeSummaryService;
 import io.docpilot.workspace.knowledge.NoopKnowledgeRetrievalProvider;
 import io.docpilot.workspace.knowledge.config.KnowledgeProperties;
-import io.docpilot.workspace.knowledge.event.KnowledgeIndexEventListener;
 import io.docpilot.workspace.knowledge.queue.DirectKnowledgeIndexQueue;
 import io.docpilot.workspace.knowledge.queue.KnowledgeIndexJobLock;
 import io.docpilot.workspace.knowledge.queue.KnowledgeIndexQueue;
@@ -27,12 +18,6 @@ import io.docpilot.workspace.knowledge.queue.RedisKnowledgeIndexJobStore;
 import io.docpilot.workspace.knowledge.queue.RedisKnowledgeIndexQueue;
 import io.docpilot.workspace.knowledge.store.KnowledgeChunkStore;
 import io.docpilot.workspace.knowledge.store.NoopKnowledgeChunkStore;
-import io.docpilot.workspace.processing.WorkspaceIdCodec;
-import io.docpilot.workspace.processing.WorkspaceNodeName;
-import io.docpilot.workspace.repository.DocumentRevisionRepository;
-import io.docpilot.workspace.repository.WorkspaceDocumentRepository;
-import io.docpilot.workspace.repository.WorkspaceNodeRepository;
-import io.docpilot.workspace.repository.WorkspaceRepository;
 import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
 import org.redisson.config.Config;
@@ -42,7 +27,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.data.redis.RedisProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.mongodb.MongoDatabaseFactory;
@@ -74,57 +58,6 @@ public class WorkspaceApplicationConfig {
         MongoWorkspaceTransactionRunner transactionRunner = new MongoWorkspaceTransactionRunner();
         transactionRunner.setMongoDatabaseFactory(mongoDatabaseFactory);
         return transactionRunner;
-    }
-
-    @Bean
-    public WorkspaceApplicationService workspaceApplicationService(WorkspaceRepository workspaceRepository,
-                                                                   WorkspaceNodeRepository workspaceNodeRepository,
-                                                                   WorkspaceDocumentRepository documentRepository,
-                                                                   AuthContextProvider authContextProvider,
-                                                                   SnowflakeIdGenerator idGenerator,
-                                                                   WorkspaceIdCodec idCodec,
-                                                                   WorkspaceNodeName workspaceNodeName,
-                                                                   WorkspaceTransactionRunner transactionRunner,
-                                                                   ApplicationEventPublisher eventPublisher) {
-        WorkspaceApplicationService service = new WorkspaceApplicationService();
-        service.setWorkspaceRepository(workspaceRepository);
-        service.setNodeRepository(workspaceNodeRepository);
-        service.setDocumentRepository(documentRepository);
-        service.setAuthContextProvider(authContextProvider);
-        service.setIdGenerator(idGenerator);
-        service.setIdCodec(idCodec);
-        service.setWorkspaceNodeName(workspaceNodeName);
-        service.setTransactionRunner(transactionRunner);
-        service.setEventPublisher(eventPublisher);
-        service.setClock(Clock.systemDefaultZone());
-        return service;
-    }
-
-    @Bean
-    public DocumentApplicationService documentApplicationService(WorkspaceApplicationService workspaceApplicationService,
-                                                                 WorkspaceNodeRepository workspaceNodeRepository,
-                                                                 WorkspaceDocumentRepository documentRepository,
-                                                                 DocumentRevisionRepository revisionRepository,
-                                                                 AuthContextProvider authContextProvider,
-                                                                 SnowflakeIdGenerator idGenerator,
-                                                                 WorkspaceIdCodec idCodec,
-                                                                 WorkspaceNodeName workspaceNodeName,
-                                                                 WorkspaceTransactionRunner transactionRunner,
-                                                                 ApplicationEventPublisher eventPublisher) {
-        DocumentApplicationService service = new DocumentApplicationService();
-        service.setWorkspaceService(workspaceApplicationService);
-        service.setNodeRepository(workspaceNodeRepository);
-        service.setDocumentRepository(documentRepository);
-        service.setRevisionRepository(revisionRepository);
-        service.setAuthContextProvider(authContextProvider);
-        service.setIdGenerator(idGenerator);
-        service.setIdCodec(idCodec);
-        service.setWorkspaceNodeName(workspaceNodeName);
-        service.setTransactionRunner(transactionRunner);
-        service.setEventPublisher(eventPublisher);
-        service.setMarkdownBlockParser(new MarkdownBlockParser());
-        service.setMarkdownBlockRenderer(new MarkdownBlockRenderer());
-        return service;
     }
 
     @Bean
@@ -166,25 +99,6 @@ public class WorkspaceApplicationConfig {
     @ConditionalOnMissingBean
     public KnowledgeRetrievalProvider knowledgeRetrievalProvider() {
         return new NoopKnowledgeRetrievalProvider();
-    }
-
-    @Bean
-    public KnowledgeIndexCommandHandler knowledgeIndexCommandHandler(KnowledgeProperties properties,
-                                                                     WorkspaceDocumentRepository documentRepository,
-                                                                     DocumentRevisionRepository revisionRepository,
-                                                                     KnowledgeChunker chunker,
-                                                                     KnowledgeSummaryService summaryService,
-                                                                     AiEmbeddingRegistry embeddingRegistry,
-                                                                     KnowledgeChunkStore chunkStore) {
-        return new KnowledgeIndexCommandHandler(
-                properties,
-                documentRepository,
-                revisionRepository,
-                chunker,
-                summaryService,
-                embeddingRegistry,
-                chunkStore
-        );
     }
 
     @Bean
@@ -233,18 +147,6 @@ public class WorkspaceApplicationConfig {
                 handler,
                 Clock.systemUTC()
         );
-    }
-
-    @Bean
-    public KnowledgeIndexEventListener knowledgeIndexEventListener(KnowledgeIndexQueue queue,
-                                                                   KnowledgeIndexCommandHandler handler) {
-        return new KnowledgeIndexEventListener(queue, handler);
-    }
-
-    @Bean
-    public KnowledgeRetrievalService knowledgeRetrievalService(KnowledgeProperties properties,
-                                                               KnowledgeRetrievalProvider retrievalProvider) {
-        return new KnowledgeRetrievalService(properties, retrievalProvider);
     }
 
     private String redisAddress(RedisProperties redisProperties) {

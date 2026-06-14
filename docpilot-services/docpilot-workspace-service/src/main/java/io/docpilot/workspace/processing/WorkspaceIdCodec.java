@@ -1,5 +1,8 @@
 package io.docpilot.workspace.processing;
 
+import org.springframework.stereotype.Component;
+
+@Component
 public class WorkspaceIdCodec {
 
     public long parseRequired(String value, String fieldName) {

@@ -5,12 +5,14 @@ import io.docpilot.workspace.knowledge.queue.KnowledgeIndexQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 /**
  * Transaction-aware bridge from Spring application events to knowledge indexing.
  */
+@Component
 public class KnowledgeIndexEventListener {
 
     private static final Logger log = LoggerFactory.getLogger(KnowledgeIndexEventListener.class);

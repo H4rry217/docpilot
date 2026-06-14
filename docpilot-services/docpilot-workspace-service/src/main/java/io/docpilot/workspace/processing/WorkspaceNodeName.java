@@ -1,5 +1,8 @@
 package io.docpilot.workspace.processing;
 
+import org.springframework.stereotype.Component;
+
+@Component
 public class WorkspaceNodeName {
 
     public String normalizeName(String name) {

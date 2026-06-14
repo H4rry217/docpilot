@@ -26,7 +26,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest(properties = {
         "docpilot.auth.jwt.secret=docpilot-dev-secret",
-        "docpilot.workspace.mongo.init-indexes=false"
+        "docpilot.workspace.mongo.init-indexes=false",
+        "docpilot.knowledge.index.mode=direct"
 })
 @AutoConfigureMockMvc
 @Import(WorkspaceControllerTestConfig.class)
@@ -286,8 +287,50 @@ class DocumentWorkspaceControllerTest {
     }
 
     @Test
+    void filesystemRetrieveReturnsEmptyHitsWhenKnowledgeIsDisabled() throws Exception {
+        SeededDocument seededDocument = createDocumentInWorkspace();
+
+        mockMvc.perform(post("/filesystem/retrieve")
+                        .header(HttpHeaders.AUTHORIZATION, AUTHORIZATION)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "path":"/workspace/%s",
+                                  "query":"hello",
+                                  "failureMode":"BEST_EFFORT"
+                                }
+                                """.formatted(seededDocument.workspaceId())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.hits").isArray())
+                .andExpect(jsonPath("$.data.hits.length()").value(0))
+                .andExpect(jsonPath("$.data.diagnostics.length()").value(0))
+                .andExpect(jsonPath("$.data.truncated").value(false));
+    }
+
+    @Test
+    void filesystemRetrieveRejectsInvalidFailureMode() throws Exception {
+        mockMvc.perform(post("/filesystem/retrieve")
+                        .header(HttpHeaders.AUTHORIZATION, AUTHORIZATION)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"query":"hello","failureMode":"LOUD"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(StatusCode.BAD_REQUEST.code()));
+    }
+
+    @Test
     void workspaceListRequiresAuth() throws Exception {
         mockMvc.perform(post("/workspace/list")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(StatusCode.UNAUTHORIZED.code()));
+    }
+
+    @Test
+    void filesystemRetrieveRequiresAuth() throws Exception {
+        mockMvc.perform(post("/filesystem/retrieve")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isUnauthorized())
@@ -327,7 +370,7 @@ class DocumentWorkspaceControllerTest {
             }
         }
         assertThat(foundDocumentNode).isTrue();
-        return new SeededDocument(documentId);
+        return new SeededDocument(workspaceId, documentId);
     }
 
     private JsonNode postJson(String path, String json) throws Exception {
@@ -389,6 +432,6 @@ class DocumentWorkspaceControllerTest {
         return prefix + "-" + UUID.randomUUID().toString().replace("-", "");
     }
 
-    private record SeededDocument(String documentId) {
+    private record SeededDocument(String workspaceId, String documentId) {
     }
 }

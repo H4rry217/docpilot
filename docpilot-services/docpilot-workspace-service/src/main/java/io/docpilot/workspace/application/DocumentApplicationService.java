@@ -32,15 +32,14 @@ import io.docpilot.workspace.processing.WorkspaceNodeName;
 import io.docpilot.workspace.repository.DocumentRevisionRepository;
 import io.docpilot.workspace.repository.WorkspaceDocumentRepository;
 import io.docpilot.workspace.repository.WorkspaceNodeRepository;
-import lombok.Setter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HexFormat;
@@ -50,7 +49,7 @@ import java.util.Objects;
 /**
  * Application service for document creation, content save, and revision read use cases.
  */
-@Setter
+@Service
 public class DocumentApplicationService {
 
     private static final Logger log = LoggerFactory.getLogger(DocumentApplicationService.class);
@@ -58,79 +57,93 @@ public class DocumentApplicationService {
     /**
      * Workspace ownership and node access service.
      */
-    private WorkspaceApplicationService workspaceService;
+    private final WorkspaceApplicationService workspaceService;
 
     /**
      * Repository for workspace tree nodes.
      */
-    private WorkspaceNodeRepository nodeRepository;
+    private final WorkspaceNodeRepository nodeRepository;
 
     /**
      * Repository for document aggregates.
      */
-    private WorkspaceDocumentRepository documentRepository;
+    private final WorkspaceDocumentRepository documentRepository;
 
     /**
      * Repository for immutable document revisions.
      */
-    private DocumentRevisionRepository revisionRepository;
+    private final DocumentRevisionRepository revisionRepository;
 
     /**
      * Current authenticated subject provider.
      */
-    private AuthContextProvider authContextProvider;
+    private final AuthContextProvider authContextProvider;
 
     /**
      * Snowflake id generator for documents, revisions, and nodes.
      */
-    private SnowflakeIdGenerator idGenerator;
+    private final SnowflakeIdGenerator idGenerator;
 
     /**
      * Codec that formats internal numeric ids for API responses.
      */
-    private WorkspaceIdCodec idCodec;
+    private final WorkspaceIdCodec idCodec;
 
     /**
      * Workspace node name normalizer.
      */
-    private WorkspaceNodeName workspaceNodeName;
+    private final WorkspaceNodeName workspaceNodeName;
 
     /**
      * Transaction boundary for write use cases.
      */
-    private WorkspaceTransactionRunner transactionRunner;
+    private final WorkspaceTransactionRunner transactionRunner;
 
     /**
      * Markdown parser used when a create command supplies raw Markdown.
      */
-    private MarkdownBlockParser markdownBlockParser;
+    private final MarkdownBlockParser markdownBlockParser = new MarkdownBlockParser();
 
     /**
      * Renderer that turns block snapshots into canonical Markdown.
      */
-    private MarkdownBlockRenderer markdownBlockRenderer;
+    private final MarkdownBlockRenderer markdownBlockRenderer = new MarkdownBlockRenderer();
 
     /**
      * Normalizer for legacy block snapshots before editor responses.
      */
-    private BlockDocumentNormalizer blockDocumentNormalizer = new BlockDocumentNormalizer();
+    private final BlockDocumentNormalizer blockDocumentNormalizer = new BlockDocumentNormalizer(markdownBlockParser);
 
     /**
      * Converter that prepares ProseMirror JSON for the frontend editor.
      */
-    private ProseMirrorJsonConverter proseMirrorJsonConverter = new ProseMirrorJsonConverter();
+    private final ProseMirrorJsonConverter proseMirrorJsonConverter = new ProseMirrorJsonConverter();
 
     /**
      * Optional Spring event publisher used by knowledge indexing.
      */
-    private ApplicationEventPublisher eventPublisher;
+    private final ApplicationEventPublisher eventPublisher;
 
-    /**
-     * Replaces the Markdown parser and keeps the normalizer wired to the same parser behavior.
-     */
-    public void setMarkdownBlockParser(MarkdownBlockParser markdownBlockParser) {
-        this.markdownBlockParser = markdownBlockParser;
-        this.blockDocumentNormalizer = new BlockDocumentNormalizer(markdownBlockParser);
+    public DocumentApplicationService(WorkspaceApplicationService workspaceService,
+                                      WorkspaceNodeRepository nodeRepository,
+                                      WorkspaceDocumentRepository documentRepository,
+                                      DocumentRevisionRepository revisionRepository,
+                                      AuthContextProvider authContextProvider,
+                                      SnowflakeIdGenerator idGenerator,
+                                      WorkspaceIdCodec idCodec,
+                                      WorkspaceNodeName workspaceNodeName,
+                                      WorkspaceTransactionRunner transactionRunner,
+                                      ApplicationEventPublisher eventPublisher) {
+        this.workspaceService = workspaceService;
+        this.nodeRepository = nodeRepository;
+        this.documentRepository = documentRepository;
+        this.revisionRepository = revisionRepository;
+        this.authContextProvider = authContextProvider;
+        this.idGenerator = idGenerator;
+        this.idCodec = idCodec;
+        this.workspaceNodeName = workspaceNodeName;
+        this.transactionRunner = transactionRunner;
+        this.eventPublisher = eventPublisher;
     }
 
     /**

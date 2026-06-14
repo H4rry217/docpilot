@@ -3,12 +3,14 @@ package io.docpilot.workspace.knowledge;
 import io.docpilot.workspace.knowledge.config.KnowledgeProperties;
 import io.docpilot.workspace.knowledge.model.KnowledgeRetrievalRequest;
 import io.docpilot.workspace.knowledge.model.KnowledgeRetrievalResult;
+import org.springframework.stereotype.Service;
 
 import java.util.List;
 
 /**
  * Retrieves knowledge chunks for inline completion context building.
  */
+@Service
 public class KnowledgeRetrievalService {
 
     /**
