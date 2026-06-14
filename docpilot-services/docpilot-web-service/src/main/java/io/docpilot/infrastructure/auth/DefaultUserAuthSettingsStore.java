@@ -25,6 +25,11 @@ public class DefaultUserAuthSettingsStore {
     public static final String PASSWORD_PEPPER_KEY = "auth.password-pepper";
 
     /**
+     * Setting key used to persist the generated JWT signing secret.
+     */
+    public static final String JWT_SECRET_KEY = "auth.jwt-secret";
+
+    /**
      * Secure random source used for generated authentication secrets.
      */
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
@@ -79,6 +84,19 @@ public class DefaultUserAuthSettingsStore {
             return configuredPepper;
         }
         return findOrCreateSetting(PASSWORD_PEPPER_KEY, this::initialPasswordPepper);
+    }
+
+    /**
+     * Returns the configured JWT secret or creates a persistent one for local auth.
+     *
+     * @param configuredSecret secret supplied by configuration.
+     * @return effective JWT signing secret.
+     */
+    public String jwtSecret(String configuredSecret) {
+        if (StringUtils.hasText(configuredSecret)) {
+            return configuredSecret;
+        }
+        return findOrCreateSetting(JWT_SECRET_KEY, this::generateSecret);
     }
 
     private String findOrCreateSetting(String key, Supplier<String> valueSupplier) {

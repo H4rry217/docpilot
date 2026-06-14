@@ -1,6 +1,5 @@
 package io.docpilot.common.web.auth;
 
-import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -37,17 +36,16 @@ public class DocPilotJwtConfig {
      */
     private long accessTokenTtlSeconds = 604800;
 
-    @PostConstruct
-    void initializeSecret() {
-        getSecret();
-    }
-
     public synchronized String getSecret() {
         if (!StringUtils.hasText(secret)) {
             byte[] bytes = new byte[32];
             SECURE_RANDOM.nextBytes(bytes);
             secret = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
         }
+        return secret;
+    }
+
+    public synchronized String getConfiguredSecret() {
         return secret;
     }
 

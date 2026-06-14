@@ -7,7 +7,12 @@ import java.util.Set;
 /**
  * Capabilities are enforced at the mount edge, even if the target filesystem can do more.
  */
-public record MountOptions(Set<FilesystemCapability> capabilities) {
+public record MountOptions(
+        /**
+         * Operations exposed by this mount to the composite filesystem caller.
+         */
+        Set<FilesystemCapability> capabilities
+) {
 
     public MountOptions {
         EnumSet<FilesystemCapability> copy = EnumSet.noneOf(FilesystemCapability.class);
@@ -25,6 +30,8 @@ public record MountOptions(Set<FilesystemCapability> capabilities) {
                 FilesystemCapability.READ,
                 FilesystemCapability.STAT,
                 FilesystemCapability.SEARCH,
+                // Retrieval is read-only from the caller perspective, so default read-only mounts expose it.
+                FilesystemCapability.RETRIEVE,
                 FilesystemCapability.READ_URL
         ));
     }

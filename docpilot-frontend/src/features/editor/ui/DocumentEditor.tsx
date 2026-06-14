@@ -36,7 +36,7 @@ import { useDocumentOperationsConsoleState } from './DocumentOperationsConsole'
 import { WorkbenchToolPanels } from './WorkbenchToolPanels'
 import './DocumentEditor.css'
 
-const AUTOSAVE_DELAY_MS = 650
+const AUTOSAVE_DELAY_MS = 5000
 const OUTLINE_AUTO_COLLAPSE_CANVAS_WIDTH = 1230
 type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error'
 
@@ -136,10 +136,10 @@ export function DocumentEditor({
   })
 
   const saveBlockDocument = useCallback(
-    (blockDocument: BlockDocument) => {
+    (blockDocument: BlockDocument, expectedDocumentId = documentIdRef.current) => {
       const activeDocumentId = documentIdRef.current
       const baseVersion = versionRef.current
-      if (!activeDocumentId || baseVersion == null) return
+      if (!activeDocumentId || activeDocumentId !== expectedDocumentId || baseVersion == null) return
 
       saveMutation.mutate({
         documentId: activeDocumentId,
@@ -153,9 +153,10 @@ export function DocumentEditor({
 
   const queueAutosave = useCallback(
     (blockDocument: BlockDocument) => {
+      const queuedDocumentId = documentIdRef.current
       window.clearTimeout(autosaveTimerRef.current)
       autosaveTimerRef.current = window.setTimeout(() => {
-        saveBlockDocument(blockDocument)
+        saveBlockDocument(blockDocument, queuedDocumentId)
       }, AUTOSAVE_DELAY_MS)
     },
     [saveBlockDocument]
@@ -204,6 +205,7 @@ export function DocumentEditor({
   }, [])
 
   useEffect(() => {
+    window.clearTimeout(autosaveTimerRef.current)
     latestSnapshotRef.current = null
     setSaveError(null)
     setSaveState(documentId ? 'idle' : 'idle')

@@ -10,6 +10,15 @@ import io.docpilot.filesystem.model.GrepResult;
 import io.docpilot.filesystem.path.FilesystemPath;
 import io.docpilot.filesystem.path.FilesystemPathNames;
 import io.docpilot.filesystem.path.GlobMatcher;
+import io.docpilot.filesystem.retrieval.FilesystemRetrieval;
+import io.docpilot.filesystem.retrieval.FilesystemRetrievalHit;
+import io.docpilot.filesystem.retrieval.FilesystemRetrievalOptions;
+import io.docpilot.filesystem.retrieval.FilesystemRetrievalRequest;
+import io.docpilot.filesystem.retrieval.FilesystemRetrievalResult;
+import io.docpilot.workspace.knowledge.KnowledgeRetrievalService;
+import io.docpilot.workspace.knowledge.model.KnowledgeIndexedChunk;
+import io.docpilot.workspace.knowledge.model.KnowledgeRetrievalRequest;
+import io.docpilot.workspace.knowledge.model.KnowledgeRetrievalResult;
 import io.docpilot.workspace.enums.WorkspaceResourceType;
 import io.docpilot.workspace.model.entity.Workspace;
 import io.docpilot.workspace.model.entity.WorkspaceDocument;
@@ -29,6 +38,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -39,7 +49,7 @@ import java.util.Objects;
  * <p>Folders become directories. Document resource nodes become Markdown files
  * backed by the current WorkspaceDocument snapshot.</p>
  */
-public class WorkspaceFilesystem implements Filesystem {
+public class WorkspaceFilesystem implements Filesystem, FilesystemRetrieval {
 
     /**
      * Logger for workspace filesystem operations.
@@ -72,13 +82,29 @@ public class WorkspaceFilesystem implements Filesystem {
     private final WorkspaceSearchService searchService;
 
     /**
+     * Optional semantic retrieval service used by the retrieval capability.
+     */
+    private final KnowledgeRetrievalService retrievalService;
+
+    /**
      * Creates a workspace filesystem with the default linear search implementation.
      */
     public WorkspaceFilesystem(Long workspaceId,
                                WorkspaceRepository workspaceRepository,
                                WorkspaceNodeRepository nodeRepository,
                                WorkspaceDocumentRepository documentRepository) {
-        this(workspaceId, workspaceRepository, nodeRepository, documentRepository, new LinearWorkspaceSearchService());
+        this(workspaceId, workspaceRepository, nodeRepository, documentRepository, new LinearWorkspaceSearchService(), null);
+    }
+
+    /**
+     * Creates a workspace filesystem with semantic retrieval enabled.
+     */
+    public WorkspaceFilesystem(Long workspaceId,
+                               WorkspaceRepository workspaceRepository,
+                               WorkspaceNodeRepository nodeRepository,
+                               WorkspaceDocumentRepository documentRepository,
+                               KnowledgeRetrievalService retrievalService) {
+        this(workspaceId, workspaceRepository, nodeRepository, documentRepository, new LinearWorkspaceSearchService(), retrievalService);
     }
 
     /**
@@ -89,6 +115,18 @@ public class WorkspaceFilesystem implements Filesystem {
                                WorkspaceNodeRepository nodeRepository,
                                WorkspaceDocumentRepository documentRepository,
                                WorkspaceSearchService searchService) {
+        this(workspaceId, workspaceRepository, nodeRepository, documentRepository, searchService, null);
+    }
+
+    /**
+     * Creates a workspace filesystem with injectable search and retrieval implementations.
+     */
+    public WorkspaceFilesystem(Long workspaceId,
+                               WorkspaceRepository workspaceRepository,
+                               WorkspaceNodeRepository nodeRepository,
+                               WorkspaceDocumentRepository documentRepository,
+                               WorkspaceSearchService searchService,
+                               KnowledgeRetrievalService retrievalService) {
         if (workspaceId == null || workspaceId <= 0) {
             throw new IllegalArgumentException("workspaceId is required");
         }
@@ -98,6 +136,7 @@ public class WorkspaceFilesystem implements Filesystem {
         this.nodeRepository = nodeRepository;
         this.documentRepository = documentRepository;
         this.searchService = Objects.requireNonNull(searchService, "searchService");
+        this.retrievalService = retrievalService;
     }
 
     @Override
@@ -216,6 +255,65 @@ public class WorkspaceFilesystem implements Filesystem {
                 workspaceId, path, normalizedPath, candidates.size(), result.matches().size(), result.truncated(),
                 result.truncationReason(), result.searchedFiles());
         return result;
+    }
+
+    @Override
+    public FilesystemRetrievalResult retrieve(FilesystemRetrievalRequest request) {
+        if (retrievalService == null) {
+            throw new io.docpilot.filesystem.exception.UnsupportedFilesystemOperationException(
+                    "Workspace filesystem retrieval is not configured"
+            );
+        }
+
+        FilesystemRetrievalRequest retrievalRequest = request == null
+                ? new FilesystemRetrievalRequest(FilesystemPathNames.ROOT, "", FilesystemRetrievalOptions.defaults())
+                : request;
+        FilesystemRetrievalOptions options = retrievalRequest.options();
+        // Empty queries and zero-hit requests should not call the knowledge provider at all.
+        if (options.topK() == 0 || retrievalRequest.query().isBlank()) {
+            return FilesystemRetrievalResult.complete(List.of());
+        }
+
+        String normalizedPath = FilesystemPath.normalizeVirtualPath(retrievalRequest.path());
+        Workspace workspace = requireWorkspace();
+        Map<String, WorkspaceNode> paths = workspacePaths();
+        WorkspaceNode root = resolveNode(normalizedPath);
+        // Files scope retrieval to exactly that document; folders scope retrieval to descendant documents.
+        List<Map.Entry<String, WorkspaceNode>> candidates = paths.entrySet().stream()
+                .filter(entry -> entry.getValue().isDocumentResource())
+                .filter(entry -> root.isDocumentResource()
+                        ? entry.getKey().equals(normalizedPath)
+                        : FilesystemPath.isSameOrDescendant(normalizedPath, entry.getKey()))
+                .sorted(Map.Entry.comparingByKey())
+                .toList();
+        if (candidates.isEmpty()) {
+            return FilesystemRetrievalResult.complete(List.of());
+        }
+
+        Map<Long, String> pathByDocumentId = new LinkedHashMap<>();
+        for (Map.Entry<String, WorkspaceNode> candidate : candidates) {
+            // Multiple nodes should not normally reference one document, but keep the first visible path stable.
+            pathByDocumentId.putIfAbsent(candidate.getValue().getDocumentId(), candidate.getKey());
+        }
+
+        KnowledgeRetrievalRequest knowledgeRequest = new KnowledgeRetrievalRequest();
+        knowledgeRequest.setWorkspaceId(workspaceId);
+        knowledgeRequest.setOwnerUserId(workspace.getOwnerUserId());
+        knowledgeRequest.setPath(normalizedPath);
+        knowledgeRequest.setQueryText(retrievalRequest.query());
+        knowledgeRequest.setScopeDocumentIds(new ArrayList<>(pathByDocumentId.keySet()));
+        // A file path is a ranking hint for that document, not an authorization or scope substitute.
+        knowledgeRequest.setPreferredDocumentId(root.isDocumentResource() ? root.getDocumentId() : null);
+        knowledgeRequest.setLimit(options.topK());
+
+        KnowledgeRetrievalResult knowledgeResult = retrievalService.retrieve(knowledgeRequest);
+        List<FilesystemRetrievalHit> hits = knowledgeResult.chunks().stream()
+                // Keep the filesystem layer authoritative for path scope even if a provider returns extra hits.
+                .filter(chunk -> pathByDocumentId.containsKey(chunk.getDocumentId()))
+                .map(chunk -> toRetrievalHit(chunk, pathByDocumentId.get(chunk.getDocumentId()), options))
+                .limit(options.topK())
+                .toList();
+        return FilesystemRetrievalResult.complete(hits);
     }
 
     private WorkspaceNode resolveNode(String path) {
@@ -347,6 +445,43 @@ public class WorkspaceFilesystem implements Filesystem {
         }
 
         return document.getContent().getMarkdownText();
+    }
+
+    private FilesystemRetrievalHit toRetrievalHit(KnowledgeIndexedChunk chunk,
+                                                  String path,
+                                                  FilesystemRetrievalOptions options) {
+        Map<String, String> metadata = new LinkedHashMap<>();
+        putMetadata(metadata, "workspaceId", chunk.getWorkspaceId());
+        putMetadata(metadata, "documentId", chunk.getDocumentId());
+        putMetadata(metadata, "revisionId", chunk.getRevisionId());
+        putMetadata(metadata, "chunkType", chunk.getChunkType());
+        putMetadata(metadata, "blockId", chunk.getBlockId());
+        putMetadata(metadata, "blockType", chunk.getBlockType());
+        putMetadata(metadata, "chunkIndex", chunk.getChunkIndex());
+        return new FilesystemRetrievalHit(
+                path,
+                chunk.getTitle(),
+                truncate(chunk.getContent(), options.maxCharsPerHit()),
+                chunk.getScore(),
+                chunk.getHeadingPath(),
+                metadata
+        );
+    }
+
+    private void putMetadata(Map<String, String> metadata, String key, Object value) {
+        if (value != null) {
+            metadata.put(key, String.valueOf(value));
+        }
+    }
+
+    private String truncate(String value, int maxChars) {
+        if (value == null) {
+            return "";
+        }
+        if (maxChars <= 0 || value.length() <= maxChars) {
+            return value;
+        }
+        return value.substring(0, maxChars);
     }
 
     private Instant updatedAt(WorkspaceNode node) {

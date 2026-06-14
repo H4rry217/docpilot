@@ -10,6 +10,11 @@ import io.docpilot.filesystem.model.GrepResult;
 import io.docpilot.filesystem.path.FilesystemPath;
 import io.docpilot.filesystem.path.FilesystemPathNames;
 import io.docpilot.filesystem.path.GlobMatcher;
+import io.docpilot.filesystem.retrieval.FilesystemRetrieval;
+import io.docpilot.filesystem.retrieval.FilesystemRetrievalHit;
+import io.docpilot.filesystem.retrieval.FilesystemRetrievalOptions;
+import io.docpilot.filesystem.retrieval.FilesystemRetrievalRequest;
+import io.docpilot.filesystem.retrieval.FilesystemRetrievalResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,10 +35,16 @@ import java.util.function.Predicate;
 /**
  * Filesystem implementation that delegates paths to mounted child filesystems.
  */
-public class CompositeFilesystem implements Filesystem {
+public class CompositeFilesystem implements Filesystem, FilesystemRetrieval {
 
+    /**
+     * Logger for filesystem composition operations.
+     */
     private static final Logger log = LoggerFactory.getLogger(CompositeFilesystem.class);
 
+    /**
+     * Mounted children ordered by insertion and resolved by longest matching mount path.
+     */
     private final List<MountedFilesystem> mounts = new CopyOnWriteArrayList<>();
 
     public CompositeFilesystem mount(String mountPath, Filesystem filesystem) {
@@ -271,6 +282,27 @@ public class CompositeFilesystem implements Filesystem {
     }
 
     @Override
+    public FilesystemRetrievalResult retrieve(FilesystemRetrievalRequest request) {
+        FilesystemRetrievalRequest retrievalRequest = request == null
+                ? new FilesystemRetrievalRequest(FilesystemPathNames.ROOT, "", FilesystemRetrievalOptions.defaults())
+                : request;
+        String normalizedPath = FilesystemPath.normalizeVirtualPath(retrievalRequest.path());
+        RetrievalAccumulator accumulator = new RetrievalAccumulator(retrievalRequest.options());
+        log.debug("composite filesystem retrieve start path={} normalizedPath={} queryLength={} topK={}",
+                retrievalRequest.path(), normalizedPath,
+                retrievalRequest.query() == null ? 0 : retrievalRequest.query().length(),
+                retrievalRequest.options().topK());
+
+        walkRetrieve(normalizedPath, retrievalRequest, accumulator, new HashSet<>());
+
+        FilesystemRetrievalResult result = accumulator.toResult();
+        log.debug("composite filesystem retrieve done path={} normalizedPath={} hits={} truncated={} reason={} searchedMounts={}",
+                retrievalRequest.path(), normalizedPath, result.hits().size(), result.truncated(),
+                result.truncationReason(), result.searchedMounts());
+        return result;
+    }
+
+    @Override
     public Optional<String> readUrl(String path) {
         String normalizedPath = FilesystemPath.normalizeVirtualPath(path);
         MountedFilesystem mounted = requireResolved(normalizedPath);
@@ -381,6 +413,88 @@ public class CompositeFilesystem implements Filesystem {
 
         for (MountedFilesystem descendant : topLevelMounts(descendantMounts)) {
             walkGrep(descendant.mountPath(), text, accumulator, visited);
+        }
+    }
+
+    private boolean walkRetrieve(String path,
+                                 FilesystemRetrievalRequest request,
+                                 RetrievalAccumulator accumulator,
+                                 Set<String> visited) {
+        String normalizedPath = FilesystemPath.normalizeVirtualPath(path);
+        if (!visited.add(normalizedPath)) {
+            return false;
+        }
+
+        Optional<MountedFilesystem> mounted = resolve(normalizedPath);
+        List<MountedFilesystem> descendantMounts = descendantMounts(normalizedPath);
+        boolean searched = false;
+
+        if (mounted.isPresent()) {
+            // Search the resolved mount first, excluding paths owned by deeper mounts.
+            List<String> excludedMountPaths = descendantMounts.stream()
+                    .map(MountedFilesystem::mountPath)
+                    .toList();
+            searched = retrieveMounted(mounted.get(), normalizedPath, request, accumulator, excludedMountPaths);
+        } else if (descendantMounts.isEmpty()) {
+            throw new FileNotFoundException("No filesystem mount for " + normalizedPath);
+        }
+
+        for (MountedFilesystem descendant : topLevelMounts(descendantMounts)) {
+            // Descendant mount searches start from their own visible mount path so returned hits map correctly.
+            FilesystemRetrievalRequest descendantRequest = new FilesystemRetrievalRequest(
+                    descendant.mountPath(),
+                    request.query(),
+                    request.options()
+            );
+            searched = walkRetrieve(descendant.mountPath(), descendantRequest, accumulator, visited) || searched;
+        }
+
+        if (!searched && mounted.isPresent() && descendantMounts.isEmpty()) {
+            // A leaf path resolved to a mount, but no filesystem in that branch exposes retrieval.
+            throw new UnsupportedFilesystemOperationException(
+                    "Filesystem mount " + mounted.get().mountPath() + " does not support retrieval"
+            );
+        }
+        return searched;
+    }
+
+    private boolean retrieveMounted(MountedFilesystem mounted,
+                                    String normalizedPath,
+                                    FilesystemRetrievalRequest request,
+                                    RetrievalAccumulator accumulator,
+                                    List<String> excludedMountPaths) {
+        if (!mounted.options().allows(FilesystemCapability.RETRIEVE)
+                || !(mounted.filesystem() instanceof FilesystemRetrieval retrieval)) {
+            return false;
+        }
+
+        // Nested composite filesystems report their own leaf search count.
+        boolean leafMount = !(mounted.filesystem() instanceof CompositeFilesystem);
+        if (leafMount) {
+            accumulator.incrementSearchedMounts();
+        }
+
+        FilesystemRetrievalRequest childRequest = new FilesystemRetrievalRequest(
+                mounted.toTargetPath(normalizedPath),
+                request.query(),
+                request.options()
+        );
+        try {
+            FilesystemRetrievalResult result = retrieval.retrieve(childRequest);
+            accumulator.addResult(
+                    result,
+                    mounted::toMountHit,
+                    // Preserve longest-prefix overlay semantics by dropping hits from deeper mount paths.
+                    hit -> excludedMountPaths.stream()
+                            .noneMatch(excludedPath -> FilesystemPath.isSameOrDescendant(excludedPath, hit.path()))
+            );
+            return true;
+        } catch (FileNotFoundException exception) {
+            // Parent mounts may not contain an ancestor path that only exists because of descendant mounts.
+            if (excludedMountPaths.isEmpty()) {
+                throw exception;
+            }
+            return false;
         }
     }
 
@@ -538,6 +652,85 @@ public class CompositeFilesystem implements Filesystem {
 
         private GrepResult toResult() {
             return new GrepResult(matches, truncated(), truncationReason, searchedMounts, searchedFiles);
+        }
+
+    }
+
+    private static class RetrievalAccumulator {
+
+        /**
+         * Caller retrieval options after default normalization.
+         */
+        private final FilesystemRetrievalOptions options;
+
+        /**
+         * All mapped hits collected from child filesystems before global ranking.
+         */
+        private final List<FilesystemRetrievalHit> hits = new ArrayList<>();
+
+        /**
+         * Leaf filesystem count consulted across all mounted retrieval branches.
+         */
+        private long searchedMounts;
+
+        /**
+         * First child truncation reason kept when global topK did not truncate first.
+         */
+        private String truncationReason;
+
+        private RetrievalAccumulator(FilesystemRetrievalOptions options) {
+            this.options = FilesystemRetrievalOptions.effective(options);
+        }
+
+        private void incrementSearchedMounts() {
+            searchedMounts++;
+        }
+
+        private void addResult(FilesystemRetrievalResult result,
+                               Function<FilesystemRetrievalHit, FilesystemRetrievalHit> mapper,
+                               Predicate<FilesystemRetrievalHit> include) {
+            searchedMounts += result.searchedMounts();
+            for (FilesystemRetrievalHit hit : result.hits()) {
+                FilesystemRetrievalHit mappedHit = mapper.apply(hit);
+                if (include.test(mappedHit)) {
+                    hits.add(mappedHit);
+                }
+            }
+            if (result.truncated() && truncationReason == null) {
+                truncationReason = result.truncationReason();
+            }
+        }
+
+        private FilesystemRetrievalResult toResult() {
+            // Composite-level ranking is applied after every child hit has been remapped to the caller path space.
+            List<FilesystemRetrievalHit> rankedHits = hits.stream()
+                    .sorted(Comparator
+                            .comparingDouble(RetrievalAccumulator::scoreValue)
+                            .reversed()
+                            .thenComparing(hit -> hit.path() == null ? "" : hit.path()))
+                    .toList();
+            boolean topKTruncated = rankedHits.size() > options.topK();
+            List<FilesystemRetrievalHit> limitedHits = rankedHits.stream()
+                    .limit(options.topK())
+                    .toList();
+            if (topKTruncated) {
+                return FilesystemRetrievalResult.truncated(
+                        limitedHits,
+                        FilesystemRetrievalResult.TRUNCATED_BY_TOP_K,
+                        searchedMounts
+                );
+            }
+            if (truncationReason != null) {
+                return FilesystemRetrievalResult.truncated(limitedHits, truncationReason, searchedMounts);
+            }
+            return FilesystemRetrievalResult.complete(limitedHits, searchedMounts);
+        }
+
+        private static double scoreValue(FilesystemRetrievalHit hit) {
+            if (hit == null || hit.score() == null || hit.score().isNaN()) {
+                return 0.0D;
+            }
+            return hit.score();
         }
 
     }

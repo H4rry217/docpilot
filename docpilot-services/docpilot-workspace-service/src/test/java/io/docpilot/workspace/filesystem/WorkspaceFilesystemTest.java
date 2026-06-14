@@ -2,9 +2,19 @@ package io.docpilot.workspace.filesystem;
 
 import io.docpilot.filesystem.CompositeFilesystem;
 import io.docpilot.filesystem.Filesystem;
+import io.docpilot.filesystem.retrieval.FilesystemRetrievalHit;
+import io.docpilot.filesystem.retrieval.FilesystemRetrievalOptions;
+import io.docpilot.filesystem.retrieval.FilesystemRetrievalRequest;
+import io.docpilot.filesystem.retrieval.FilesystemRetrievalResult;
 import io.docpilot.filesystem.model.GrepOptions;
 import io.docpilot.filesystem.model.GrepResult;
 import io.docpilot.filesystem.model.FileEntry;
+import io.docpilot.workspace.knowledge.KnowledgeRetrievalProvider;
+import io.docpilot.workspace.knowledge.KnowledgeRetrievalService;
+import io.docpilot.workspace.knowledge.config.KnowledgeProperties;
+import io.docpilot.workspace.knowledge.model.KnowledgeIndexedChunk;
+import io.docpilot.workspace.knowledge.model.KnowledgeRetrievalRequest;
+import io.docpilot.workspace.knowledge.model.KnowledgeRetrievalResult;
 import io.docpilot.workspace.enums.WorkspaceNodeType;
 import io.docpilot.workspace.enums.WorkspaceResourceType;
 import io.docpilot.workspace.model.entity.Workspace;
@@ -104,6 +114,61 @@ class WorkspaceFilesystemTest {
         assertThat(matchLimited.truncationReason()).isEqualTo(GrepResult.TRUNCATED_BY_MAX_MATCHES);
     }
 
+    @Test
+    void workspaceFilesystemRetrievalScopesFilePathAndMapsHitsBackToPath() {
+        CapturingRetrievalProvider provider = new CapturingRetrievalProvider();
+        WorkspaceFilesystem retrievalFilesystem = new WorkspaceFilesystem(
+                1L,
+                workspaceRepository,
+                nodeRepository,
+                documentRepository,
+                retrievalService(provider)
+        );
+
+        FilesystemRetrievalResult result = retrievalFilesystem.retrieve(new FilesystemRetrievalRequest(
+                "/docs/a.md",
+                "alpha",
+                new FilesystemRetrievalOptions(3, 12)
+        ));
+
+        assertThat(provider.request.getWorkspaceId()).isEqualTo(1L);
+        assertThat(provider.request.getOwnerUserId()).isEqualTo(7L);
+        assertThat(provider.request.getPath()).isEqualTo("/docs/a.md");
+        assertThat(provider.request.getScopeDocumentIds()).containsExactly(1000L);
+        assertThat(provider.request.getPreferredDocumentId()).isEqualTo(1000L);
+        assertThat(provider.request.getIncludeChunkTypes()).isEmpty();
+        assertThat(result.hits())
+                .extracting(FilesystemRetrievalHit::path)
+                .containsExactly("/docs/a.md");
+        assertThat(result.hits().getFirst().snippet()).isEqualTo("alpha conten");
+        assertThat(result.hits().getFirst().metadata()).containsEntry("documentId", "1000");
+    }
+
+    @Test
+    void workspaceFilesystemRetrievalScopesFolderPathToDescendantDocuments() {
+        addDocument(1L, "b.md", "alpha beta", 3L);
+        CapturingRetrievalProvider provider = new CapturingRetrievalProvider();
+        WorkspaceFilesystem retrievalFilesystem = new WorkspaceFilesystem(
+                1L,
+                workspaceRepository,
+                nodeRepository,
+                documentRepository,
+                retrievalService(provider)
+        );
+
+        FilesystemRetrievalResult result = retrievalFilesystem.retrieve(new FilesystemRetrievalRequest(
+                "/docs",
+                "alpha",
+                new FilesystemRetrievalOptions(5, 100)
+        ));
+
+        assertThat(provider.request.getScopeDocumentIds()).containsExactly(1000L, 1003L);
+        assertThat(provider.request.getPreferredDocumentId()).isNull();
+        assertThat(result.hits())
+                .extracting(FilesystemRetrievalHit::path)
+                .containsExactly("/docs/a.md", "/docs/b.md");
+    }
+
     private void addWorkspace(Long workspaceId, Long ownerUserId, String name, String markdown) {
         Workspace workspace = new Workspace();
         workspace.setId(workspaceId);
@@ -166,6 +231,46 @@ class WorkspaceFilesystemTest {
         document.setContent(content);
         document.markCreated();
         documentRepository.save(document);
+    }
+
+    private KnowledgeRetrievalService retrievalService(KnowledgeRetrievalProvider provider) {
+        KnowledgeProperties properties = new KnowledgeProperties();
+        properties.setEnabled(true);
+        return new KnowledgeRetrievalService(properties, provider);
+    }
+
+    private static class CapturingRetrievalProvider implements KnowledgeRetrievalProvider {
+
+        private KnowledgeRetrievalRequest request;
+
+        @Override
+        public KnowledgeRetrievalResult retrieve(KnowledgeRetrievalRequest request) {
+            this.request = request;
+            List<KnowledgeIndexedChunk> chunks = new java.util.ArrayList<>();
+            for (Long documentId : request.getScopeDocumentIds()) {
+                KnowledgeIndexedChunk chunk = new KnowledgeIndexedChunk();
+                chunk.setWorkspaceId(request.getWorkspaceId());
+                chunk.setDocumentId(documentId);
+                chunk.setRevisionId(10L);
+                chunk.setTitle("Doc " + documentId);
+                chunk.setChunkType("BLOCK");
+                chunk.setBlockId("block-" + documentId);
+                chunk.setBlockType("PARAGRAPH");
+                chunk.setChunkIndex(0);
+                chunk.setHeadingPath(List.of("Heading"));
+                chunk.setContent("alpha content for " + documentId);
+                chunk.setScore(documentId.equals(request.getPreferredDocumentId()) ? 2.0D : 1.0D);
+                chunks.add(chunk);
+            }
+
+            KnowledgeIndexedChunk outsideScope = new KnowledgeIndexedChunk();
+            outsideScope.setWorkspaceId(request.getWorkspaceId());
+            outsideScope.setDocumentId(9999L);
+            outsideScope.setChunkType("BLOCK");
+            outsideScope.setContent("outside");
+            chunks.add(outsideScope);
+            return new KnowledgeRetrievalResult(chunks);
+        }
     }
 
     private WorkspaceNode folder(Long id, Long workspaceId, Long parentNodeId, List<Long> ancestors, String name) {

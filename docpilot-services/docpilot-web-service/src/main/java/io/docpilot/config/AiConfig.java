@@ -14,11 +14,13 @@ import java.util.Map;
 public class AiConfig {
 
     private String defaultModelId = "default";
-    private Map<String, Model> models = new LinkedHashMap<>();
+    private Map<String, ChatModel> models = new LinkedHashMap<>();
+    private String defaultEmbeddingModelId = "default";
+    private Map<String, EmbeddingModel> embeddings = new LinkedHashMap<>();
 
     @Getter
     @Setter
-    public static class Model {
+    public static class BaseModel {
 
         private boolean enabled = true;
         private String provider = "openai-compatible";
@@ -26,10 +28,25 @@ public class AiConfig {
         private String apiKey;
         private String model;
         private String displayName;
-        private Integer contextWindowTokens;
-        private Integer maxOutputTokens;
         private Map<String, Object> metadata = new LinkedHashMap<>();
         private Duration timeout = Duration.ofSeconds(60);
+
+    }
+
+    @Getter
+    @Setter
+    public static class ChatModel extends BaseModel {
+
+        private Integer contextWindowTokens;
+        private Integer maxOutputTokens;
+
+    }
+
+    @Getter
+    @Setter
+    public static class EmbeddingModel extends BaseModel {
+
+        private Integer dimensions;
 
     }
 

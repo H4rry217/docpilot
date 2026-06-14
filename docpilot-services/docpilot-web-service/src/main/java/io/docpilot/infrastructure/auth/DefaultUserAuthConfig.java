@@ -20,6 +20,11 @@ public class DefaultUserAuthConfig {
     private boolean initSchema = true;
 
     /**
+     * Allows public account registration through the built-in auth implementation.
+     */
+    private boolean allowRegistration = true;
+
+    /**
      * Optional server-side password pepper. Keep production values outside the database.
      */
     private String passwordPepper = "";
@@ -29,22 +34,8 @@ public class DefaultUserAuthConfig {
      */
     private int passwordIterations = 600000;
 
-    private final Datasource datasource = new Datasource();
-
     public void setPasswordPepper(String passwordPepper) {
         this.passwordPepper = passwordPepper == null ? "" : passwordPepper;
-    }
-
-    @Getter
-    @Setter
-    public static class Datasource {
-
-        private String url = "jdbc:mysql://127.0.0.1:3306/docpilot?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC";
-
-        private String username = "docpilot";
-
-        private String password = "";
-
     }
 
 }

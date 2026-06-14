@@ -5,7 +5,9 @@ spring:
       ddl-auto: none
   data:
     mongodb:
-      uri: mongodb://127.0.0.1:27017/docpilot-test
+      host: 127.0.0.1
+      port: 27017
+      database: docpilot-test
 
 docpilot:
   id:

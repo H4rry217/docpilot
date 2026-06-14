@@ -19,6 +19,14 @@ public interface DocumentRevisionRepository {
     DocumentRevision save(DocumentRevision revision);
 
     /**
+     * Finds one revision by its immutable revision id.
+     *
+     * @param revisionId revision id.
+     * @return revision when found.
+     */
+    Optional<DocumentRevision> findById(Long revisionId);
+
+    /**
      * Finds a revision already written for a client mutation id on one document.
      *
      * @param documentId document aggregate id.

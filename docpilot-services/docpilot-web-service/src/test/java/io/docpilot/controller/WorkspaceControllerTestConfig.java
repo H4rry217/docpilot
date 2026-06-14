@@ -177,6 +177,11 @@ class WorkspaceControllerTestConfig {
         }
 
         @Override
+        public Optional<DocumentRevision> findById(Long revisionId) {
+            return Optional.ofNullable(revisions.get(revisionId));
+        }
+
+        @Override
         public Optional<DocumentRevision> findByDocumentIdAndClientMutationId(Long documentId, String clientMutationId) {
             return revisions.values().stream()
                     .filter(revision -> documentId.equals(revision.getDocumentId()))

@@ -4,15 +4,31 @@ import io.docpilot.filesystem.model.FileEntry;
 import io.docpilot.filesystem.model.GrepMatch;
 import io.docpilot.filesystem.path.FilesystemPath;
 import io.docpilot.filesystem.path.FilesystemPathNames;
+import io.docpilot.filesystem.retrieval.FilesystemRetrievalHit;
 import org.apache.commons.lang3.StringUtils;
 
 /**
  * One mount edge from a composite path to a target filesystem path.
  */
 public record MountedFilesystem(
+        /**
+         * Caller-visible path prefix owned by this mount.
+         */
         String mountPath,
+
+        /**
+         * Child filesystem that handles paths under this mount edge.
+         */
         Filesystem filesystem,
+
+        /**
+         * Child filesystem path prefix that mount paths are rebased onto.
+         */
         String targetRoot,
+
+        /**
+         * Capability policy enforced by the composite layer.
+         */
         MountOptions options
 ) {
 
@@ -63,6 +79,10 @@ public record MountedFilesystem(
 
     public GrepMatch toMountMatch(GrepMatch match) {
         return new GrepMatch(toMountPath(match.path()), match.lineNumber(), match.line());
+    }
+
+    public FilesystemRetrievalHit toMountHit(FilesystemRetrievalHit hit) {
+        return hit.withPath(toMountPath(hit.path()));
     }
 
 }

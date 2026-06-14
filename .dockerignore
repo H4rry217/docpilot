@@ -1,0 +1,15 @@
+.git
+.idea
+.vscode
+logs
+target
+**/target
+node_modules
+**/node_modules
+dist
+**/dist
+.mvn/wrapper/maven-wrapper.jar
+
+# Local-only secrets must never be sent to the Docker build context.
+docpilot-services/docpilot-web-service/src/main/resources/application-local.yml
+docpilot-services/docpilot-web-service/src/main/resources/application-local.yaml

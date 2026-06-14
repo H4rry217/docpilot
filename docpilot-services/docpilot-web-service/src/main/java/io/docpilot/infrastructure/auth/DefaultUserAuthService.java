@@ -4,6 +4,7 @@ import io.docpilot.common.auth.AuthContextProvider;
 import io.docpilot.common.auth.AuthSubject;
 import io.docpilot.common.exception.BadRequestException;
 import io.docpilot.common.exception.ConflictException;
+import io.docpilot.common.exception.ForbiddenException;
 import io.docpilot.common.exception.UnauthorizedException;
 import io.docpilot.common.web.logging.LogMask;
 import io.docpilot.user.model.UserInformation;
@@ -24,19 +25,25 @@ public class DefaultUserAuthService {
     private final DefaultUserAccountRepository accountRepository;
     private final PasswordHasher passwordHasher;
     private final DefaultJwtIssuer jwtIssuer;
+    private final boolean allowRegistration;
     private final AuthContextProvider authContextProvider;
 
     public DefaultUserAuthService(DefaultUserAccountRepository accountRepository,
                                   PasswordHasher passwordHasher,
                                   DefaultJwtIssuer jwtIssuer,
+                                  boolean allowRegistration,
                                   AuthContextProvider authContextProvider) {
         this.accountRepository = accountRepository;
         this.passwordHasher = passwordHasher;
         this.jwtIssuer = jwtIssuer;
+        this.allowRegistration = allowRegistration;
         this.authContextProvider = authContextProvider;
     }
 
     public UserInformation register(String email, String password, String displayName) {
+        if (!allowRegistration) {
+            throw new ForbiddenException("Registration is disabled");
+        }
         String normalizedEmail = normalizeEmail(email);
         validatePassword(password);
         String normalizedDisplayName = normalizeDisplayName(displayName, normalizedEmail);

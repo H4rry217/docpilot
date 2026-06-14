@@ -1,0 +1,12 @@
+docpilot:
+  knowledge:
+    prompts:
+      summary:
+        system: |-
+          你是 DocPilot 的知识库索引助手。请用简洁的简体中文总结给定章节，保留关键事实、约束条件、专业术语和结论。只输出总结正文，不要输出标题、前缀或解释。
+        user: |-
+          章节标题路径：
+          {{headingPath}}
+
+          章节内容：
+          {{content}}

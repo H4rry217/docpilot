@@ -15,6 +15,7 @@ import io.docpilot.workspace.model.entity.Workspace;
 import io.docpilot.workspace.model.entity.WorkspaceNode;
 import io.docpilot.workspace.enums.WorkspaceNodeType;
 import io.docpilot.workspace.enums.WorkspaceType;
+import io.docpilot.workspace.knowledge.event.DocumentKnowledgeDeletedEvent;
 import io.docpilot.workspace.model.request.CreateFolderCommand;
 import io.docpilot.workspace.model.response.WorkspaceListResponse;
 import io.docpilot.workspace.model.response.WorkspaceNodeResponse;
@@ -26,6 +27,9 @@ import io.docpilot.workspace.repository.WorkspaceDocumentRepository;
 import io.docpilot.workspace.repository.WorkspaceNodeRepository;
 import io.docpilot.workspace.repository.WorkspaceRepository;
 import lombok.Setter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -36,6 +40,8 @@ import java.util.Objects;
 @Setter
 public class WorkspaceApplicationService {
 
+    private static final Logger log = LoggerFactory.getLogger(WorkspaceApplicationService.class);
+
     private WorkspaceRepository workspaceRepository;
     private WorkspaceNodeRepository nodeRepository;
     private WorkspaceDocumentRepository documentRepository;
@@ -44,6 +50,7 @@ public class WorkspaceApplicationService {
     private WorkspaceIdCodec idCodec;
     private WorkspaceNodeName workspaceNodeName;
     private WorkspaceTransactionRunner transactionRunner;
+    private ApplicationEventPublisher eventPublisher;
     private Clock clock = Clock.systemDefaultZone();
 
     public WorkspaceResponse ensureDefaultWorkspace() {
@@ -107,6 +114,7 @@ public class WorkspaceApplicationService {
                 node.markUpdated();
                 if (node.isDocumentResource()) {
                     softDeleteDocument(node.getDocumentId());
+                    publishDocumentDeleted(node.getWorkspaceId(), node.getDocumentId());
                 }
             });
             nodeRepository.saveAll(nodes);
@@ -216,6 +224,7 @@ public class WorkspaceApplicationService {
                 candidate.markUpdated();
                 if (candidate.isDocumentResource()) {
                     softDeleteDocument(candidate.getDocumentId());
+                    publishDocumentDeleted(candidate.getWorkspaceId(), candidate.getDocumentId());
                 }
             });
             nodeRepository.saveAll(nodes);
@@ -353,6 +362,16 @@ public class WorkspaceApplicationService {
             document.markUpdated();
             documentRepository.save(document);
         });
+    }
+
+    private void publishDocumentDeleted(Long workspaceId, Long documentId) {
+        if (eventPublisher == null) {
+            log.warn("document knowledge deleted event skipped reason=no_event_publisher workspaceId={} documentId={}",
+                    workspaceId, documentId);
+            return;
+        }
+        log.info("document knowledge deleted event published workspaceId={} documentId={}", workspaceId, documentId);
+        eventPublisher.publishEvent(new DocumentKnowledgeDeletedEvent(workspaceId, documentId));
     }
 
     private WorkspaceResponse toResponse(Workspace workspace) {

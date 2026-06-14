@@ -34,6 +34,27 @@ class DefaultUserAuthSettingsStoreTest {
     }
 
     @Test
+    void createsAndReusesGeneratedJwtSecret() {
+        DriverManagerDataSource dataSource = dataSource();
+        DefaultUserAuthSettingsStore firstStore = new DefaultUserAuthSettingsStore(dataSource, true);
+
+        String firstSecret = firstStore.jwtSecret("");
+        String sameStoreSecret = firstStore.jwtSecret(null);
+        String secondStoreSecret = new DefaultUserAuthSettingsStore(dataSource, true).jwtSecret("");
+
+        assertThat(firstSecret).isNotBlank();
+        assertThat(sameStoreSecret).isEqualTo(firstSecret);
+        assertThat(secondStoreSecret).isEqualTo(firstSecret);
+    }
+
+    @Test
+    void configuredJwtSecretWins() {
+        DefaultUserAuthSettingsStore store = new DefaultUserAuthSettingsStore(dataSource(), true);
+
+        assertThat(store.jwtSecret("configured-jwt-secret")).isEqualTo("configured-jwt-secret");
+    }
+
+    @Test
     void existingUsersKeepBlankPasswordPepperForCompatibility() {
         DriverManagerDataSource dataSource = dataSource();
         JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);

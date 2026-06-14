@@ -12,11 +12,14 @@ import io.docpilot.common.web.auth.RequireAuthInterceptor;
 import io.docpilot.common.web.filter.RequestLoggingFilter;
 import io.docpilot.common.web.filter.RequestLoggingConfig;
 import io.docpilot.common.web.filter.RequestTraceFilter;
+import io.docpilot.common.web.logging.MdcTaskDecorator;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.task.ThreadPoolTaskExecutorCustomizer;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.task.TaskDecorator;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 
 @Configuration
@@ -54,6 +57,17 @@ public class DocPilotWebCommonConfig {
     @Bean
     public RequestLoggingFilter requestLoggingFilter(ObjectMapper objectMapper, RequestLoggingConfig config) {
         return new RequestLoggingFilter(objectMapper, config);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(TaskDecorator.class)
+    public TaskDecorator mdcTaskDecorator() {
+        return new MdcTaskDecorator();
+    }
+
+    @Bean
+    public ThreadPoolTaskExecutorCustomizer mdcThreadPoolTaskExecutorCustomizer(TaskDecorator taskDecorator) {
+        return executor -> executor.setTaskDecorator(taskDecorator);
     }
 
     @Bean

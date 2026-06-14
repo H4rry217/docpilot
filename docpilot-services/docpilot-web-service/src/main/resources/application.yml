@@ -1,13 +1,33 @@
 spring:
+  config:
+    import:
+      - classpath:docpilot-prompts.yml
+      - optional:classpath:application-local.yml
   application:
     name: docpilot
   jpa:
     open-in-view: false
     hibernate:
       ddl-auto: none
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://127.0.0.1:3306/docpilot?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC}
+    username: ${SPRING_DATASOURCE_USERNAME:docpilot}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
   data:
     mongodb:
-      uri: ${DOCPILOT_MONGODB_URI:mongodb://127.0.0.1:27017/docpilot}
+      host: ${SPRING_DATA_MONGODB_HOST:127.0.0.1}
+      port: ${SPRING_DATA_MONGODB_PORT:27017}
+      database: ${SPRING_DATA_MONGODB_DATABASE:docpilot}
+      authentication-database: ${SPRING_DATA_MONGODB_AUTHENTICATION_DATABASE:admin}
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:127.0.0.1}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      database: ${SPRING_DATA_REDIS_DATABASE:0}
+      username: ${SPRING_DATA_REDIS_USERNAME:}
+      password: ${SPRING_DATA_REDIS_PASSWORD:}
+
+  elasticsearch:
+    uris: http://localhost:9200
 
 server:
   port: 11451
@@ -19,13 +39,27 @@ docpilot:
     machine-id: ${DOCPILOT_ID_MACHINE_ID:1}
   auth:
     jwt:
+      secret: ${DOCPILOT_AUTH_JWT_SECRET:DOCPILOT_SECRET}
       access-token-ttl-seconds: 604800
     default-user:
       enabled: true
       init-schema: true
+      allow-registration: ${DOCPILOT_AUTH_ALLOW_REGISTRATION:true}
       password-pepper: ${DOCPILOT_AUTH_PASSWORD_PEPPER:}
       password-iterations: ${DOCPILOT_AUTH_PASSWORD_ITERATIONS:600000}
-      datasource:
-        url: ${DOCPILOT_AUTH_DB_URL:jdbc:mysql://127.0.0.1:3306/docpilot?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC}
-        username: ${DOCPILOT_AUTH_DB_USERNAME:docpilot}
-        password: ${DOCPILOT_AUTH_DB_PASSWORD:}
+  knowledge:
+    enabled: ${DOCPILOT_KNOWLEDGE_ENABLED:false}
+    index-name: ${DOCPILOT_KNOWLEDGE_INDEX_NAME:docpilot_knowledge_chunk_search}
+    embedding-model-id: ${DOCPILOT_KNOWLEDGE_EMBEDDING_MODEL_ID:main-embedding}
+    summary-model-id: ${DOCPILOT_KNOWLEDGE_SUMMARY_MODEL_ID:main-chat}
+    summary-concurrency: ${DOCPILOT_KNOWLEDGE_SUMMARY_CONCURRENCY:3}
+    embedding-batch-size: ${DOCPILOT_KNOWLEDGE_EMBEDDING_BATCH_SIZE:10}
+    index:
+      mode: ${DOCPILOT_KNOWLEDGE_INDEX_MODE:redis}
+      debounce-delay-ms: ${DOCPILOT_KNOWLEDGE_INDEX_DEBOUNCE_DELAY_MS:3000}
+      max-delay-ms: ${DOCPILOT_KNOWLEDGE_INDEX_MAX_DELAY_MS:30000}
+      poll-interval-ms: ${DOCPILOT_KNOWLEDGE_INDEX_POLL_INTERVAL_MS:1000}
+      worker-batch-size: ${DOCPILOT_KNOWLEDGE_INDEX_WORKER_BATCH_SIZE:20}
+      lock-ttl-ms: ${DOCPILOT_KNOWLEDGE_INDEX_LOCK_TTL_MS:1800000}
+      retry-delay-ms: ${DOCPILOT_KNOWLEDGE_INDEX_RETRY_DELAY_MS:10000}
+      job-ttl-ms: ${DOCPILOT_KNOWLEDGE_INDEX_JOB_TTL_MS:86400000}

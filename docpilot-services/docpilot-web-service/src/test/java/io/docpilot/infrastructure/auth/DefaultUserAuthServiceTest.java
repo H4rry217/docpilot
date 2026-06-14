@@ -3,6 +3,7 @@ package io.docpilot.infrastructure.auth;
 import io.docpilot.common.auth.AuthSubject;
 import io.docpilot.common.auth.AuthSubjectContext;
 import io.docpilot.common.exception.ConflictException;
+import io.docpilot.common.exception.ForbiddenException;
 import io.docpilot.common.exception.UnauthorizedException;
 import io.docpilot.common.web.auth.DocPilotJwtConfig;
 import io.docpilot.user.model.UserInformation;
@@ -23,6 +24,7 @@ class DefaultUserAuthServiceTest {
             repository,
             passwordHasher,
             new DefaultJwtIssuer(new DocPilotJwtConfig()),
+            true,
             AuthSubjectContext::currentSubject
     );
 
@@ -41,6 +43,22 @@ class DefaultUserAuthServiceTest {
 
         assertThatThrownBy(() -> authService.register(" ALICE@example.com ", "password123", "Alice"))
                 .isInstanceOf(ConflictException.class);
+    }
+
+    @Test
+    void registerRejectsWhenRegistrationIsDisabled() {
+        DefaultUserAuthService disabledAuthService = new DefaultUserAuthService(
+                repository,
+                passwordHasher,
+                new DefaultJwtIssuer(new DocPilotJwtConfig()),
+                false,
+                AuthSubjectContext::currentSubject
+        );
+
+        assertThatThrownBy(() -> disabledAuthService.register("alice@example.com", "password123", "Alice"))
+                .isInstanceOf(ForbiddenException.class)
+                .hasMessage("Registration is disabled");
+        assertThat(repository.findByEmail("alice@example.com")).isEmpty();
     }
 
     @Test

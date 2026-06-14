@@ -1,0 +1,195 @@
+services:
+  docpilot-web:
+    build: .
+    image: docpilot:latest
+    restart: unless-stopped
+    ports:
+      - "${DOCPILOT_WEB_PORT:-11451}:11451"
+    depends_on:
+      # If you use existing external services, comment out this depends_on block.
+      docpilot-mysql:
+        condition: service_healthy
+      docpilot-mongo:
+        condition: service_healthy
+      docpilot-redis:
+        condition: service_healthy
+      docpilot-elasticsearch:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: 11451
+      JAVA_OPTS: ${JAVA_OPTS:-}
+
+      # Bundled services default values.
+      # If you use existing services, change these to your own service addresses.
+      # Examples:
+      # SPRING_DATA_MONGODB_HOST: host.docker.internal
+      # SPRING_DATA_MONGODB_PORT: 27017
+      # SPRING_DATA_MONGODB_DATABASE: docpilot
+      # SPRING_DATA_MONGODB_USERNAME: mongoadmin
+      # SPRING_DATA_MONGODB_PASSWORD: change-me
+      # SPRING_DATA_MONGODB_AUTHENTICATION_DATABASE: admin
+      # SPRING_DATA_MONGODB_REPLICA_SET_NAME: rs0
+      # SPRING_DATA_REDIS_HOST: host.docker.internal
+      # SPRING_DATA_REDIS_PORT: 6379
+      # SPRING_DATA_REDIS_DATABASE: 0
+      # SPRING_DATA_REDIS_USERNAME:
+      # SPRING_DATA_REDIS_PASSWORD:
+      # SPRING_ELASTICSEARCH_URIS: http://host.docker.internal:9200
+      # SPRING_DATASOURCE_URL: jdbc:mysql://host.docker.internal:3306/docpilot?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+      SPRING_DATA_MONGODB_HOST: ${SPRING_DATA_MONGODB_HOST:-docpilot-mongo}
+      SPRING_DATA_MONGODB_PORT: ${SPRING_DATA_MONGODB_PORT:-27017}
+      SPRING_DATA_MONGODB_DATABASE: ${SPRING_DATA_MONGODB_DATABASE:-docpilot}
+      SPRING_DATA_MONGODB_AUTHENTICATION_DATABASE: ${SPRING_DATA_MONGODB_AUTHENTICATION_DATABASE:-admin}
+      SPRING_DATA_MONGODB_REPLICA_SET_NAME: ${SPRING_DATA_MONGODB_REPLICA_SET_NAME:-rs0}
+      SPRING_DATA_MONGODB_USERNAME:
+      SPRING_DATA_MONGODB_PASSWORD:
+      SPRING_DATA_REDIS_HOST: ${SPRING_DATA_REDIS_HOST:-docpilot-redis}
+      SPRING_DATA_REDIS_PORT: ${SPRING_DATA_REDIS_PORT:-6379}
+      SPRING_DATA_REDIS_DATABASE: ${SPRING_DATA_REDIS_DATABASE:-0}
+      SPRING_DATA_REDIS_USERNAME: ${SPRING_DATA_REDIS_USERNAME:-}
+      SPRING_DATA_REDIS_PASSWORD: ${SPRING_DATA_REDIS_PASSWORD:-}
+      SPRING_ELASTICSEARCH_URIS: ${SPRING_ELASTICSEARCH_URIS:-http://docpilot-elasticsearch:9200}
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:-jdbc:mysql://docpilot-mysql:3306/docpilot?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-docpilot}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-docpilot}
+      DOCPILOT_AUTH_JWT_SECRET: ${DOCPILOT_AUTH_JWT_SECRET:-}
+      DOCPILOT_AUTH_ALLOW_REGISTRATION: ${DOCPILOT_AUTH_ALLOW_REGISTRATION:-true}
+      DOCPILOT_AUTH_PASSWORD_PEPPER: ${DOCPILOT_AUTH_PASSWORD_PEPPER:-}
+
+      DOCPILOT_KNOWLEDGE_ENABLED: ${DOCPILOT_KNOWLEDGE_ENABLED:-false}
+      DOCPILOT_KNOWLEDGE_INDEX_NAME: ${DOCPILOT_KNOWLEDGE_INDEX_NAME:-docpilot_knowledge_chunk_search}
+      DOCPILOT_KNOWLEDGE_EMBEDDING_MODEL_ID: ${DOCPILOT_KNOWLEDGE_EMBEDDING_MODEL_ID:-main-embedding}
+      DOCPILOT_KNOWLEDGE_SUMMARY_MODEL_ID: ${DOCPILOT_KNOWLEDGE_SUMMARY_MODEL_ID:-main-chat}
+      DOCPILOT_KNOWLEDGE_EMBEDDING_BATCH_SIZE: ${DOCPILOT_KNOWLEDGE_EMBEDDING_BATCH_SIZE:-10}
+      DOCPILOT_KNOWLEDGE_INDEX_MODE: ${DOCPILOT_KNOWLEDGE_INDEX_MODE:-redis}
+      DOCPILOT_KNOWLEDGE_INDEX_DEBOUNCE_DELAY_MS: ${DOCPILOT_KNOWLEDGE_INDEX_DEBOUNCE_DELAY_MS:-3000}
+      DOCPILOT_KNOWLEDGE_INDEX_MAX_DELAY_MS: ${DOCPILOT_KNOWLEDGE_INDEX_MAX_DELAY_MS:-30000}
+      DOCPILOT_KNOWLEDGE_INDEX_POLL_INTERVAL_MS: ${DOCPILOT_KNOWLEDGE_INDEX_POLL_INTERVAL_MS:-1000}
+      DOCPILOT_KNOWLEDGE_INDEX_WORKER_BATCH_SIZE: ${DOCPILOT_KNOWLEDGE_INDEX_WORKER_BATCH_SIZE:-20}
+      DOCPILOT_KNOWLEDGE_INDEX_LOCK_TTL_MS: ${DOCPILOT_KNOWLEDGE_INDEX_LOCK_TTL_MS:-1800000}
+      DOCPILOT_KNOWLEDGE_INDEX_RETRY_DELAY_MS: ${DOCPILOT_KNOWLEDGE_INDEX_RETRY_DELAY_MS:-10000}
+      DOCPILOT_KNOWLEDGE_INDEX_JOB_TTL_MS: ${DOCPILOT_KNOWLEDGE_INDEX_JOB_TTL_MS:-86400000}
+    extra_hosts:
+      # Lets containers access services running on the Docker host.
+      - "host.docker.internal:host-gateway"
+    networks:
+      - docpilot-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:11451/health >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+
+  # Optional bundled MySQL for built-in auth.
+  # Comment out this service when using an existing MySQL instance.
+  docpilot-mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: docpilot
+      MYSQL_USER: ${SPRING_DATASOURCE_USERNAME:-docpilot}
+      MYSQL_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-docpilot}
+      MYSQL_ROOT_PASSWORD: ${DOCPILOT_MYSQL_ROOT_PASSWORD:-docpilot-root}
+    ports:
+      - "${DOCPILOT_MYSQL_PORT:-3306}:3306"
+    volumes:
+      - docpilot-mysql-data:/var/lib/mysql
+    networks:
+      - docpilot-network
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  # Optional bundled MongoDB for workspace documents.
+  # Comment out this service when using an existing MongoDB replica set.
+  docpilot-mongo:
+    image: mongo:7
+    restart: unless-stopped
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    ports:
+      - "${DOCPILOT_MONGO_PORT:-27017}:27017"
+    volumes:
+      - docpilot-mongo-data:/data/db
+    networks:
+      - docpilot-network
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mongosh --quiet --eval \"try { rs.status().ok } catch (e) { rs.initiate({_id:'rs0', members:[{_id:0, host:'docpilot-mongo:27017'}]}).ok }\" | grep 1"
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+
+  # Optional bundled Redis for knowledge indexing debounce.
+  # Comment out this service when using an existing Redis instance.
+  docpilot-redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${DOCPILOT_REDIS_PORT:-6379}:6379"
+    volumes:
+      - docpilot-redis-data:/data
+    networks:
+      - docpilot-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  # Optional bundled Elasticsearch for knowledge retrieval.
+  # Comment out this service when using an existing Elasticsearch cluster.
+  docpilot-elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.5
+    restart: unless-stopped
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: ${DOCPILOT_ES_JAVA_OPTS:--Xms512m -Xmx512m}
+      cluster.routing.allocation.disk.threshold_enabled: "false"
+    ports:
+      - "${DOCPILOT_ES_PORT:-9200}:9200"
+    volumes:
+      - docpilot-es-data:/usr/share/elasticsearch/data
+    networks:
+      - docpilot-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9200/_cluster/health?wait_for_status=yellow\\&timeout=1s >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  # Optional one-shot task for creating the knowledge ES index.
+  # docker-compose up will also run this task once. Comment it out if you manage the index yourself.
+  # To run only this task after Elasticsearch is healthy:
+  # DOCPILOT_EMBEDDING_DIMS=2048 docker-compose up docpilot-knowledge-index-init
+  # Comment out this service when you manage the index yourself.
+  docpilot-knowledge-index-init:
+    image: curlimages/curl:8.15.0
+    depends_on:
+      docpilot-elasticsearch:
+        condition: service_healthy
+    environment:
+      ES_URL: ${DOCPILOT_KNOWLEDGE_ES_URL:-http://docpilot-elasticsearch:9200}
+      INDEX_NAME: ${DOCPILOT_KNOWLEDGE_INDEX_NAME:-docpilot_knowledge_chunk_search}
+      EMBEDDING_DIMS: ${DOCPILOT_EMBEDDING_DIMS:-2048}
+    volumes:
+      - ./scripts/elasticsearch/create-docpilot-knowledge-index.sh:/create-docpilot-knowledge-index.sh:ro
+    entrypoint: ["sh", "/create-docpilot-knowledge-index.sh"]
+    networks:
+      - docpilot-network
+
+volumes:
+  docpilot-mysql-data:
+  docpilot-mongo-data:
+  docpilot-redis-data:
+  docpilot-es-data:
+
+networks:
+  docpilot-network:
+    driver: bridge

@@ -31,6 +31,11 @@ public class MongoDocumentRevisionRepository implements DocumentRevisionReposito
     }
 
     @Override
+    public Optional<DocumentRevision> findById(Long revisionId) {
+        return Optional.ofNullable(mongoTemplate.findById(revisionId, DocumentRevision.class));
+    }
+
+    @Override
     public Optional<DocumentRevision> findByDocumentIdAndClientMutationId(Long documentId, String clientMutationId) {
         // The pair is the idempotency key; querying both fields prevents cross-document token collisions.
         Query query = Query.query(Criteria.where(WorkspaceMongoConstant.DOCUMENT_ID).is(documentId)

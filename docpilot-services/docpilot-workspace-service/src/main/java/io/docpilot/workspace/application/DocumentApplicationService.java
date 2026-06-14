@@ -21,6 +21,7 @@ import io.docpilot.workspace.model.entity.WorkspaceDocument.DocumentContent;
 import io.docpilot.workspace.model.entity.WorkspaceNode;
 import io.docpilot.workspace.enums.WorkspaceNodeType;
 import io.docpilot.workspace.enums.WorkspaceResourceType;
+import io.docpilot.workspace.knowledge.event.DocumentContentChangedEvent;
 import io.docpilot.workspace.model.response.DocumentContentResponse;
 import io.docpilot.workspace.model.response.DocumentDetailResponse;
 import io.docpilot.workspace.model.response.DocumentResponse;
@@ -32,6 +33,9 @@ import io.docpilot.workspace.repository.DocumentRevisionRepository;
 import io.docpilot.workspace.repository.WorkspaceDocumentRepository;
 import io.docpilot.workspace.repository.WorkspaceNodeRepository;
 import lombok.Setter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -48,6 +52,8 @@ import java.util.Objects;
  */
 @Setter
 public class DocumentApplicationService {
+
+    private static final Logger log = LoggerFactory.getLogger(DocumentApplicationService.class);
 
     /**
      * Workspace ownership and node access service.
@@ -115,9 +121,9 @@ public class DocumentApplicationService {
     private ProseMirrorJsonConverter proseMirrorJsonConverter = new ProseMirrorJsonConverter();
 
     /**
-     * Clock reserved for time-dependent document workflows.
+     * Optional Spring event publisher used by knowledge indexing.
      */
-    private Clock clock = Clock.systemDefaultZone();
+    private ApplicationEventPublisher eventPublisher;
 
     /**
      * Replaces the Markdown parser and keeps the normalizer wired to the same parser behavior.
@@ -183,6 +189,7 @@ public class DocumentApplicationService {
             documentRepository.save(document);
             revisionRepository.save(revision);
             nodeRepository.save(node);
+            publishDocumentChanged(documentId, revisionId);
             return document;
         });
         return toDetailResponse(savedDocument);
@@ -254,7 +261,9 @@ public class DocumentApplicationService {
             document.setCurrentRevisionId(revisionId);
             document.setContent(content(blockDocument, markdown, checksum));
             document.markUpdated();
-            return documentRepository.save(document);
+            WorkspaceDocument saved = documentRepository.save(document);
+            publishDocumentChanged(saved.getId(), revisionId);
+            return saved;
         });
         return toDetailResponse(savedDocument);
     }
@@ -355,6 +364,16 @@ public class DocumentApplicationService {
             return null;
         }
         return clientMutationId.strip();
+    }
+
+    private void publishDocumentChanged(Long documentId, Long revisionId) {
+        if (eventPublisher == null) {
+            log.warn("document content changed event skipped reason=no_event_publisher documentId={} revisionId={}",
+                    documentId, revisionId);
+            return;
+        }
+        log.info("document content changed event published documentId={} revisionId={}", documentId, revisionId);
+        eventPublisher.publishEvent(new DocumentContentChangedEvent(documentId, revisionId));
     }
 
     private DocumentDetailResponse toDetailResponse(WorkspaceDocument document) {

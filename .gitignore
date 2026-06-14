@@ -2,6 +2,8 @@ target/
 node_modules/
 dist/
 logs/
+docpilot-services/docpilot-web-service/src/main/resources/application-local.yml
+docpilot-services/docpilot-web-service/src/main/resources/application-local.yaml
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/

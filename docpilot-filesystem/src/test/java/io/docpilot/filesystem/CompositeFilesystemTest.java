@@ -8,6 +8,11 @@ import io.docpilot.filesystem.model.GrepMatch;
 import io.docpilot.filesystem.model.GrepOptions;
 import io.docpilot.filesystem.model.GrepResult;
 import io.docpilot.filesystem.path.FilesystemPath;
+import io.docpilot.filesystem.retrieval.FilesystemRetrieval;
+import io.docpilot.filesystem.retrieval.FilesystemRetrievalHit;
+import io.docpilot.filesystem.retrieval.FilesystemRetrievalOptions;
+import io.docpilot.filesystem.retrieval.FilesystemRetrievalRequest;
+import io.docpilot.filesystem.retrieval.FilesystemRetrievalResult;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
@@ -185,7 +190,30 @@ class CompositeFilesystemTest {
                 .isInstanceOf(UnsupportedFilesystemOperationException.class);
     }
 
-    private static class MemoryFilesystem implements Filesystem {
+    @Test
+    void retrieveWalksAcrossSyntheticMountsAndMapsPaths() {
+        Filesystem workspaceRoots = new CompositeFilesystem()
+                .mount("/workspace/ws1", new MemoryFilesystem(Map.of("/docs/a.md", "one needle")))
+                .mount("/workspace/ws2", new MemoryFilesystem(Map.of("/notes/b.md", "two needle")));
+
+        CompositeFilesystem filesystem = new CompositeFilesystem()
+                .mount("/project", workspaceRoots);
+
+        FilesystemRetrievalResult result = filesystem.retrieve(new FilesystemRetrievalRequest(
+                "/project/workspace",
+                "needle",
+                new FilesystemRetrievalOptions(1, 100)
+        ));
+
+        assertThat(result.hits())
+                .extracting(FilesystemRetrievalHit::path)
+                .containsExactly("/project/workspace/ws2/notes/b.md");
+        assertThat(result.truncated()).isTrue();
+        assertThat(result.truncationReason()).isEqualTo(FilesystemRetrievalResult.TRUNCATED_BY_TOP_K);
+        assertThat(result.searchedMounts()).isEqualTo(2);
+    }
+
+    private static class MemoryFilesystem implements Filesystem, FilesystemRetrieval {
 
         private final Map<String, String> files = new HashMap<>();
 
@@ -300,6 +328,31 @@ class CompositeFilesystemTest {
             }
 
             return new GrepResult(matches, truncationReason != null, truncationReason, 0L, searchedFiles);
+        }
+
+        @Override
+        public FilesystemRetrievalResult retrieve(FilesystemRetrievalRequest request) {
+            FilesystemRetrievalRequest retrievalRequest = request == null
+                    ? new FilesystemRetrievalRequest("/", "", FilesystemRetrievalOptions.defaults())
+                    : request;
+            String normalizedPath = FilesystemPath.normalizeVirtualPath(retrievalRequest.path());
+            if (retrievalRequest.query().isBlank()) {
+                return FilesystemRetrievalResult.complete(List.of());
+            }
+
+            List<FilesystemRetrievalHit> hits = files.entrySet().stream()
+                    .filter(entry -> FilesystemPath.isSameOrDescendant(normalizedPath, entry.getKey()))
+                    .filter(entry -> entry.getValue().contains(retrievalRequest.query()))
+                    .map(entry -> new FilesystemRetrievalHit(
+                            entry.getKey(),
+                            FilesystemPath.nameOf(entry.getKey()),
+                            entry.getValue(),
+                            entry.getValue().contains("two") ? 2.0D : 1.0D,
+                            List.of(),
+                            Map.of()
+                    ))
+                    .toList();
+            return FilesystemRetrievalResult.complete(hits);
         }
 
         private String parentOf(String path) {
