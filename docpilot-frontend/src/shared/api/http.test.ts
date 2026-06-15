@@ -1,9 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { postJson } from './http'
+import { apiPath, postJson } from './http'
 
 describe('postJson', () => {
   afterEach(() => {
     vi.restoreAllMocks()
+  })
+
+  it('prefixes backend controller paths with api', () => {
+    expect(apiPath('/workspace/list')).toBe('/api/workspace/list')
+    expect(apiPath('document/get')).toBe('/api/document/get')
+    expect(apiPath('/api/user/settings/get')).toBe('/api/user/settings/get')
   })
 
   it('posts json and returns parsed response', async () => {
@@ -15,7 +21,7 @@ describe('postJson', () => {
     )
 
     await expect(postJson('/workspace/list', {})).resolves.toEqual({ ok: true })
-    expect(fetchMock).toHaveBeenCalledWith('/workspace/list', {
+    expect(fetchMock).toHaveBeenCalledWith('/api/workspace/list', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: '{}'

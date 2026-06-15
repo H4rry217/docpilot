@@ -27,6 +27,7 @@ import { DocumentEditor } from '../features/editor/ui/DocumentEditor'
 import { useI18n } from '../shared/i18n'
 import { useAppDialogs } from './model/useAppDialogs'
 import { useAuthSession } from './model/useAuthSession'
+import { useCloudUserSettings } from './model/useCloudUserSettings'
 import { useDeveloperSettings } from './model/useDeveloperSettings'
 import { useDocumentOutlineState } from './model/useDocumentOutlineState'
 import { useWorkspaceShell } from './model/useWorkspaceShell'
@@ -34,7 +35,7 @@ import { WorkbenchSidebar } from './ui/WorkbenchSidebar'
 import { SettingsDialog } from './ui/SettingsDialog'
 
 export function App() {
-  const { t } = useI18n()
+  const { locale, setLocale, t } = useI18n()
   const queryClient = useQueryClient()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const dialogs = useAppDialogs()
@@ -47,6 +48,13 @@ export function App() {
   })
   const outlineState = useDocumentOutlineState(workspaceShell.selectedNode?.documentId)
   const { authStatus, currentUser, setCurrentUser, clearAuth, handleAuthenticated: storeAuthenticated } = authSession
+  const cloudUserSettings = useCloudUserSettings({
+    userId: currentUser?.userId,
+    locale,
+    setLocale,
+    developerMode: developerSettings.developerMode,
+    setDeveloperMode: developerSettings.setDeveloperMode
+  })
   const { resetWorkspaceSelection } = workspaceShell
   const activeDialog = dialogs.dialog
 
@@ -115,6 +123,7 @@ export function App() {
 
       <DocumentEditor
         developerMode={developerSettings.developerMode}
+        inlineCompletionSettings={cloudUserSettings.inlineCompletion}
         workspace={workspaceShell.workspace}
         documentNode={workspaceShell.selectedNode}
         outline={outlineState.documentOutline}
@@ -126,9 +135,18 @@ export function App() {
       {settingsOpen ? (
         <SettingsDialog
           user={currentUser}
+          locale={locale}
           developerMode={developerSettings.developerMode}
+          inlineCompletion={cloudUserSettings.inlineCompletion}
+          settingsSaving={cloudUserSettings.saving}
+          settingsError={cloudUserSettings.error}
           onClose={() => setSettingsOpen(false)}
-          onDeveloperModeChange={developerSettings.setDeveloperMode}
+          onLocaleChange={cloudUserSettings.setLocale}
+          onDeveloperModeChange={cloudUserSettings.setDeveloperMode}
+          onInlineCompletionEnabledChange={cloudUserSettings.setInlineCompletionEnabled}
+          onInlineCompletionIdleDelayChange={cloudUserSettings.setInlineCompletionIdleDelayMs}
+          onInlineCompletionCandidateCountChange={cloudUserSettings.setInlineCompletionCandidateCount}
+          onInlineCompletionMaxOutputTokensChange={cloudUserSettings.setInlineCompletionMaxOutputTokens}
           onLogout={clearAuthenticatedSession}
           onUserChange={setCurrentUser}
         />

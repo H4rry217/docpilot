@@ -489,6 +489,16 @@ public class JsonSchema {
          */
         private Schema items;
 
+        /**
+         * Minimum allowed item count.
+         */
+        private Integer minItems;
+
+        /**
+         * Maximum allowed item count.
+         */
+        private Integer maxItems;
+
         private ArrayProp(String name) {
             super(name);
         }
@@ -498,6 +508,28 @@ public class JsonSchema {
          */
         public ArrayProp items(Schema items) {
             this.items = Objects.requireNonNull(items, "JSON schema array items must not be null.");
+            return this;
+        }
+
+        /**
+         * Sets the minimum allowed item count.
+         */
+        public ArrayProp minItems(int minItems) {
+            if (minItems < 0) {
+                throw new IllegalArgumentException("JSON schema minItems must not be negative.");
+            }
+            this.minItems = minItems;
+            return this;
+        }
+
+        /**
+         * Sets the maximum allowed item count.
+         */
+        public ArrayProp maxItems(int maxItems) {
+            if (maxItems < 0) {
+                throw new IllegalArgumentException("JSON schema maxItems must not be negative.");
+            }
+            this.maxItems = maxItems;
             return this;
         }
 
@@ -511,6 +543,12 @@ public class JsonSchema {
             Map<String, Object> schema = new LinkedHashMap<>();
             schema.put("type", "array");
             schema.put("items", Objects.requireNonNull(items, "JSON schema array items must not be null.").toSchema());
+            if (minItems != null) {
+                schema.put("minItems", minItems);
+            }
+            if (maxItems != null) {
+                schema.put("maxItems", maxItems);
+            }
             return schema;
         }
 

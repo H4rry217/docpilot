@@ -1,22 +1,33 @@
 package io.docpilot.workspace.inlinecompletion;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.docpilot.ai.AiChatModel;
 import io.docpilot.ai.AiModelMetadata;
 import io.docpilot.ai.AiModelRegistry;
+import io.docpilot.ai.model.ChatChoice;
 import io.docpilot.ai.model.ChatMessage;
 import io.docpilot.ai.model.ChatRequest;
+import io.docpilot.ai.model.ChatResponse;
+import io.docpilot.ai.model.JsonSchema;
+import io.docpilot.ai.model.JsonSchemaResponseFormat;
 import io.docpilot.common.auth.AuthContextProvider;
 import io.docpilot.common.auth.AuthSubject;
 import io.docpilot.common.exception.ForbiddenException;
 import io.docpilot.common.exception.NotFoundException;
 import io.docpilot.common.exception.UnauthorizedException;
 import io.docpilot.filesystem.retrieval.FilesystemRetrievalHit;
+import io.docpilot.user.application.UserSettingManager;
+import io.docpilot.user.model.UserSettingKeys;
 import io.docpilot.workspace.filesystem.UserFilesystemFailureMode;
 import io.docpilot.workspace.filesystem.UserFilesystemService;
 import io.docpilot.workspace.model.entity.Workspace;
 import io.docpilot.workspace.model.entity.WorkspaceDocument;
 import io.docpilot.workspace.model.request.InlineCompletionRequest;
 import io.docpilot.workspace.model.request.UserFilesystemRetrieveCommand;
+import io.docpilot.workspace.model.response.InlineCompletionCandidateResponse;
+import io.docpilot.workspace.model.response.InlineCompletionCompleteResponse;
 import io.docpilot.workspace.model.response.UserFilesystemDiagnosticResponse;
 import io.docpilot.workspace.model.response.UserFilesystemRetrieveResponse;
 import io.docpilot.workspace.processing.WorkspaceIdCodec;
@@ -27,9 +38,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -40,6 +54,14 @@ public class InlineCompletionService {
 
     private static final Logger log = LoggerFactory.getLogger(InlineCompletionService.class);
 
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
+    private static final int DEFAULT_CANDIDATE_COUNT = 3;
+
+    private static final int MIN_CANDIDATE_COUNT = 1;
+
+    private static final int MAX_CANDIDATE_COUNT = 5;
+
     private static final int RETRIEVAL_TOP_K = 4;
 
     private static final int RETRIEVAL_MAX_CHARS_PER_HIT = 500;
@@ -47,6 +69,17 @@ public class InlineCompletionService {
     private static final int MAX_PROMPT_TEXT_CHARS = 2400;
 
     private static final int MAX_BLOCK_TEXT_CHARS = 900;
+
+    private static final JsonSchemaResponseFormat CANDIDATES_RESPONSE_FORMAT = JsonSchemaResponseFormat.of(
+            "inline_completion_candidates",
+            JsonSchema.builder()
+                    .prop(JsonSchema.arrayProp("candidates", JsonSchema.objectItem()
+                                    .prop(JsonSchema.stringProp("markdown")
+                                            .description("Markdown fragment to insert at the cursor.")))
+                            .minItems(1)
+                            .maxItems(MAX_CANDIDATE_COUNT))
+                    .build()
+    );
 
     private final WorkspaceRepository workspaceRepository;
 
@@ -62,13 +95,19 @@ public class InlineCompletionService {
 
     private final InlineCompletionProperties properties;
 
+    /**
+     * Current-user settings used for per-user generation limits.
+     */
+    private final UserSettingManager userSettingManager;
+
     public InlineCompletionService(WorkspaceRepository workspaceRepository,
                                    WorkspaceDocumentRepository documentRepository,
                                    AuthContextProvider authContextProvider,
                                    WorkspaceIdCodec idCodec,
                                    UserFilesystemService userFilesystemService,
                                    AiModelRegistry aiModelRegistry,
-                                   InlineCompletionProperties properties) {
+                                   InlineCompletionProperties properties,
+                                   UserSettingManager userSettingManager) {
         this.workspaceRepository = workspaceRepository;
         this.documentRepository = documentRepository;
         this.authContextProvider = authContextProvider;
@@ -76,17 +115,19 @@ public class InlineCompletionService {
         this.userFilesystemService = userFilesystemService;
         this.aiModelRegistry = aiModelRegistry;
         this.properties = properties;
+        this.userSettingManager = userSettingManager;
     }
 
-    public InlineCompletionStream stream(InlineCompletionRequest request) {
+    public InlineCompletionCompleteResponse complete(InlineCompletionRequest request) {
         if (!properties.isEnabled()) {
             throw new IllegalArgumentException("Inline completion is disabled");
         }
 
         InlineCompletionRequest effectiveRequest = request == null
-                ? new InlineCompletionRequest(null, null, null, null, List.of(), List.of(), null, null)
+                ? new InlineCompletionRequest(null, null, null, null, List.of(), List.of(), null, null, null)
                 : request;
         AuthSubject subject = requireSubject();
+        int candidateCount = candidateCount(subject.getUserId(), effectiveRequest.candidateCount());
         long workspaceId = idCodec.parseRequired(effectiveRequest.workspaceId(), "workspaceId");
         long documentId = idCodec.parseRequired(effectiveRequest.documentId(), "documentId");
         Workspace workspace = requireOwnedWorkspace(workspaceId, subject);
@@ -95,23 +136,39 @@ public class InlineCompletionService {
 
         InlineCompletionTrigger trigger = InlineCompletionTrigger.parse(effectiveRequest.trigger());
         InlineCompletionShape shape = decideShape(effectiveRequest.currentBlock());
+        int candidateTokenLimit = candidateTokenLimit(subject.getUserId(), shape);
         String completionId = UUID.randomUUID().toString();
-        UserFilesystemRetrieveResponse retrieval = retrieveContext(workspaceId, documentId, effectiveRequest);
+        UserFilesystemRetrieveResponse retrieval = retrieveContext(completionId, workspaceId, documentId, effectiveRequest);
+        logRetrievalHits(completionId, documentId, retrieval);
         List<FilesystemRetrievalHit> hits = retrieval.hits().stream()
-                .filter(hit -> !Objects.equals(String.valueOf(documentId), hit.metadata().get("documentId")))
+                .filter(hit -> !isCurrentDocumentHit(hit, documentId))
                 .toList();
+        logSelectedRetrievalHits(completionId, hits);
         AiChatModel model = aiModelRegistry.resolve(properties.getModelId());
-        ChatRequest chatRequest = buildChatRequest(effectiveRequest, hits, shape, model.metadata());
+        String systemPrompt = systemPrompt(shape, candidateCount, candidateTokenLimit);
+        String userPrompt = userPrompt(effectiveRequest, hits, shape, candidateCount, candidateTokenLimit);
+        ChatRequest chatRequest = buildChatRequest(systemPrompt, userPrompt, model.metadata(),
+                candidateCount, candidateTokenLimit);
 
-        log.info("inline completion start completionId={} userId={} workspaceId={} documentId={} shape={} trigger={} modelId={} retrieveHits={} diagnostics={}",
+        log.info("inline completion start completionId={} userId={} workspaceId={} documentId={} shape={} trigger={} modelId={} candidateCount={} candidateTokenLimit={} maxTokens={} promptChars={} retrieveHits={} retrievedHitPaths={} diagnostics={}",
                 completionId, subject.getUserId(), workspaceId, documentId, shape, trigger, model.id(),
-                hits.size(), retrieval.diagnostics().size());
-        return new InlineCompletionStream(
+                candidateCount, candidateTokenLimit, chatRequest.getMaxOutputTokens(), userPrompt.length(), hits.size(),
+                hitPaths(hits), retrieval.diagnostics().size());
+        ChatResponse response = model.chat(chatRequest);
+        String modelText = assistantText(response);
+        List<InlineCompletionCandidateResponse> candidates = candidatesFromModelText(modelText, shape, candidateCount);
+        log.info("inline completion complete completionId={} modelId={} shape={} candidateCountRequested={} candidateCountReturned={} diagnostics={} previews={} markdowns={}",
+                completionId, model.id(), shape, candidateCount, candidates.size(), retrieval.diagnostics().size(),
+                candidates.stream().map(InlineCompletionCandidateResponse::previewText).toList(),
+                candidates.stream()
+                        .map(candidate -> escapedPreview(candidate.markdown(), 300))
+                        .toList());
+        return new InlineCompletionCompleteResponse(
                 completionId,
                 model.id(),
                 shape,
-                retrieval.diagnostics(),
-                model.stream(chatRequest)
+                candidates,
+                retrieval.diagnostics()
         );
     }
 
@@ -146,19 +203,29 @@ public class InlineCompletionService {
                 .replace("&amp;", "&");
     }
 
-    private UserFilesystemRetrieveResponse retrieveContext(long workspaceId,
+    private UserFilesystemRetrieveResponse retrieveContext(String completionId,
+                                                           long workspaceId,
                                                            long documentId,
                                                            InlineCompletionRequest request) {
         UserFilesystemRetrieveCommand command = new UserFilesystemRetrieveCommand();
         command.setPath("/workspace/" + idCodec.format(workspaceId));
-        command.setQuery(retrievalQuery(request));
+        String query = retrievalQuery(request);
+        command.setQuery(query);
         command.setTopK(RETRIEVAL_TOP_K);
         command.setMaxCharsPerHit(RETRIEVAL_MAX_CHARS_PER_HIT);
         command.setFailureMode(UserFilesystemFailureMode.BEST_EFFORT);
+        log.info("inline completion retrieval request completionId={} workspaceId={} documentId={} path={} queryLength={} topK={} maxCharsPerHit={} failureMode={}",
+                completionId, workspaceId, documentId, command.getPath(), query.length(),
+                command.getTopK(), command.getMaxCharsPerHit(), command.getFailureMode());
         try {
             return userFilesystemService.retrieve(command);
         } catch (RuntimeException exception) {
-            log.warn("inline completion retrieval skipped workspaceId={} documentId={}", workspaceId, documentId, exception);
+            log.warn("inline completion retrieval skipped completionId={} workspaceId={} documentId={} errorType={} message={}",
+                    completionId,
+                    workspaceId,
+                    documentId,
+                    exception.getClass().getSimpleName(),
+                    text(exception.getMessage()));
             return new UserFilesystemRetrieveResponse(
                     List.of(),
                     false,
@@ -173,19 +240,344 @@ public class InlineCompletionService {
         }
     }
 
-    private ChatRequest buildChatRequest(InlineCompletionRequest request,
-                                         List<FilesystemRetrievalHit> hits,
-                                         InlineCompletionShape shape,
-                                         AiModelMetadata modelMetadata) {
+    private void logRetrievalHits(String completionId,
+                                  long documentId,
+                                  UserFilesystemRetrieveResponse retrieval) {
+        long currentDocumentHits = retrieval.hits().stream()
+                .filter(hit -> isCurrentDocumentHit(hit, documentId))
+                .count();
+        log.info("inline completion retrieval summary completionId={} rawHits={} currentDocumentHits={} selectableHits={} diagnostics={} truncated={} truncationReason={} searchedMounts={} rawHitPaths={}",
+                completionId,
+                retrieval.hits().size(),
+                currentDocumentHits,
+                retrieval.hits().size() - currentDocumentHits,
+                retrieval.diagnostics().size(),
+                retrieval.truncated(),
+                retrieval.truncationReason(),
+                retrieval.searchedMounts(),
+                hitPaths(retrieval.hits()));
+        for (int i = 0; i < retrieval.hits().size(); i++) {
+            FilesystemRetrievalHit hit = retrieval.hits().get(i);
+            boolean currentDocument = isCurrentDocumentHit(hit, documentId);
+            log.debug("inline completion retrieval raw hit completionId={} index={} currentDocument={} path={} title={} score={} hitDocumentId={} headingPath={} snippetPreview={}",
+                    completionId,
+                    i,
+                    currentDocument,
+                    hit.path(),
+                    text(hit.title()),
+                    hit.score(),
+                    hit.metadata().get("documentId"),
+                    hit.headingPath(),
+                    singleLinePreview(hit.snippet(), 160));
+        }
+        retrieval.diagnostics().forEach(diagnostic -> log.warn(
+                "inline completion retrieval diagnostic completionId={} path={} code={} message={}",
+                completionId,
+                diagnostic.path(),
+                diagnostic.code(),
+                diagnostic.message()
+        ));
+    }
+
+    private void logSelectedRetrievalHits(String completionId, List<FilesystemRetrievalHit> hits) {
+        log.info("inline completion retrieval selected completionId={} selectedHits={} selectedHitPaths={}",
+                completionId, hits.size(), hitPaths(hits));
+        for (int i = 0; i < hits.size(); i++) {
+            FilesystemRetrievalHit hit = hits.get(i);
+            log.debug("inline completion retrieval selected hit completionId={} index={} path={} title={} score={} headingPath={} snippetPreview={}",
+                    completionId,
+                    i,
+                    hit.path(),
+                    text(hit.title()),
+                    hit.score(),
+                    hit.headingPath(),
+                    singleLinePreview(hit.snippet(), 160));
+        }
+    }
+
+    /**
+     * Inline completion receives the live current document from the frontend, so indexed hits from the same document
+     * are treated as stale auxiliary context and removed before prompting the model.
+     */
+    private boolean isCurrentDocumentHit(FilesystemRetrievalHit hit, long documentId) {
+        return Objects.equals(String.valueOf(documentId), hit.metadata().get("documentId"));
+    }
+
+    private int candidateCount(Long userId, Integer requestedCount) {
+        Integer effectiveCount = requestedCount;
+        if (effectiveCount == null) {
+            effectiveCount = userSettingManager.findUserValue(userId, UserSettingKeys.INLINE_COMPLETION_CANDIDATE_COUNT)
+                    .filter(Number.class::isInstance)
+                    .map(Number.class::cast)
+                    .map(Number::intValue)
+                    .orElse(DEFAULT_CANDIDATE_COUNT);
+        }
+        return Math.max(MIN_CANDIDATE_COUNT, Math.min(MAX_CANDIDATE_COUNT, effectiveCount));
+    }
+
+    private List<String> hitPaths(List<FilesystemRetrievalHit> hits) {
+        return hits.stream()
+                .map(FilesystemRetrievalHit::path)
+                .toList();
+    }
+
+    private String assistantText(ChatResponse response) {
+        if (response == null || response.getChoices() == null) {
+            return "";
+        }
+        return response.getChoices().stream()
+                .filter(Objects::nonNull)
+                .map(ChatChoice::getMessage)
+                .filter(Objects::nonNull)
+                .map(ChatMessage::getContent)
+                .map(this::contentText)
+                .filter(value -> !value.isBlank())
+                .findFirst()
+                .orElse("");
+    }
+
+    private String contentText(Object content) {
+        if (content == null) {
+            return "";
+        }
+        if (content instanceof String text) {
+            return text;
+        }
+        if (content instanceof Iterable<?> values) {
+            StringBuilder builder = new StringBuilder();
+            for (Object value : values) {
+                builder.append(contentText(value));
+            }
+            return builder.toString();
+        }
+        if (content instanceof Map<?, ?> map) {
+            Object text = map.get("text");
+            if (text == null) {
+                text = map.get("content");
+            }
+            if (text != null) {
+                return contentText(text);
+            }
+            try {
+                return OBJECT_MAPPER.writeValueAsString(map);
+            } catch (JsonProcessingException exception) {
+                return String.valueOf(map);
+            }
+        }
+        return String.valueOf(content);
+    }
+
+    private List<InlineCompletionCandidateResponse> candidatesFromModelText(String modelText,
+                                                                            InlineCompletionShape shape,
+                                                                            int candidateCount) {
+        List<String> markdowns = parseCandidateMarkdowns(modelText);
+        if (markdowns.isEmpty() && modelText != null && !modelText.isBlank()) {
+            String rawText = stripJsonFence(modelText).strip();
+            if (isLikelyStructuredCandidateResponse(rawText)) {
+                log.warn("inline completion ignored malformed structured candidate response rawPreview={}",
+                        singleLinePreview(rawText, 160));
+            } else {
+                markdowns = List.of(stripJsonFence(modelText));
+            }
+        }
+
+        Set<String> seen = new LinkedHashSet<>();
+        List<InlineCompletionCandidateResponse> candidates = new ArrayList<>();
+        for (String markdown : markdowns) {
+            String sanitized = sanitizeCandidateMarkdown(markdown);
+            String key = sanitized.strip();
+            if (key.isBlank() || !seen.add(key)) {
+                continue;
+            }
+            candidates.add(new InlineCompletionCandidateResponse(
+                    candidates.size(),
+                    sanitized,
+                    previewText(sanitized, shape)
+            ));
+            if (candidates.size() >= candidateCount) {
+                break;
+            }
+        }
+        return candidates;
+    }
+
+    private List<String> parseCandidateMarkdowns(String modelText) {
+        if (modelText == null || modelText.isBlank()) {
+            return List.of();
+        }
+        String jsonText = stripJsonFence(modelText).strip();
+        try {
+            JsonNode root = OBJECT_MAPPER.readTree(jsonText);
+            JsonNode candidates = root.isArray() ? root : root.get("candidates");
+            if (candidates != null && candidates.isArray()) {
+                List<String> markdowns = new ArrayList<>();
+                candidates.forEach(candidate -> {
+                    if (candidate.isTextual()) {
+                        markdowns.add(candidate.asText());
+                        return;
+                    }
+                    JsonNode markdown = candidate.get("markdown");
+                    if (markdown != null && markdown.isTextual()) {
+                        markdowns.add(markdown.asText());
+                    }
+                });
+                return markdowns;
+            }
+            JsonNode markdown = root.get("markdown");
+            if (markdown != null && markdown.isTextual()) {
+                return List.of(markdown.asText());
+            }
+        } catch (JsonProcessingException exception) {
+            List<String> recoveredMarkdowns = recoverMarkdownFields(jsonText);
+            if (!recoveredMarkdowns.isEmpty()) {
+                log.warn("inline completion recovered candidates from malformed JSON recoveredCount={} rawPreview={}",
+                        recoveredMarkdowns.size(), singleLinePreview(modelText, 160));
+                return recoveredMarkdowns;
+            }
+            log.debug("inline completion candidate JSON parse failed rawPreview={}", singleLinePreview(modelText, 160));
+        }
+        return List.of();
+    }
+
+    private boolean isLikelyStructuredCandidateResponse(String modelText) {
+        if (modelText == null || modelText.isBlank()) {
+            return false;
+        }
+        String text = modelText.stripLeading();
+        return (text.startsWith("{") || text.startsWith("["))
+                && (text.contains("\"candidates\"") || text.contains("\"markdown\""));
+    }
+
+    /**
+     * Model output can be cut off before a full JSON object is closed. In that case we salvage
+     * complete markdown string fields, but never expose the raw JSON wrapper as a completion.
+     */
+    private List<String> recoverMarkdownFields(String jsonText) {
+        List<String> markdowns = new ArrayList<>();
+        int searchIndex = 0;
+        while (searchIndex < jsonText.length()) {
+            int keyStart = jsonText.indexOf("\"markdown\"", searchIndex);
+            if (keyStart < 0) {
+                break;
+            }
+            int colon = skipWhitespace(jsonText, keyStart + "\"markdown\"".length());
+            if (colon >= jsonText.length() || jsonText.charAt(colon) != ':') {
+                searchIndex = keyStart + 1;
+                continue;
+            }
+            int valueStart = skipWhitespace(jsonText, colon + 1);
+            if (valueStart >= jsonText.length() || jsonText.charAt(valueStart) != '"') {
+                searchIndex = keyStart + 1;
+                continue;
+            }
+            ExtractedJsonString extracted = extractJsonString(jsonText, valueStart);
+            if (extracted == null) {
+                break;
+            }
+            markdowns.add(extracted.value());
+            searchIndex = extracted.nextIndex();
+        }
+        return markdowns;
+    }
+
+    private int skipWhitespace(String text, int index) {
+        int current = index;
+        while (current < text.length() && Character.isWhitespace(text.charAt(current))) {
+            current++;
+        }
+        return current;
+    }
+
+    private ExtractedJsonString extractJsonString(String text, int quoteStart) {
+        boolean escaped = false;
+        for (int index = quoteStart + 1; index < text.length(); index++) {
+            char character = text.charAt(index);
+            if (escaped) {
+                escaped = false;
+                continue;
+            }
+            if (character == '\\') {
+                escaped = true;
+                continue;
+            }
+            if (character == '"') {
+                String rawString = text.substring(quoteStart, index + 1);
+                try {
+                    return new ExtractedJsonString(OBJECT_MAPPER.readValue(rawString, String.class), index + 1);
+                } catch (JsonProcessingException exception) {
+                    return null;
+                }
+            }
+        }
+        return null;
+    }
+
+    private record ExtractedJsonString(String value, int nextIndex) {
+    }
+
+    private String sanitizeCandidateMarkdown(String markdown) {
+        return stripJsonFence(text(markdown))
+                .replace("\r\n", "\n")
+                .replace('\r', '\n')
+                .stripTrailing();
+    }
+
+    private String stripJsonFence(String value) {
+        String trimmed = text(value).strip();
+        if (!trimmed.startsWith("```")) {
+            return value == null ? "" : value;
+        }
+        int firstLineEnd = trimmed.indexOf('\n');
+        int lastFenceStart = trimmed.lastIndexOf("```");
+        if (firstLineEnd == -1 || lastFenceStart <= firstLineEnd) {
+            return trimmed;
+        }
+        return trimmed.substring(firstLineEnd + 1, lastFenceStart).strip();
+    }
+
+    private ChatRequest buildChatRequest(String systemPrompt,
+                                         String userPrompt,
+                                         AiModelMetadata modelMetadata,
+                                         int candidateCount,
+                                         int candidateTokenLimit) {
         ChatRequest chatRequest = new ChatRequest();
         chatRequest.setTemperature(properties.getTemperature());
-        chatRequest.setMaxOutputTokens(properties.maxOutputTokens(shape));
+        chatRequest.setMaxOutputTokens(requestMaxOutputTokens(candidateTokenLimit, candidateCount));
+        chatRequest.setResponseFormat(CANDIDATES_RESPONSE_FORMAT);
         chatRequest.setMessages(List.of(
-                new ChatMessage("system", systemPrompt(shape)),
-                new ChatMessage("user", userPrompt(request, hits, shape))
+                new ChatMessage("system", systemPrompt),
+                new ChatMessage("user", userPrompt)
         ));
         applyProviderHints(chatRequest, modelMetadata);
         return chatRequest;
+    }
+
+    private int candidateTokenLimit(Long userId, InlineCompletionShape shape) {
+        String key = maxOutputTokensSettingKey(shape);
+        return userSettingManager.findUserValue(userId, key)
+                .filter(Number.class::isInstance)
+                .map(Number.class::cast)
+                .map(Number::intValue)
+                .orElseGet(() -> properties.maxOutputTokens(shape));
+    }
+
+    /**
+     * User settings constrain each candidate in the prompt. The request cap only prevents runaway
+     * output and leaves enough room for the JSON wrapper, escaping, and closing braces.
+     */
+    private int requestMaxOutputTokens(int candidateTokenLimit, int candidateCount) {
+        return candidateTokenLimit * candidateCount + 160;
+    }
+
+    private String maxOutputTokensSettingKey(InlineCompletionShape shape) {
+        return switch (shape) {
+            case SHORT -> UserSettingKeys.INLINE_COMPLETION_MAX_OUTPUT_TOKENS_SHORT;
+            case SENTENCE -> UserSettingKeys.INLINE_COMPLETION_MAX_OUTPUT_TOKENS_SENTENCE;
+            case PARAGRAPH -> UserSettingKeys.INLINE_COMPLETION_MAX_OUTPUT_TOKENS_PARAGRAPH;
+            case LIST_ITEM -> UserSettingKeys.INLINE_COMPLETION_MAX_OUTPUT_TOKENS_LIST_ITEM;
+            case TABLE_CELL -> UserSettingKeys.INLINE_COMPLETION_MAX_OUTPUT_TOKENS_TABLE_CELL;
+            case CODE_LINE -> UserSettingKeys.INLINE_COMPLETION_MAX_OUTPUT_TOKENS_CODE_LINE;
+        };
     }
 
     private void applyProviderHints(ChatRequest chatRequest, AiModelMetadata modelMetadata) {
@@ -195,37 +587,88 @@ public class InlineCompletionService {
         }
     }
 
-    private String systemPrompt(InlineCompletionShape shape) {
-        return """
-                You are DocPilot inline completion.
-                Return only the markdown fragment that should be inserted at the cursor.
-                Start with the insertion immediately. Do not explain, do not include reasoning, do not add alternatives, and do not wrap the answer in a code fence unless the requested shape is CODE_LINE and the literal text requires it.
-                Match the user's language, style, formatting, and surrounding document structure.
-                Requested shape: %s.
-                """.formatted(shape);
+    private String systemPrompt(InlineCompletionShape shape, int candidateCount, int candidateTokenLimit) {
+        return applyTemplate(completePrompts().getSystem(), promptVariables(
+                shape,
+                candidateCount,
+                candidateTokenLimit,
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                ""
+        ));
     }
 
     private String userPrompt(InlineCompletionRequest request,
                               List<FilesystemRetrievalHit> hits,
-                              InlineCompletionShape shape) {
+                              InlineCompletionShape shape,
+                              int candidateCount,
+                              int candidateTokenLimit) {
         InlineCompletionRequest.BlockContext currentBlock = request.currentBlock();
-        StringBuilder prompt = new StringBuilder();
-        prompt.append("Current heading path:\n")
-                .append(request.headingPath().isEmpty() ? "(none)" : String.join(" > ", request.headingPath()))
-                .append("\n\nCurrent block:\n")
-                .append("type: ").append(text(currentBlock == null ? null : currentBlock.type())).append('\n')
-                .append("text before cursor:\n")
-                .append(truncate(text(currentBlock == null ? null : currentBlock.textBeforeCursor()), MAX_BLOCK_TEXT_CHARS))
-                .append("\n\ntext after cursor:\n")
-                .append(truncate(text(currentBlock == null ? null : currentBlock.textAfterCursor()), MAX_BLOCK_TEXT_CHARS))
-                .append("\n\nNearby unsaved blocks:\n")
-                .append(nearbyBlocks(request.nearbyBlocks()))
-                .append("\n\nRetrieved saved workspace context:\n")
-                .append(retrievedContext(hits))
-                .append("\n\nWrite the next insertion as ")
-                .append(shape)
-                .append(" markdown. Output only the insertion.");
-        return truncate(prompt.toString(), MAX_PROMPT_TEXT_CHARS);
+        String headingPath = request.headingPath().isEmpty() ? "(none)" : String.join(" > ", request.headingPath());
+        String prompt = applyTemplate(completePrompts().getUser(), promptVariables(
+                shape,
+                candidateCount,
+                candidateTokenLimit,
+                headingPath,
+                text(currentBlock == null ? null : currentBlock.type()),
+                truncate(text(currentBlock == null ? null : currentBlock.textBeforeCursor()), MAX_BLOCK_TEXT_CHARS),
+                truncate(text(currentBlock == null ? null : currentBlock.textAfterCursor()), MAX_BLOCK_TEXT_CHARS),
+                nearbyBlocks(request.nearbyBlocks()),
+                retrievedContext(hits),
+                "{\"candidates\":[{\"markdown\":\"...\"}]}"
+        ));
+        return truncate(prompt, MAX_PROMPT_TEXT_CHARS);
+    }
+
+    private InlineCompletionProperties.CompletePromptProperties completePrompts() {
+        InlineCompletionProperties.PromptProperties prompts = properties.getPrompts();
+        if (prompts == null || prompts.getComplete() == null) {
+            throw new IllegalStateException("Inline completion prompts are not configured");
+        }
+        InlineCompletionProperties.CompletePromptProperties complete = prompts.getComplete();
+        if (isBlank(complete.getSystem())) {
+            throw new IllegalStateException("Inline completion system prompt is not configured");
+        }
+        if (isBlank(complete.getUser())) {
+            throw new IllegalStateException("Inline completion user prompt is not configured");
+        }
+        return complete;
+    }
+
+    private Map<String, String> promptVariables(InlineCompletionShape shape,
+                                                int candidateCount,
+                                                int candidateTokenLimit,
+                                                String headingPath,
+                                                String currentBlockType,
+                                                String textBeforeCursor,
+                                                String textAfterCursor,
+                                                String nearbyBlocks,
+                                                String retrievedContext,
+                                                String responseJsonShape) {
+        return Map.of(
+                "shape", String.valueOf(shape),
+                "candidateCount", String.valueOf(candidateCount),
+                "candidateTokenLimit", String.valueOf(candidateTokenLimit),
+                "headingPath", text(headingPath),
+                "currentBlockType", text(currentBlockType),
+                "textBeforeCursor", text(textBeforeCursor),
+                "textAfterCursor", text(textAfterCursor),
+                "nearbyBlocks", text(nearbyBlocks),
+                "retrievedContext", text(retrievedContext),
+                "responseJsonShape", text(responseJsonShape)
+        );
+    }
+
+    private String applyTemplate(String template, Map<String, String> variables) {
+        String result = template == null ? "" : template;
+        for (Map.Entry<String, String> entry : variables.entrySet()) {
+            result = result.replace("{{" + entry.getKey() + "}}", entry.getValue());
+        }
+        return result;
     }
 
     private String nearbyBlocks(List<InlineCompletionRequest.BlockContext> blocks) {
@@ -341,11 +784,27 @@ public class InlineCompletionService {
         return value == null ? "" : value;
     }
 
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
     private String truncate(String value, int maxChars) {
         if (value == null || value.length() <= maxChars) {
             return value == null ? "" : value;
         }
         return value.substring(0, maxChars);
+    }
+
+    private String singleLinePreview(String value, int maxChars) {
+        return truncate(text(value).replaceAll("\\s+", " ").strip(), maxChars);
+    }
+
+    private String escapedPreview(String value, int maxChars) {
+        return truncate(text(value)
+                .replace("\\", "\\\\")
+                .replace("\r", "\\r")
+                .replace("\n", "\\n")
+                .strip(), maxChars);
     }
 
 }

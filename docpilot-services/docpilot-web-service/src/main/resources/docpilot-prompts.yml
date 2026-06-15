@@ -1,4 +1,38 @@
 docpilot:
+  inline-completion:
+    prompts:
+      complete:
+        system: |-
+          你是 DocPilot 的光标处自动补全助手。
+          只返回一个 JSON 对象，包含 candidates 数组；每个候选只包含一个 markdown 字符串。
+          最多生成 {{candidateCount}} 个彼此不同的插入候选。不要解释、不要输出思考过程，不要添加 JSON schema 之外的字段。
+          每个 markdown 候选应控制在约 {{candidateTokenLimit}} token 以内。请求层 token 上限包含 JSON 开销，不代表可以写更长候选。
+          每个 markdown 值只能是“应插入到光标处的片段”。除非请求形态是 CODE_LINE 且字面文本确实需要，否则不要包裹代码块。
+          严格匹配用户当前语言、写作风格、格式和周围文档结构。
+          当请求形态是 SHORT、SENTENCE 或 TABLE_CELL 时，优先返回行内片段，不要主动生成标题或多个段落。
+          当请求形态是 PARAGRAPH 或 LIST_ITEM 时，可以返回对应 Markdown 块，但仍然只返回要插入的内容。
+          请求形态：{{shape}}。
+        user: |-
+          当前标题路径：
+          {{headingPath}}
+
+          当前块：
+          类型：{{currentBlockType}}
+          光标前文本：
+          {{textBeforeCursor}}
+
+          光标后文本：
+          {{textAfterCursor}}
+
+          附近未保存块：
+          {{nearbyBlocks}}
+
+          已检索到的已保存工作区上下文：
+          {{retrievedContext}}
+
+          请为光标处下一次插入生成最多 {{candidateCount}} 个 {{shape}} Markdown 候选。
+          每个候选应控制在约 {{candidateTokenLimit}} token 以内。
+          只输出合法且闭合的 JSON，结构必须是：{{responseJsonShape}}。
   knowledge:
     prompts:
       summary:

@@ -2,6 +2,7 @@ import { Extension, type Editor } from '@tiptap/core'
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
+import { blockIdentityId } from './docpilotBlockIdentity'
 
 type BlockSelectionPluginState = {
   decorations: DecorationSet
@@ -63,8 +64,8 @@ function blockSelectionDecorations(doc: ProseMirrorNode, selectedBlocks: Readonl
 
   const decorations: Decoration[] = []
   doc.descendants((node, position) => {
-    const blockId = node.attrs.blockId
-    if (typeof blockId !== 'string') {
+    const blockId = blockIdentityId(node.attrs)
+    if (!blockId) {
       return true
     }
 
@@ -141,8 +142,8 @@ export function deleteBlocksByIds(editor: Editor, blockIds: Iterable<string>): b
 
   const ranges: Array<{ from: number; to: number }> = []
   editor.state.doc.descendants((node, position) => {
-    const blockId = node.attrs.blockId
-    if (typeof blockId !== 'string' || !selectedIds.has(blockId)) {
+    const blockId = blockIdentityId(node.attrs)
+    if (!selectedIds.has(blockId)) {
       return true
     }
 

@@ -16,7 +16,7 @@ import {
   blockSelectionDecorationsFromTargets,
   blockSelectionSignature,
   clientPointFromElementPoint,
-  isEditorContentSelectionStart,
+  eventTargetElement,
   isInteractiveSelectionTarget,
   isPastDragStartDistance,
   pointFromClientPoint,
@@ -143,12 +143,13 @@ export function useBlockMarqueeSelection({
 
   function shouldStartBlockMarquee(event: ReactPointerEvent<HTMLDivElement>): boolean {
     if (!editor || event.button !== 0) return false
-    const target = event.target
-    if (!(target instanceof HTMLElement)) return false
+    const target = eventTargetElement(event.target)
+    if (!target) return false
     if (!surfaceRef.current?.contains(target)) return false
     if (isInteractiveSelectionTarget(target)) return false
-    if (isEditorContentSelectionStart(target, editor.view.dom)) return false
 
+    // Block marquee intentionally starts from normal document text too; the
+    // drag threshold keeps ordinary clicks as cursor placement.
     return true
   }
 

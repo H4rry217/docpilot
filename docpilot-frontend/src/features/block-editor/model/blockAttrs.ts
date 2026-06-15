@@ -63,6 +63,7 @@ export function normalizeBlockAttrsForCanonical(type: BlockType, attrs: JsonAttr
 export function stripInternalAttrs(attrs: JsonAttrs): JsonAttrs {
   const next = { ...attrs }
   delete next.blockId
+  delete next.transientBlockId
   delete next.sourceRange
   return next
 }

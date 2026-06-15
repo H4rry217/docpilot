@@ -128,6 +128,24 @@ class JsonSchemaTest {
     }
 
     @Test
+    void buildsArrayItemCountLimits() throws IOException {
+        JsonSchema schema = JsonSchema.builder()
+                .prop(JsonSchema.arrayProp("candidates", JsonSchema.objectItem()
+                                .prop(JsonSchema.stringProp("markdown")))
+                        .minItems(1)
+                        .maxItems(5))
+                .build();
+
+        JsonNode candidates = schemaNode(schema).path("properties").path("candidates");
+
+        assertThat(candidates.path("type").asText()).isEqualTo("array");
+        assertThat(candidates.path("minItems").asInt()).isEqualTo(1);
+        assertThat(candidates.path("maxItems").asInt()).isEqualTo(5);
+        assertThat(candidates.path("items").path("properties").path("markdown").path("type").asText())
+                .isEqualTo("string");
+    }
+
+    @Test
     void buildsNestedArrayItems() throws IOException {
         JsonSchema schema = JsonSchema.builder()
                 .prop(JsonSchema.arrayProp("matrix",

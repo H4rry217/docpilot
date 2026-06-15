@@ -4,6 +4,8 @@ import { editorExtensions } from '../model/extensions'
 import {
   blockSelectionDecorationsFromTargets,
   blockSelectionSignature,
+  eventTargetElement,
+  isInteractiveSelectionTarget,
   isSelectableBlockElement,
   isPastDragStartDistance,
   rectFromPoints,
@@ -58,6 +60,24 @@ describe('block selection geometry', () => {
   it('uses the drag threshold before starting marquee selection', () => {
     expect(isPastDragStartDistance({ x: 0, y: 0 }, { x: 3, y: 4 })).toBe(false)
     expect(isPastDragStartDistance({ x: 0, y: 0 }, { x: 6, y: 0 })).toBe(true)
+  })
+
+  it('resolves text event targets to their parent element for marquee starts', () => {
+    const paragraph = document.createElement('p')
+    paragraph.textContent = 'Selectable text'
+    const textNode = paragraph.firstChild
+
+    expect(eventTargetElement(textNode)).toBe(paragraph)
+    expect(isInteractiveSelectionTarget(paragraph)).toBe(false)
+  })
+
+  it('keeps interactive descendants out of marquee selection starts', () => {
+    const button = document.createElement('button')
+    const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+    button.append(icon)
+
+    expect(eventTargetElement(icon)).toBe(icon)
+    expect(isInteractiveSelectionTarget(icon)).toBe(true)
   })
 
   it('suppresses child overlays when a visual container is selected', () => {

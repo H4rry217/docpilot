@@ -20,16 +20,17 @@ import java.util.Base64;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
         "docpilot.auth.jwt.secret=docpilot-dev-secret",
         "docpilot.workspace.mongo.init-indexes=false",
-        "docpilot.knowledge.index.mode=direct"
+        "docpilot.knowledge.index.mode=direct",
+        "docpilot.user-settings.cache.enabled=false",
+        "docpilot.inline-completion.prompts.complete.system=SYSTEM {{shape}} {{candidateCount}} {{candidateTokenLimit}}",
+        "docpilot.inline-completion.prompts.complete.user=Before={{textBeforeCursor}} Shape={{responseJsonShape}}"
 })
 @AutoConfigureMockMvc
 @Import(WorkspaceControllerTestConfig.class)
@@ -340,33 +341,25 @@ class DocumentWorkspaceControllerTest {
     }
 
     @Test
-    void inlineCompletionStreamEmitsMetaDeltaAndDone() throws Exception {
+    void inlineCompletionCompleteReturnsCandidates() throws Exception {
         SeededDocument seededDocument = createDocumentInWorkspace();
 
-        MvcResult streamResult = mockMvc.perform(post("/inline-completion/stream")
+        mockMvc.perform(post("/inline-completion/complete")
                         .header(HttpHeaders.AUTHORIZATION, AUTHORIZATION)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .accept(MediaType.TEXT_EVENT_STREAM)
+                        .accept(MediaType.APPLICATION_JSON)
                         .content(inlineCompletionRequest(seededDocument.workspaceId(), seededDocument.documentId())))
-                .andExpect(request().asyncStarted())
-                .andReturn();
-
-        MvcResult completed = mockMvc.perform(asyncDispatch(streamResult))
                 .andExpect(status().isOk())
-                .andReturn();
-        String content = completed.getResponse().getContentAsString(StandardCharsets.UTF_8);
-
-        assertThat(content).contains("event:meta");
-        assertThat(content).contains("\"completionId\"");
-        assertThat(content).contains("event:delta");
-        assertThat(content).contains("\"markdownDelta\":\"completion\"");
-        assertThat(content).contains("event:done");
-        assertThat(content).contains("\"markdown\":\"completion\"");
+                .andExpect(jsonPath("$.data.completionId").exists())
+                .andExpect(jsonPath("$.data.modelId").value("inline-test"))
+                .andExpect(jsonPath("$.data.shape").value("SHORT"))
+                .andExpect(jsonPath("$.data.candidates[0].markdown").value("completion"))
+                .andExpect(jsonPath("$.data.candidates[0].previewText").value("completion"));
     }
 
     @Test
-    void inlineCompletionStreamRequiresAuth() throws Exception {
-        mockMvc.perform(post("/inline-completion/stream")
+    void inlineCompletionCompleteRequiresAuth() throws Exception {
+        mockMvc.perform(post("/inline-completion/complete")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isUnauthorized())
@@ -374,13 +367,81 @@ class DocumentWorkspaceControllerTest {
     }
 
     @Test
-    void inlineCompletionStreamRejectsNonOwnerWorkspace() throws Exception {
+    void userSettingsRequireAuth() throws Exception {
+        mockMvc.perform(post("/user/settings/get")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(StatusCode.UNAUTHORIZED.code()));
+    }
+
+    @Test
+    void userSettingsSaveGetAndRemoveEffectiveValues() throws Exception {
+        String token = "Bearer " + testJwt(51);
+
+        mockMvc.perform(post("/user/settings/get")
+                        .header(HttpHeaders.AUTHORIZATION, token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"keys":["app.locale"]}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.settings[0].key").value("app.locale"))
+                .andExpect(jsonPath("$.data.settings[0].value").value("zh-CN"))
+                .andExpect(jsonPath("$.data.settings[0].source").value("DEFAULT"));
+
+        mockMvc.perform(post("/user/settings/save")
+                        .header(HttpHeaders.AUTHORIZATION, token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"values":{"app.locale":"en-US","inlineCompletion.maxOutputTokens.short":9999}}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.settings[0].value").value("en-US"))
+                .andExpect(jsonPath("$.data.settings[0].source").value("USER"))
+                .andExpect(jsonPath("$.data.settings[1].value").value(128));
+
+        mockMvc.perform(post("/user/settings/get")
+                        .header(HttpHeaders.AUTHORIZATION, token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"keys":["app.locale"]}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.settings[0].value").value("en-US"))
+                .andExpect(jsonPath("$.data.settings[0].source").value("USER"));
+
+        mockMvc.perform(post("/user/settings/remove")
+                        .header(HttpHeaders.AUTHORIZATION, token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"keys":["app.locale"]}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.settings[0].value").value("zh-CN"))
+                .andExpect(jsonPath("$.data.settings[0].source").value("DEFAULT"));
+    }
+
+    @Test
+    void userSettingsRejectUnsupportedKeys() throws Exception {
+        mockMvc.perform(post("/user/settings/save")
+                        .header(HttpHeaders.AUTHORIZATION, AUTHORIZATION)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"values":{"unknown":true}}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(StatusCode.BAD_REQUEST.code()));
+    }
+
+    @Test
+    void inlineCompletionCompleteRejectsNonOwnerWorkspace() throws Exception {
         SeededDocument seededDocument = createDocumentInWorkspace();
 
-        mockMvc.perform(post("/inline-completion/stream")
+        mockMvc.perform(post("/inline-completion/complete")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + testJwt(2))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .accept(MediaType.TEXT_EVENT_STREAM)
+                        .accept(MediaType.APPLICATION_JSON)
                         .content(inlineCompletionRequest(seededDocument.workspaceId(), seededDocument.documentId())))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(StatusCode.FORBIDDEN.code()));
@@ -468,7 +529,8 @@ class DocumentWorkspaceControllerTest {
                   "headingPath":["Hello"],
                   "nearbyBlocks":[],
                   "trigger":"IDLE",
-                  "clientVersion":"test"
+                  "clientVersion":"test",
+                  "candidateCount":3
                 }
                 """.formatted(workspaceId, documentId);
     }

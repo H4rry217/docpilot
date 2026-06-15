@@ -29,6 +29,7 @@ import {
   type BlockDocumentEditorSnapshot,
   type BlockDocumentEditorSnapshotSource
 } from '../../block-editor'
+import { blockDocumentForSave } from '../../block-editor/model/proseMirrorToBlockDocument'
 import { DocumentCanvas } from './DocumentCanvas'
 import { DocumentEditorToolbar } from './DocumentEditorToolbar'
 import { DocumentOutlineNav } from './DocumentOutlineNav'
@@ -39,6 +40,11 @@ import './DocumentEditor.css'
 const AUTOSAVE_DELAY_MS = 5000
 const OUTLINE_AUTO_COLLAPSE_CANVAS_WIDTH = 1230
 type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error'
+type InlineCompletionRuntimeSettings = {
+  enabled: boolean
+  idleDelayMs: number
+  candidateCount: number
+}
 
 export type DocumentEditorProps = {
   developerMode?: boolean
@@ -47,6 +53,7 @@ export type DocumentEditorProps = {
   outline: DocumentOutlineItem[]
   activeOutlineId?: string
   outlineJumpRequest?: DocumentOutlineJumpRequest
+  inlineCompletionSettings?: InlineCompletionRuntimeSettings
   onOutlineChange?: (outline: DocumentOutlineItem[]) => void
   onSelectOutlineItem: (item: DocumentOutlineItem) => void
 }
@@ -87,6 +94,7 @@ export function DocumentEditor({
   outline,
   activeOutlineId,
   outlineJumpRequest,
+  inlineCompletionSettings,
   onOutlineChange,
   onSelectOutlineItem
 }: DocumentEditorProps) {
@@ -143,7 +151,7 @@ export function DocumentEditor({
 
       saveMutation.mutate({
         documentId: activeDocumentId,
-        blockDocument,
+        blockDocument: blockDocumentForSave(blockDocument),
         baseVersion,
         clientMutationId: crypto.randomUUID()
       })
@@ -345,6 +353,7 @@ export function DocumentEditor({
               documentId,
               clientVersion: 'web-0.1.0'
             }}
+            inlineCompletionSettings={inlineCompletionSettings}
             proseMirrorFallback={documentQuery.data?.prosemirror as JSONContent | undefined}
             onSnapshotChange={handleSnapshotChange}
           />

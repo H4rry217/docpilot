@@ -191,7 +191,7 @@ export function WorkbenchSidebar({
         </div>
       </aside>
 
-      <aside className={cn('workbench-sidebar-panel relative min-w-0 overflow-visible', !expanded && 'is-collapsed overflow-hidden')} aria-hidden={!expanded}>
+      <aside className={cn('workbench-sidebar-panel relative h-full min-h-0 min-w-0 overflow-visible', !expanded && 'is-collapsed overflow-hidden')} aria-hidden={!expanded}>
         {expanded ? (
           <>
             <SidebarPanel

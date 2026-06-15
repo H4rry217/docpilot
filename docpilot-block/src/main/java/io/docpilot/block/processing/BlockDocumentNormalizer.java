@@ -5,9 +5,11 @@ import io.docpilot.block.model.BlockNode;
 import io.docpilot.block.model.BlockType;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -16,18 +18,26 @@ import java.util.regex.Pattern;
  */
 public class BlockDocumentNormalizer {
 
+    private static final String FRONTEND_TRANSIENT_BLOCK_ID_PREFIX = "docpilot-transient-";
+    private static final String LEGACY_FRONTEND_TRANSIENT_BLOCK_ID_PREFIX = "frontend-";
     private static final Pattern DETAILS_OPEN_BLOCK = Pattern.compile("(?is)^\\s*<details\\b([^>]*)>\\s*(?:<summary\\b[^>]*>(.*?)</summary>)?\\s*$");
     private static final Pattern DETAILS_CLOSE_BLOCK = Pattern.compile("(?is)^\\s*</details>\\s*$");
     private static final Pattern DETAILS_OPEN_ATTR = Pattern.compile("(?i)(^|\\s)open(\\s|=|$)");
 
     private final MarkdownBlockParser markdownBlockParser;
+    private final BlockIdGenerator blockIdGenerator;
 
     public BlockDocumentNormalizer() {
-        this(new MarkdownBlockParser());
+        this(new MarkdownBlockParser(), new BlockIdGenerator());
     }
 
     public BlockDocumentNormalizer(MarkdownBlockParser markdownBlockParser) {
+        this(markdownBlockParser, new BlockIdGenerator());
+    }
+
+    public BlockDocumentNormalizer(MarkdownBlockParser markdownBlockParser, BlockIdGenerator blockIdGenerator) {
         this.markdownBlockParser = markdownBlockParser == null ? new MarkdownBlockParser() : markdownBlockParser;
+        this.blockIdGenerator = blockIdGenerator == null ? new BlockIdGenerator() : blockIdGenerator;
     }
 
     public BlockDocument normalizeForEditing(BlockDocument document) {
@@ -39,6 +49,18 @@ public class BlockDocumentNormalizer {
         normalized.setSchemaVersion(document.getSchemaVersion());
         normalized.setMetadata(document.getMetadata() == null ? new HashMap<>() : new HashMap<>(document.getMetadata()));
         normalized.setBlocks(normalizeBlocks(document.getBlocks()));
+        return normalized;
+    }
+
+    public BlockDocument normalizeForStorage(BlockDocument document) {
+        BlockDocument normalized = new BlockDocument();
+        if (document == null) {
+            return normalized;
+        }
+
+        normalized.setSchemaVersion(document.getSchemaVersion());
+        normalized.setMetadata(document.getMetadata() == null ? new HashMap<>() : new HashMap<>(document.getMetadata()));
+        normalized.setBlocks(normalizeBlocksForStorage(document.getBlocks(), new HashSet<>()));
         return normalized;
     }
 
@@ -199,6 +221,48 @@ public class BlockDocumentNormalizer {
                 normalizeBlocks(block.getChildren()),
                 block.getSourceRange()
         );
+    }
+
+    private List<BlockNode> normalizeBlocksForStorage(List<BlockNode> blocks, Set<String> usedBlockIds) {
+        if (blocks == null || blocks.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        List<BlockNode> normalized = new ArrayList<>();
+        for (BlockNode block : blocks) {
+            if (block == null) {
+                continue;
+            }
+            String id = storageBlockId(block.getId(), usedBlockIds);
+            usedBlockIds.add(id);
+            normalized.add(BlockNode.of(
+                    id,
+                    block.getType(),
+                    block.getAttrs(),
+                    block.getInlines(),
+                    normalizeBlocksForStorage(block.getChildren(), usedBlockIds),
+                    block.getSourceRange()
+            ));
+        }
+        return normalized;
+    }
+
+    private String storageBlockId(String candidate, Set<String> usedBlockIds) {
+        String normalized = candidate == null ? "" : candidate.strip();
+        if (!normalized.isBlank() && !isFrontendTransientBlockId(normalized) && !usedBlockIds.contains(normalized)) {
+            return normalized;
+        }
+
+        String generated;
+        do {
+            generated = blockIdGenerator.nextId();
+        } while (usedBlockIds.contains(generated));
+        return generated;
+    }
+
+    private boolean isFrontendTransientBlockId(String id) {
+        return id.startsWith(FRONTEND_TRANSIENT_BLOCK_ID_PREFIX)
+                || id.startsWith(LEGACY_FRONTEND_TRANSIENT_BLOCK_ID_PREFIX);
     }
 
     private record DetailsOpening(String title, boolean open) {

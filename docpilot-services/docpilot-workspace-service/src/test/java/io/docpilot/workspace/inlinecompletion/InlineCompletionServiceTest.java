@@ -13,12 +13,17 @@ import io.docpilot.ai.model.ChatStreamEventType;
 import io.docpilot.common.auth.AuthContextProvider;
 import io.docpilot.common.auth.AuthSubject;
 import io.docpilot.filesystem.retrieval.FilesystemRetrievalHit;
+import io.docpilot.user.application.UserSettingManager;
+import io.docpilot.user.model.UserSettingKeys;
+import io.docpilot.user.model.UserSettingRecord;
+import io.docpilot.user.repository.UserSettingRepository;
 import io.docpilot.workspace.filesystem.UserFilesystemFailureMode;
 import io.docpilot.workspace.filesystem.UserFilesystemService;
 import io.docpilot.workspace.model.entity.Workspace;
 import io.docpilot.workspace.model.entity.WorkspaceDocument;
 import io.docpilot.workspace.model.request.InlineCompletionRequest;
 import io.docpilot.workspace.model.request.UserFilesystemRetrieveCommand;
+import io.docpilot.workspace.model.response.InlineCompletionCompleteResponse;
 import io.docpilot.workspace.model.response.UserFilesystemRetrieveResponse;
 import io.docpilot.workspace.processing.WorkspaceIdCodec;
 import io.docpilot.workspace.repository.WorkspaceDocumentRepository;
@@ -27,6 +32,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Flux;
 
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -44,6 +50,7 @@ class InlineCompletionServiceTest {
     private InMemoryWorkspaceDocumentRepository documentRepository;
     private CapturingUserFilesystemService filesystemService;
     private CapturingChatModel chatModel;
+    private InMemoryUserSettingRepository userSettingRepository;
     private InlineCompletionService service;
 
     @BeforeEach
@@ -52,6 +59,7 @@ class InlineCompletionServiceTest {
         documentRepository = new InMemoryWorkspaceDocumentRepository();
         filesystemService = new CapturingUserFilesystemService();
         chatModel = new CapturingChatModel();
+        userSettingRepository = new InMemoryUserSettingRepository();
 
         workspaceRepository.save(workspace(WORKSPACE_ID, USER_ID));
         documentRepository.save(document(DOCUMENT_ID, WORKSPACE_ID, USER_ID));
@@ -63,7 +71,8 @@ class InlineCompletionServiceTest {
                 new WorkspaceIdCodec(),
                 filesystemService,
                 new AiModelRegistry("inline-test", List.of(chatModel)),
-                new InlineCompletionProperties()
+                inlineCompletionProperties(),
+                new UserSettingManager(userSettingRepository)
         );
     }
 
@@ -80,13 +89,14 @@ class InlineCompletionServiceTest {
                 List.of()
         );
 
-        InlineCompletionStream stream = service.stream(request(
+        InlineCompletionCompleteResponse response = service.complete(request(
                 "PARAGRAPH",
                 "Write a summary for this paragraph",
                 ""
         ));
 
-        assertThat(stream.shape()).isEqualTo(InlineCompletionShape.SENTENCE);
+        assertThat(response.shape()).isEqualTo(InlineCompletionShape.SENTENCE);
+        assertThat(response.candidates()).hasSize(2);
         assertThat(filesystemService.command.getPath()).isEqualTo("/workspace/11");
         assertThat(filesystemService.command.getTopK()).isEqualTo(4);
         assertThat(filesystemService.command.getMaxCharsPerHit()).isEqualTo(500);
@@ -97,33 +107,154 @@ class InlineCompletionServiceTest {
     }
 
     @Test
-    void retrievalFailureBecomesDiagnosticAndModelStillStreams() {
+    void retrievalFailureBecomesDiagnosticAndModelStillCompletes() {
         filesystemService.failure = new IllegalStateException("retrieval down");
 
-        InlineCompletionStream stream = service.stream(request("PARAGRAPH", "Continue this", ""));
+        InlineCompletionCompleteResponse response = service.complete(request("PARAGRAPH", "Continue this", ""));
 
-        assertThat(stream.diagnostics()).hasSize(1);
-        assertThat(stream.diagnostics().getFirst().code()).isEqualTo("RETRIEVAL_FAILED");
+        assertThat(response.diagnostics()).hasSize(1);
+        assertThat(response.diagnostics().getFirst().code()).isEqualTo("RETRIEVAL_FAILED");
+        assertThat(response.candidates()).isNotEmpty();
         assertThat(chatModel.request).isNotNull();
-        assertThat(stream.events().blockFirst()).isNotNull();
     }
 
     @Test
     void codeBlockUsesCodeLineShapeAndTokenLimit() {
-        InlineCompletionStream stream = service.stream(request("CODE_BLOCK", "const value = ", ""));
+        InlineCompletionCompleteResponse response = service.complete(request("CODE_BLOCK", "const value = ", ""));
 
-        assertThat(stream.shape()).isEqualTo(InlineCompletionShape.CODE_LINE);
-        assertThat(chatModel.request.getMaxOutputTokens()).isEqualTo(96);
+        assertThat(response.shape()).isEqualTo(InlineCompletionShape.CODE_LINE);
+        assertThat(chatModel.request.getMaxOutputTokens()).isEqualTo(448);
         assertThat(userPrompt(chatModel.request)).contains("CODE_LINE markdown");
+        assertThat(userPrompt(chatModel.request)).contains("around 96 tokens or less");
+    }
+
+    @Test
+    void userSettingOverridesShapeTokenLimit() {
+        userSettingRepository.saveAll(USER_ID, Map.of(
+                UserSettingKeys.INLINE_COMPLETION_MAX_OUTPUT_TOKENS_CODE_LINE,
+                "144"
+        ));
+
+        service.complete(request("CODE_BLOCK", "const value = ", ""));
+
+        assertThat(chatModel.request.getMaxOutputTokens()).isEqualTo(592);
+        assertThat(userPrompt(chatModel.request)).contains("around 144 tokens or less");
+    }
+
+    @Test
+    void userSettingProvidesDefaultCandidateCountWhenRequestOmitsIt() {
+        userSettingRepository.saveAll(USER_ID, Map.of(
+                UserSettingKeys.INLINE_COMPLETION_CANDIDATE_COUNT,
+                "4"
+        ));
+
+        service.complete(request("PARAGRAPH", "Continue this paragraph now", ""));
+
+        assertThat(chatModel.request.getMaxOutputTokens()).isEqualTo(416);
+        assertThat(userPrompt(chatModel.request)).contains("Write up to 4 candidates");
+        assertThat(userPrompt(chatModel.request)).contains("around 64 tokens or less");
+    }
+
+    @Test
+    void usesConfiguredPromptTemplates() {
+        service.complete(request("PARAGRAPH", "Continue this paragraph now", ""));
+
+        assertThat(chatModel.request.getMessages().get(0).getContent())
+                .isEqualTo("SYSTEM count=3 limit=64 shape=SENTENCE");
+        assertThat(userPrompt(chatModel.request))
+                .contains("Heading=Spec")
+                .contains("BlockType=PARAGRAPH")
+                .contains("Before=Continue this paragraph now")
+                .contains("Retrieved=(none)")
+                .contains("Shape={\"candidates\":[{\"markdown\":\"...\"}]}");
     }
 
     @Test
     void qwenModelDisablesThinkingForLowLatencyInlineCompletion() {
         chatModel.modelName = "qwen3.6-plus";
 
-        service.stream(request("PARAGRAPH", "Continue this paragraph now", ""));
+        service.complete(request("PARAGRAPH", "Continue this paragraph now", ""));
 
         assertThat(chatModel.request.getOptions()).containsEntry("enable_thinking", false);
+    }
+
+    @Test
+    void clampsCandidateCountAndTruncatesParsedCandidates() {
+        chatModel.responseText = """
+                {"candidates":[
+                  {"markdown":" first"},
+                  {"markdown":" second"},
+                  {"markdown":" second"},
+                  {"markdown":" third"},
+                  {"markdown":" fourth"},
+                  {"markdown":" fifth"},
+                  {"markdown":" sixth"}
+                ]}
+                """;
+
+        InlineCompletionCompleteResponse response = service.complete(request(
+                "PARAGRAPH",
+                "Continue this paragraph now",
+                "",
+                9
+        ));
+
+        assertThat(response.candidates())
+                .extracting(candidate -> candidate.markdown())
+                .containsExactly(" first", " second", " third", " fourth", " fifth");
+        assertThat(chatModel.request.getMaxOutputTokens()).isEqualTo(480);
+    }
+
+    @Test
+    void malformedJsonFallsBackToSingleCandidate() {
+        chatModel.responseText = "plain fallback";
+
+        InlineCompletionCompleteResponse response = service.complete(request(
+                "PARAGRAPH",
+                "Continue this paragraph now",
+                "",
+                3
+        ));
+
+        assertThat(response.candidates()).hasSize(1);
+        assertThat(response.candidates().getFirst().markdown()).isEqualTo("plain fallback");
+    }
+
+    @Test
+    void truncatedJsonRecoversCompleteMarkdownCandidates() {
+        chatModel.responseText = """
+                {"candidates":[
+                  {"markdown":" first"},
+                  {"markdown":" second"},
+                  {"markdown":"\\n\\n- incomplete
+                """;
+
+        InlineCompletionCompleteResponse response = service.complete(request(
+                "PARAGRAPH",
+                "Continue this paragraph now",
+                "",
+                3
+        ));
+
+        assertThat(response.candidates())
+                .extracting(candidate -> candidate.markdown())
+                .containsExactly(" first", " second");
+    }
+
+    @Test
+    void malformedStructuredJsonIsNotDisplayedAsCompletion() {
+        chatModel.responseText = """
+                {"candidates":[
+                """;
+
+        InlineCompletionCompleteResponse response = service.complete(request(
+                "PARAGRAPH",
+                "Continue this paragraph now",
+                "",
+                3
+        ));
+
+        assertThat(response.candidates()).isEmpty();
     }
 
     @Test
@@ -133,6 +264,13 @@ class InlineCompletionServiceTest {
     }
 
     private static InlineCompletionRequest request(String blockType, String beforeCursor, String afterCursor) {
+        return request(blockType, beforeCursor, afterCursor, null);
+    }
+
+    private static InlineCompletionRequest request(String blockType,
+                                                   String beforeCursor,
+                                                   String afterCursor,
+                                                   Integer candidateCount) {
         return new InlineCompletionRequest(
                 String.valueOf(WORKSPACE_ID),
                 String.valueOf(DOCUMENT_ID),
@@ -147,8 +285,25 @@ class InlineCompletionServiceTest {
                 List.of("Spec"),
                 List.of(),
                 "IDLE",
-                "test"
+                "test",
+                candidateCount
         );
+    }
+
+    private static InlineCompletionProperties inlineCompletionProperties() {
+        InlineCompletionProperties properties = new InlineCompletionProperties();
+        properties.getPrompts().getComplete().setSystem("SYSTEM count={{candidateCount}} limit={{candidateTokenLimit}} shape={{shape}}");
+        properties.getPrompts().getComplete().setUser("""
+                Heading={{headingPath}}
+                BlockType={{currentBlockType}}
+                Before={{textBeforeCursor}}
+                After={{textAfterCursor}}
+                Nearby={{nearbyBlocks}}
+                Retrieved={{retrievedContext}}
+                Write up to {{candidateCount}} candidates as {{shape}} markdown around {{candidateTokenLimit}} tokens or less.
+                Shape={{responseJsonShape}}
+                """);
+        return properties;
     }
 
     private static FilesystemRetrievalHit hit(String path, String snippet, long documentId) {
@@ -228,6 +383,9 @@ class InlineCompletionServiceTest {
 
         private ChatRequest request;
         private String modelName = "test-model";
+        private String responseText = """
+                {"candidates":[{"markdown":" first"},{"markdown":" second"}]}
+                """;
 
         @Override
         public String id() {
@@ -245,8 +403,9 @@ class InlineCompletionServiceTest {
 
         @Override
         public ChatResponse chat(ChatRequest request) {
+            this.request = request;
             ChatChoice choice = new ChatChoice();
-            choice.setMessage(new ChatMessage("assistant", "completion"));
+            choice.setMessage(new ChatMessage("assistant", responseText));
             ChatResponse response = new ChatResponse();
             response.setChoices(List.of(choice));
             return response;
@@ -306,6 +465,34 @@ class InlineCompletionServiceTest {
         public Optional<WorkspaceDocument> findById(Long documentId) {
             return Optional.ofNullable(documents.get(documentId));
         }
+    }
+
+    private static class InMemoryUserSettingRepository implements UserSettingRepository {
+
+        private final Map<Long, Map<String, String>> valuesByUserId = new LinkedHashMap<>();
+
+        @Override
+        public List<UserSettingRecord> findByUserIdAndKeys(Long userId, Collection<String> keys) {
+            Map<String, String> values = valuesByUserId.getOrDefault(userId, Map.of());
+            return keys.stream()
+                    .filter(values::containsKey)
+                    .map(key -> new UserSettingRecord(userId, key, values.get(key)))
+                    .toList();
+        }
+
+        @Override
+        public void saveAll(Long userId, Map<String, String> settingValueByKey) {
+            valuesByUserId.computeIfAbsent(userId, ignored -> new LinkedHashMap<>()).putAll(settingValueByKey);
+        }
+
+        @Override
+        public void removeByUserIdAndKeys(Long userId, Collection<String> keys) {
+            Map<String, String> values = valuesByUserId.get(userId);
+            if (values != null) {
+                keys.forEach(values::remove);
+            }
+        }
+
     }
 
 }

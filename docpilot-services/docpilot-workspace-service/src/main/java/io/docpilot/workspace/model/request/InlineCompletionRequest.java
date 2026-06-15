@@ -13,6 +13,7 @@ import java.util.List;
  * @param nearbyBlocks nearby unsaved document blocks supplied by the frontend.
  * @param trigger client-side trigger, such as IDLE or MANUAL.
  * @param clientVersion frontend client version.
+ * @param candidateCount requested number of completion candidates.
  */
 public record InlineCompletionRequest(
         String workspaceId,
@@ -22,12 +23,24 @@ public record InlineCompletionRequest(
         List<String> headingPath,
         List<BlockContext> nearbyBlocks,
         String trigger,
-        String clientVersion
+        String clientVersion,
+        Integer candidateCount
 ) {
 
     public InlineCompletionRequest {
         headingPath = headingPath == null ? List.of() : List.copyOf(headingPath);
         nearbyBlocks = nearbyBlocks == null ? List.of() : List.copyOf(nearbyBlocks);
+    }
+
+    public InlineCompletionRequest(String workspaceId,
+                                   String documentId,
+                                   CursorContext cursor,
+                                   BlockContext currentBlock,
+                                   List<String> headingPath,
+                                   List<BlockContext> nearbyBlocks,
+                                   String trigger,
+                                   String clientVersion) {
+        this(workspaceId, documentId, cursor, currentBlock, headingPath, nearbyBlocks, trigger, clientVersion, null);
     }
 
     public record CursorContext(Integer from, Integer to) {

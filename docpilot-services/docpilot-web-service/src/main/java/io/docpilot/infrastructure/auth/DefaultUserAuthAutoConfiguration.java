@@ -2,6 +2,9 @@ package io.docpilot.infrastructure.auth;
 
 import io.docpilot.common.auth.AuthContextProvider;
 import io.docpilot.common.web.auth.DocPilotJwtConfig;
+import io.docpilot.infrastructure.user.DatabaseUserSettingRepository;
+import io.docpilot.infrastructure.user.UserSettingStore;
+import io.docpilot.user.repository.UserSettingRepository;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -33,6 +36,12 @@ public class DefaultUserAuthAutoConfiguration {
     @ConditionalOnMissingBean(DefaultUserAccountRepository.class)
     public JpaDefaultUserAccountRepository defaultUserAccountRepository(DefaultUserAccountJpaStore accountStore) {
         return new JpaDefaultUserAccountRepository(accountStore);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(UserSettingRepository.class)
+    public DatabaseUserSettingRepository userSettingRepository(UserSettingStore settingStore) {
+        return new DatabaseUserSettingRepository(settingStore);
     }
 
     @Bean

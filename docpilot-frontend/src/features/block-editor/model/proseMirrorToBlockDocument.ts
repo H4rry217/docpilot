@@ -1,6 +1,7 @@
 import type { JSONContent } from '@tiptap/core'
 import type { BlockDocument, BlockNode, BlockType, InlineMark, InlineNode, MarkType } from '../../../entities/block/types'
 import { normalizeBlockAttrsForCanonical, stripInternalAttrs, stringAttr, type JsonAttrs } from './blockAttrs'
+import { blockIdentityId, canonicalBlockId, isTransientBlockId } from './docpilotBlockIdentity'
 
 export function proseMirrorJsonToBlockDocument(json: JSONContent): BlockDocument {
   return {
@@ -9,6 +10,13 @@ export function proseMirrorJsonToBlockDocument(json: JSONContent): BlockDocument
     metadata: {
       source: 'frontend-live-preview'
     }
+  }
+}
+
+export function blockDocumentForSave(document: BlockDocument): BlockDocument {
+  return {
+    ...document,
+    blocks: document.blocks.map(blockForSave)
   }
 }
 
@@ -163,14 +171,22 @@ function markType(type: string): MarkType | null {
   }
 }
 
-function block(path: string, type: BlockType, attrs: JsonAttrs, inlines: InlineNode[] = [], children: BlockNode[] = []): BlockNode {
-  const id = stringAttr(attrs, 'blockId', `frontend${path.replaceAll('.', '')}`)
+function block(_path: string, type: BlockType, attrs: JsonAttrs, inlines: InlineNode[] = [], children: BlockNode[] = []): BlockNode {
+  const id = canonicalBlockId(attrs) || blockIdentityId(attrs)
   return {
     id,
     type,
     attrs: normalizeBlockAttrsForCanonical(type, stripInternalAttrs(attrs), id),
     inlines,
     children
+  }
+}
+
+function blockForSave(block: BlockNode): BlockNode {
+  return {
+    ...block,
+    id: isTransientBlockId(block.id) ? '' : block.id,
+    children: block.children.map(blockForSave)
   }
 }
 

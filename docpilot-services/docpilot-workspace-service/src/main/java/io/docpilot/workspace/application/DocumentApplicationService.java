@@ -229,7 +229,9 @@ public class DocumentApplicationService {
                 throw new ForbiddenException("Document access denied");
             }
 
-            BlockDocument blockDocument = command.getBlockDocument() == null ? new BlockDocument() : command.getBlockDocument();
+            BlockDocument blockDocument = blockDocumentNormalizer.normalizeForStorage(
+                    command.getBlockDocument() == null ? new BlockDocument() : command.getBlockDocument()
+            );
             String markdown = markdownBlockRenderer.render(blockDocument);
             String checksum = checksum(markdown);
             String clientMutationId = normalizeClientMutationId(command.getClientMutationId());
@@ -313,7 +315,7 @@ public class DocumentApplicationService {
 
     private BlockDocument initialBlockDocument(CreateDocumentCommand command) {
         if (command.getBlockDocument() != null) {
-            return command.getBlockDocument();
+            return blockDocumentNormalizer.normalizeForStorage(command.getBlockDocument());
         }
         return markdownBlockParser.parse(command.getMarkdown() == null ? "" : command.getMarkdown());
     }

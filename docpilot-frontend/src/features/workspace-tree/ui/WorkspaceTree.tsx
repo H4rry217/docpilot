@@ -76,7 +76,7 @@ export function WorkspaceTree({
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <div
-          className="relative flex h-full min-w-0 flex-col overflow-hidden py-3"
+          className="relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden py-3"
           onDragOver={showWorkspaceList ? undefined : dnd.handlePanelDragOver}
           onDragLeave={showWorkspaceList ? undefined : dnd.handlePanelDragLeave}
           onDrop={showWorkspaceList ? undefined : dnd.handlePanelDrop}

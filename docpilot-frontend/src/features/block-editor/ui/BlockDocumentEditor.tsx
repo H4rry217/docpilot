@@ -16,7 +16,11 @@ import { proseMirrorJsonToBlockDocument } from '../model/proseMirrorToBlockDocum
 import './BlockDocumentEditor.css'
 import { TableDividerControls, TableHoverIndicators } from './TableAffordanceOverlay'
 import { useBlockMarqueeSelection } from './useBlockMarqueeSelection'
-import { useInlineCompletion, type InlineCompletionEditorContext } from './useInlineCompletion'
+import {
+  useInlineCompletion,
+  type InlineCompletionEditorContext,
+  type InlineCompletionRuntimeSettings
+} from './useInlineCompletion'
 import { useTableAffordances } from './useTableAffordances'
 
 export type BlockDocumentEditorSnapshot = {
@@ -37,6 +41,7 @@ export type BlockDocumentEditorProps = {
   blockDocument?: BlockDocument
   debugMode?: boolean
   inlineCompletionContext?: InlineCompletionEditorContext
+  inlineCompletionSettings?: InlineCompletionRuntimeSettings
   proseMirrorFallback?: JSONContent
   onSnapshotChange: (
     snapshot: BlockDocumentEditorSnapshot,
@@ -63,6 +68,7 @@ export const BlockDocumentEditor = forwardRef<BlockDocumentEditorHandle, BlockDo
       blockDocument,
       debugMode = false,
       inlineCompletionContext,
+      inlineCompletionSettings,
       proseMirrorFallback,
       onSnapshotChange
     },
@@ -106,6 +112,7 @@ export const BlockDocumentEditor = forwardRef<BlockDocumentEditorHandle, BlockDo
     useInlineCompletion({
       editor,
       context: inlineCompletionContext,
+      settings: inlineCompletionSettings,
       contentKey,
       getSnapshot: getCurrentSnapshot,
       isApplyingContent: () => applyingContentRef.current

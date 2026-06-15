@@ -118,4 +118,53 @@ class BlockDocumentNormalizerTest {
         assertThat(normalized.getBlocks().getFirst().getAttrs()).containsEntry("source", "<div>hello</div>");
     }
 
+    @Test
+    void normalizeStorageBlockIds() {
+        BlockDocumentNormalizer storageNormalizer = new BlockDocumentNormalizer(
+                new MarkdownBlockParser(),
+                new SequenceBlockIdGenerator("generated1", "generated2", "generated3", "generated4")
+        );
+        BlockDocument input = BlockDocument.of(List.of(
+                paragraph("", "Missing id"),
+                paragraph("existing", "Existing id"),
+                paragraph("existing", "Duplicate id"),
+                paragraph("docpilot-transient-local", "Current frontend transient id"),
+                paragraph("frontend-local", "Legacy frontend transient id")
+        ));
+
+        BlockDocument normalized = storageNormalizer.normalizeForStorage(input);
+
+        assertThat(normalized.getBlocks())
+                .extracting(BlockNode::getId)
+                .containsExactly("generated1", "existing", "generated2", "generated3", "generated4");
+    }
+
+    private BlockNode paragraph(String id, String text) {
+        return BlockNode.of(
+                id,
+                BlockType.PARAGRAPH,
+                Map.of(),
+                List.of(InlineNode.of(InlineType.TEXT, text, Map.of(), List.of(), null)),
+                List.of(),
+                null
+        );
+    }
+
+    private static class SequenceBlockIdGenerator extends BlockIdGenerator {
+
+        private final List<String> ids;
+        private int index;
+
+        SequenceBlockIdGenerator(String... ids) {
+            this.ids = List.of(ids);
+        }
+
+        @Override
+        public String nextId() {
+            String id = ids.get(index);
+            index += 1;
+            return id;
+        }
+    }
+
 }

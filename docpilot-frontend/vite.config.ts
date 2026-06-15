@@ -3,6 +3,8 @@ import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
 import { defineConfig } from 'vite'
 
+const backendTarget = 'http://127.0.0.1:11451'
+
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
@@ -12,11 +14,12 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/auth': 'http://127.0.0.1:11451',
-      '/workspace': 'http://127.0.0.1:11451',
-      '/document': 'http://127.0.0.1:11451',
-      '/filesystem': 'http://127.0.0.1:11451',
-      '/inline-completion': 'http://127.0.0.1:11451'
+      // Frontend calls /api/*; the backend controllers are still mounted at /*.
+      '/api': {
+        target: backendTarget,
+        changeOrigin: true,
+        rewrite: (requestPath) => requestPath.replace(/^\/api(?=\/|$)/, '')
+      }
     }
   }
 })

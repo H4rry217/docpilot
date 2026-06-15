@@ -1,5 +1,6 @@
 import type { Editor } from '@tiptap/react'
 import type { BlockSelectionDecoration } from '../model/blockSelection'
+import { blockIdentityId } from '../model/docpilotBlockIdentity'
 
 export type Point = {
   x: number
@@ -64,12 +65,13 @@ export function clientPointFromElementPoint(point: Point, element: HTMLElement):
   }
 }
 
-export function isEditorContentSelectionStart(target: HTMLElement, editorDom: HTMLElement): boolean {
-  if (!editorDom.contains(target)) return false
-  return Boolean(target.closest('[data-block-id], .tableWrapper, table, td, th'))
+export function eventTargetElement(target: EventTarget | null): Element | null {
+  if (target instanceof Element) return target
+  if (target instanceof Text) return target.parentElement
+  return null
 }
 
-export function isInteractiveSelectionTarget(target: HTMLElement): boolean {
+export function isInteractiveSelectionTarget(target: Element): boolean {
   return Boolean(target.closest([
     'button',
     'input',
@@ -174,8 +176,8 @@ export function selectableBlockTargets(editor: Editor): SelectableBlockTarget[] 
   const targets: SelectableBlockTarget[] = []
 
   editor.state.doc.descendants((node, position) => {
-    const blockId = node.attrs.blockId
-    if (typeof blockId !== 'string' || !blockId || seenBlockIds.has(blockId)) {
+    const blockId = blockIdentityId(node.attrs)
+    if (!blockId || seenBlockIds.has(blockId)) {
       return true
     }
 
