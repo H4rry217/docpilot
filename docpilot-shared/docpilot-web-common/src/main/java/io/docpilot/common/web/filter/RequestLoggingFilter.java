@@ -60,6 +60,8 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
     private static final String NO_PAYLOAD = "-";
     private static final String DISABLED_PAYLOAD = "<disabled>";
     private static final String UNSUPPORTED_PAYLOAD = "<unsupported>";
+    private static final String STREAMING_PAYLOAD = "<streaming>";
+    private static final String INLINE_COMPLETION_CONTEXT_PAYLOAD = "<inline-completion-context>";
     private static final String DEFAULT_MASK_TEXT = "***";
 
     private final ObjectMapper objectMapper;
@@ -81,7 +83,11 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         }
 
         HttpServletRequest requestToUse = wrapRequestIfNeeded(request);
-        ContentCachingResponseWrapper responseToUse = new ContentCachingResponseWrapper(response);
+        boolean responseCachingEnabled = !shouldBypassResponseCaching(requestToUse);
+        ContentCachingResponseWrapper responseWrapper = responseCachingEnabled
+                ? new ContentCachingResponseWrapper(response)
+                : null;
+        HttpServletResponse responseToUse = responseWrapper == null ? response : responseWrapper;
         long start = System.currentTimeMillis();
         try {
             filterChain.doFilter(requestToUse, responseToUse);
@@ -91,7 +97,9 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
                 logRequest(requestToUse, requestMaskingRules(handlerMethod));
                 logResponse(requestToUse, responseToUse, start, responseMaskingRules(handlerMethod));
             } finally {
-                responseToUse.copyBodyToResponse();
+                if (responseWrapper != null) {
+                    responseWrapper.copyBodyToResponse();
+                }
             }
         }
     }
@@ -106,7 +114,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
     }
 
     private void logResponse(HttpServletRequest request,
-                             ContentCachingResponseWrapper response,
+                             HttpServletResponse response,
                              long start,
                              MaskingRules maskingRules) {
         log.info("logResponse method={} uri={} status={} costMs={} body={}",
@@ -142,6 +150,9 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         if (!config.isRequestPayloadEnabled() || isPayloadExcluded(request)) {
             return DISABLED_PAYLOAD;
         }
+        if (isInlineCompletionStreamRequest(request)) {
+            return INLINE_COMPLETION_CONTEXT_PAYLOAD;
+        }
         if (!hasRequestBody(request)) {
             return NO_PAYLOAD;
         }
@@ -160,20 +171,30 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
     }
 
     private String responseBodyToLog(HttpServletRequest request,
-                                     ContentCachingResponseWrapper response,
+                                     HttpServletResponse response,
                                      MaskingRules maskingRules) {
         if (!config.isResponsePayloadEnabled() || isPayloadExcluded(request)) {
             return DISABLED_PAYLOAD;
         }
-        byte[] body = response.getContentAsByteArray();
+        String contentType = response.getContentType();
+        if (isStreamingResponse(request, contentType)) {
+            return STREAMING_PAYLOAD;
+        }
+        if (!(response instanceof ContentCachingResponseWrapper cachedResponse)) {
+            return "<unavailable>";
+        }
+        byte[] body = cachedResponse.getContentAsByteArray();
         if (body.length == 0) {
             return NO_PAYLOAD;
         }
-        String contentType = response.getContentType();
         if (StringUtils.hasText(contentType) && !isVisibleContent(contentType)) {
             return UNSUPPORTED_PAYLOAD;
         }
         return payloadToLog(body, contentType, charset(response.getCharacterEncoding()), maskingRules);
+    }
+
+    private boolean shouldBypassResponseCaching(HttpServletRequest request) {
+        return isInlineCompletionStreamRequest(request) || acceptsEventStream(request);
     }
 
     private String payloadToLog(byte[] payload, String contentType, Charset charset, MaskingRules maskingRules) {
@@ -325,6 +346,23 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         return "text".equalsIgnoreCase(mediaType.getType())
                 || MediaType.APPLICATION_XML.includes(mediaType)
                 || mediaType.getSubtype().endsWith("+xml");
+    }
+
+    private boolean isStreamingResponse(HttpServletRequest request, String contentType) {
+        if (isInlineCompletionStreamRequest(request)) {
+            return true;
+        }
+        MediaType mediaType = parseMediaType(contentType);
+        return mediaType != null && MediaType.TEXT_EVENT_STREAM.includes(mediaType);
+    }
+
+    private boolean isInlineCompletionStreamRequest(HttpServletRequest request) {
+        return "/inline-completion/stream".equals(request.getRequestURI());
+    }
+
+    private boolean acceptsEventStream(HttpServletRequest request) {
+        String accept = request.getHeader("Accept");
+        return StringUtils.hasText(accept) && accept.contains(MediaType.TEXT_EVENT_STREAM_VALUE);
     }
 
     private MediaType parseMediaType(String contentType) {

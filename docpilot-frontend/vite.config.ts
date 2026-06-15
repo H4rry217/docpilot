@@ -14,7 +14,9 @@ export default defineConfig({
     proxy: {
       '/auth': 'http://127.0.0.1:11451',
       '/workspace': 'http://127.0.0.1:11451',
-      '/document': 'http://127.0.0.1:11451'
+      '/document': 'http://127.0.0.1:11451',
+      '/filesystem': 'http://127.0.0.1:11451',
+      '/inline-completion': 'http://127.0.0.1:11451'
     }
   }
 })

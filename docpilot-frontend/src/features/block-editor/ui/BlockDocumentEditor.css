@@ -95,6 +95,12 @@
   margin-top: 0;
 }
 
+.prose-editor .docpilot-inline-completion-ghost {
+  color: #8a98aa;
+  pointer-events: none;
+  white-space: pre-wrap;
+}
+
 .prose-editor h1,
 .prose-editor h2,
 .prose-editor h3,

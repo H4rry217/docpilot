@@ -31,6 +31,10 @@ export function markdownToHtml(markdown: string): string {
   return markdownIt.render(markdown)
 }
 
+export function markdownToInlineHtml(markdown: string): string {
+  return markdownIt.renderInline(markdown)
+}
+
 export function htmlToMarkdown(html: string): string {
   return turndown.turndown(html).trim()
 }

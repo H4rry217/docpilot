@@ -9,6 +9,7 @@ import { DocpilotBlockIdentity } from './docpilotBlockIdentity'
 import { DocpilotCodeBlock } from './docpilotCodeBlock'
 import { DocpilotFootnoteNavigation } from './docpilotFootnoteNavigation'
 import { DocpilotHtmlBlock } from './docpilotHtmlBlock'
+import { DocpilotInlineCompletion } from './inlineCompletion'
 import { DocpilotTableCellSelection } from './docpilotTableCellSelection'
 import {
   DocpilotCallout,
@@ -47,6 +48,7 @@ export const editorExtensions = [
   DocpilotTableCellSelection,
   DocpilotBlockIdentity,
   DocpilotBlockSelection,
+  DocpilotInlineCompletion,
   DocpilotFootnoteNavigation,
   DocpilotCodeBlock,
   Link.configure({

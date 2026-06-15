@@ -3,6 +3,7 @@ package io.docpilot.workspace.config;
 import io.docpilot.ai.AiModelRegistry;
 import io.docpilot.workspace.infrastructure.mongo.MongoWorkspaceTransactionRunner;
 import io.docpilot.workspace.application.WorkspaceTransactionRunner;
+import io.docpilot.workspace.inlinecompletion.InlineCompletionProperties;
 import io.docpilot.workspace.knowledge.AiKnowledgeSummaryService;
 import io.docpilot.workspace.knowledge.KnowledgeChunker;
 import io.docpilot.workspace.knowledge.KnowledgeIndexCommandHandler;
@@ -47,7 +48,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Configuration
 @EnableAsync
 @EnableScheduling
-@EnableConfigurationProperties({KnowledgeProperties.class, RedisProperties.class})
+@EnableConfigurationProperties({KnowledgeProperties.class, InlineCompletionProperties.class, RedisProperties.class})
 public class WorkspaceApplicationConfig {
 
     private static final AtomicInteger KNOWLEDGE_SUMMARY_THREAD_SEQUENCE = new AtomicInteger();

@@ -5,6 +5,7 @@ export {
   type BlockDocumentEditorSnapshot,
   type BlockDocumentEditorSnapshotSource
 } from './ui/BlockDocumentEditor'
+export { type InlineCompletionEditorContext } from './ui/useInlineCompletion'
 export {
   blockDocumentToProseMirrorJson,
   isBlockDocument,

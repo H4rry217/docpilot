@@ -20,7 +20,9 @@ import java.util.Base64;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -337,6 +339,53 @@ class DocumentWorkspaceControllerTest {
                 .andExpect(jsonPath("$.code").value(StatusCode.UNAUTHORIZED.code()));
     }
 
+    @Test
+    void inlineCompletionStreamEmitsMetaDeltaAndDone() throws Exception {
+        SeededDocument seededDocument = createDocumentInWorkspace();
+
+        MvcResult streamResult = mockMvc.perform(post("/inline-completion/stream")
+                        .header(HttpHeaders.AUTHORIZATION, AUTHORIZATION)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.TEXT_EVENT_STREAM)
+                        .content(inlineCompletionRequest(seededDocument.workspaceId(), seededDocument.documentId())))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        MvcResult completed = mockMvc.perform(asyncDispatch(streamResult))
+                .andExpect(status().isOk())
+                .andReturn();
+        String content = completed.getResponse().getContentAsString(StandardCharsets.UTF_8);
+
+        assertThat(content).contains("event:meta");
+        assertThat(content).contains("\"completionId\"");
+        assertThat(content).contains("event:delta");
+        assertThat(content).contains("\"markdownDelta\":\"completion\"");
+        assertThat(content).contains("event:done");
+        assertThat(content).contains("\"markdown\":\"completion\"");
+    }
+
+    @Test
+    void inlineCompletionStreamRequiresAuth() throws Exception {
+        mockMvc.perform(post("/inline-completion/stream")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(StatusCode.UNAUTHORIZED.code()));
+    }
+
+    @Test
+    void inlineCompletionStreamRejectsNonOwnerWorkspace() throws Exception {
+        SeededDocument seededDocument = createDocumentInWorkspace();
+
+        mockMvc.perform(post("/inline-completion/stream")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + testJwt(2))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.TEXT_EVENT_STREAM)
+                        .content(inlineCompletionRequest(seededDocument.workspaceId(), seededDocument.documentId())))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(StatusCode.FORBIDDEN.code()));
+    }
+
     private SeededDocument createDocumentInWorkspace() throws Exception {
         JsonNode workspace = postJson("/workspace/default/ensure", "{}");
         String workspaceId = workspace.get("workspaceId").asText();
@@ -403,9 +452,36 @@ class DocumentWorkspaceControllerTest {
                 """.formatted(text);
     }
 
+    private static String inlineCompletionRequest(String workspaceId, String documentId) {
+        return """
+                {
+                  "workspaceId":"%s",
+                  "documentId":"%s",
+                  "cursor":{"from":6,"to":6},
+                  "currentBlock":{
+                    "id":"b1",
+                    "type":"PARAGRAPH",
+                    "text":"Hello",
+                    "textBeforeCursor":"Hello",
+                    "textAfterCursor":""
+                  },
+                  "headingPath":["Hello"],
+                  "nearbyBlocks":[],
+                  "trigger":"IDLE",
+                  "clientVersion":"test"
+                }
+                """.formatted(workspaceId, documentId);
+    }
+
     private static String testJwt() {
+        return testJwt(1);
+    }
+
+    private static String testJwt(long userId) {
         String header = base64Url("{\"alg\":\"HS256\",\"typ\":\"JWT\"}");
-        String payload = base64Url("{\"sub\":1,\"name\":\"HarryZ\",\"roles\":[\"admin\"],\"exp\":9999999999}");
+        String payload = base64Url("""
+                {"sub":%d,"name":"HarryZ","roles":["admin"],"exp":9999999999}
+                """.formatted(userId).strip());
         String signingInput = header + "." + payload;
         return signingInput + "." + sign(signingInput);
     }

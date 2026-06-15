@@ -340,6 +340,11 @@ export function DocumentEditor({
             contentKey={contentKey}
             blockDocument={documentQuery.data?.document.content.blockDocument}
             debugMode={blockDebugMode}
+            inlineCompletionContext={{
+              workspaceId: workspace?.workspaceId,
+              documentId,
+              clientVersion: 'web-0.1.0'
+            }}
             proseMirrorFallback={documentQuery.data?.prosemirror as JSONContent | undefined}
             onSnapshotChange={handleSnapshotChange}
           />

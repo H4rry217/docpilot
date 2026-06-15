@@ -1,5 +1,15 @@
 package io.docpilot.controller;
 
+import io.docpilot.ai.AiChatModel;
+import io.docpilot.ai.AiModelMetadata;
+import io.docpilot.ai.AiModelRegistry;
+import io.docpilot.ai.model.ChatChoice;
+import io.docpilot.ai.model.ChatDelta;
+import io.docpilot.ai.model.ChatMessage;
+import io.docpilot.ai.model.ChatRequest;
+import io.docpilot.ai.model.ChatResponse;
+import io.docpilot.ai.model.ChatStreamEvent;
+import io.docpilot.ai.model.ChatStreamEventType;
 import io.docpilot.common.id.SnowflakeIdGenerator;
 import io.docpilot.workspace.application.NoopWorkspaceTransactionRunner;
 import io.docpilot.workspace.application.WorkspaceTransactionRunner;
@@ -15,6 +25,7 @@ import io.docpilot.workspace.repository.WorkspaceRepository;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
+import reactor.core.publisher.Flux;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -62,6 +73,12 @@ class WorkspaceControllerTestConfig {
     @Primary
     DocumentRevisionRepository testDocumentRevisionRepository() {
         return new InMemoryDocumentRevisionRepository();
+    }
+
+    @Bean
+    @Primary
+    AiModelRegistry testAiModelRegistry() {
+        return new AiModelRegistry("inline-test", List.of(new InlineCompletionTestModel()));
     }
 
     private static class InMemoryWorkspaceRepository implements WorkspaceRepository {
@@ -196,6 +213,38 @@ class WorkspaceControllerTestConfig {
                     .sorted(Comparator.comparing(DocumentRevision::getVersion).reversed())
                     .limit(limit)
                     .collect(Collectors.toList());
+        }
+    }
+
+    private static class InlineCompletionTestModel implements AiChatModel {
+
+        @Override
+        public String id() {
+            return "inline-test";
+        }
+
+        @Override
+        public AiModelMetadata metadata() {
+            return AiModelMetadata.of(id());
+        }
+
+        @Override
+        public ChatResponse chat(ChatRequest request) {
+            ChatChoice choice = new ChatChoice();
+            choice.setMessage(new ChatMessage("assistant", "completion"));
+            ChatResponse response = new ChatResponse();
+            response.setChoices(List.of(choice));
+            return response;
+        }
+
+        @Override
+        public Flux<ChatStreamEvent> stream(ChatRequest request) {
+            ChatDelta delta = new ChatDelta();
+            delta.setContent(List.of(Map.of("text", "completion")));
+            ChatStreamEvent event = new ChatStreamEvent();
+            event.setType(ChatStreamEventType.MESSAGE_DELTA);
+            event.setDelta(delta);
+            return Flux.just(event);
         }
     }
 }

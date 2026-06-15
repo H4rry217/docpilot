@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { htmlToMarkdown, markdownToHtml } from './markdown'
+import { htmlToMarkdown, markdownToHtml, markdownToInlineHtml } from './markdown'
 
 describe('markdown conversion', () => {
   it('renders markdown headings and lists to html', () => {
@@ -17,5 +17,9 @@ describe('markdown conversion', () => {
     `)
 
     expect(markdown).toBe('<section>hello</section>')
+  })
+
+  it('renders inline markdown without wrapping it in a paragraph', () => {
+    expect(markdownToInlineHtml('**重要**')).toBe('<strong>重要</strong>')
   })
 })

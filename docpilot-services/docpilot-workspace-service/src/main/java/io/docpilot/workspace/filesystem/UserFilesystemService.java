@@ -180,7 +180,7 @@ public class UserFilesystemService {
                                 FilesystemRetrievalOptions options,
                                 UserFilesystemFailureMode failureMode,
                                 RetrievalAccumulator accumulator) {
-        log.info("user filesystem retrieve target start userId={} workspaceId={} userPath={} internalPath={} topK={}",
+        log.debug("user filesystem retrieve target start userId={} workspaceId={} userPath={} internalPath={} topK={}",
                 userId, target.workspaceId(), target.userScopedPath(), target.internalPath(), options.topK());
         WorkspaceFilesystem workspaceFilesystem = new WorkspaceFilesystem(
                 target.workspaceId(),
@@ -196,7 +196,7 @@ public class UserFilesystemService {
                     options
             ));
             accumulator.addResult(result, target);
-            log.info("user filesystem retrieve target done userId={} workspaceId={} userPath={} hits={} truncated={} reason={} searchedMounts={}",
+            log.debug("user filesystem retrieve target done userId={} workspaceId={} userPath={} hits={} truncated={} reason={} searchedMounts={}",
                     userId, target.workspaceId(), target.userScopedPath(), result.hits().size(), result.truncated(),
                     result.truncationReason(), result.searchedMounts());
         } catch (RuntimeException exception) {
