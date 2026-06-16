@@ -297,7 +297,7 @@
 }
 
 .code-block-editor .cm-editor.cm-focused .cm-selectionBackground {
-  background: rgb(37 99 235 / 20%);
+  background: var(--docpilot-selection-fill, #d5e1fa);
 }
 
 .code-block-editor .cm-cursor {

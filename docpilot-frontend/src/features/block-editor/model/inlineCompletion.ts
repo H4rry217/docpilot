@@ -5,6 +5,9 @@ import type { InlineCompletionShape } from '../../inline-completion/api/inlineCo
 import { markdownToHtml, markdownToInlineHtml } from './markdown'
 
 type ProseMirrorDoc = Parameters<typeof DecorationSet.create>[0]
+type InlineCompletionMenuPlacement = 'above' | 'below'
+
+const MENU_VIEWPORT_MARGIN = 8
 
 export type InlineCompletionCandidateSuggestion = {
   index: number
@@ -152,6 +155,10 @@ export function selectInlineCompletionCandidate(
 }
 
 export function clearInlineCompletion(editor: Editor, requestSeq?: number): void {
+  const suggestion = getInlineCompletionSuggestion(editor)
+  if (!suggestion || (requestSeq != null && suggestion.requestSeq !== requestSeq)) {
+    return
+  }
   editor.view.dispatch(
     editor.state.tr.setMeta(inlineCompletionPluginKey, {
       type: 'clear',
@@ -224,17 +231,22 @@ function inlineCompletionDecorations(
       position,
       () => {
         const wrapper = document.createElement(blockCandidate ? 'div' : 'span')
-        wrapper.className = blockCandidate
-          ? 'docpilot-inline-completion-widget is-block'
-          : 'docpilot-inline-completion-widget'
+        const hasMenu = suggestion.menuOpen && suggestion.candidates.length > 1
+        wrapper.className = [
+          'docpilot-inline-completion-widget',
+          blockCandidate ? 'is-block' : '',
+          hasMenu ? 'has-menu' : ''
+        ].filter(Boolean).join(' ')
         wrapper.contentEditable = 'false'
         wrapper.dataset.docpilotInlineCompletionWidget = 'true'
         const ghost = document.createElement(blockCandidate ? 'div' : 'span')
         ghost.className = 'docpilot-inline-completion-ghost'
         renderGhostPreview(ghost, candidate, blockCandidate)
         wrapper.appendChild(ghost)
-        if (suggestion.menuOpen && suggestion.candidates.length > 1) {
-          wrapper.appendChild(candidateMenu(suggestion))
+        if (hasMenu) {
+          const menu = candidateMenu(suggestion)
+          wrapper.appendChild(menu)
+          queueCandidateMenuLayout(wrapper, menu)
         }
         return wrapper
       },
@@ -271,6 +283,45 @@ function candidateMenu(suggestion: InlineCompletionSuggestion): HTMLElement {
     menu.appendChild(item)
   })
   return menu
+}
+
+function queueCandidateMenuLayout(wrapper: HTMLElement, menu: HTMLElement): void {
+  applyCandidateMenuLayout(wrapper, menu)
+  if (typeof window.requestAnimationFrame === 'function') {
+    window.requestAnimationFrame(() => applyCandidateMenuLayout(wrapper, menu))
+  }
+}
+
+export function applyCandidateMenuLayout(wrapper: HTMLElement, menu: HTMLElement): void {
+  const placement = candidateMenuPlacement(wrapper, menu)
+  menu.dataset.docpilotInlineCompletionPlacement = placement
+  wrapper.classList.toggle('menu-above', placement === 'above')
+  wrapper.classList.toggle('menu-below', placement === 'below')
+
+  menu.style.left = '0px'
+  const menuRect = menu.getBoundingClientRect()
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth
+  let leftOffset = 0
+  if (menuRect.right > viewportWidth - MENU_VIEWPORT_MARGIN) {
+    leftOffset += viewportWidth - MENU_VIEWPORT_MARGIN - menuRect.right
+  }
+  if (menuRect.left + leftOffset < MENU_VIEWPORT_MARGIN) {
+    leftOffset += MENU_VIEWPORT_MARGIN - (menuRect.left + leftOffset)
+  }
+  menu.style.left = leftOffset === 0 ? '0px' : `${Math.round(leftOffset)}px`
+}
+
+function candidateMenuPlacement(wrapper: HTMLElement, menu: HTMLElement): InlineCompletionMenuPlacement {
+  const wrapperRect = wrapper.getBoundingClientRect()
+  const menuRect = menu.getBoundingClientRect()
+  const menuHeight = menu.offsetHeight || menuRect.height
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight
+  const availableBelow = viewportHeight - wrapperRect.bottom - MENU_VIEWPORT_MARGIN
+  const availableAbove = wrapperRect.top - MENU_VIEWPORT_MARGIN
+
+  if (availableBelow >= menuHeight) return 'below'
+  if (availableAbove > availableBelow) return 'above'
+  return 'below'
 }
 
 function normalizeSuggestion(suggestion: InlineCompletionSuggestion): InlineCompletionSuggestion {

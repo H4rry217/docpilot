@@ -2,9 +2,12 @@ import { Editor } from '@tiptap/core'
 import { describe, expect, it } from 'vitest'
 import { editorExtensions } from '../model/extensions'
 import {
+  blockMarqueeStartModeForTarget,
   blockSelectionDecorationsFromTargets,
   blockSelectionSignature,
+  clampPointToRect,
   eventTargetElement,
+  hasTableBlockTarget,
   isInteractiveSelectionTarget,
   isSelectableBlockElement,
   isPastDragStartDistance,
@@ -57,6 +60,17 @@ describe('block selection geometry', () => {
     )).toBe(false)
   })
 
+  it('clamps pointer positions to a local rectangle', () => {
+    expect(clampPointToRect(
+      { x: -20, y: 120 },
+      { left: 0, top: 10, right: 100, bottom: 80 }
+    )).toEqual({ x: 0, y: 80 })
+    expect(clampPointToRect(
+      { x: 40, y: 30 },
+      { left: 0, top: 10, right: 100, bottom: 80 }
+    )).toEqual({ x: 40, y: 30 })
+  })
+
   it('uses the drag threshold before starting marquee selection', () => {
     expect(isPastDragStartDistance({ x: 0, y: 0 }, { x: 3, y: 4 })).toBe(false)
     expect(isPastDragStartDistance({ x: 0, y: 0 }, { x: 6, y: 0 })).toBe(true)
@@ -78,6 +92,56 @@ describe('block selection geometry', () => {
 
     expect(eventTargetElement(icon)).toBe(icon)
     expect(isInteractiveSelectionTarget(icon)).toBe(true)
+  })
+
+  it('leaves dragging from editor content to native text selection', () => {
+    const boundary = document.createElement('div')
+    const editorContent = document.createElement('div')
+    const paragraph = document.createElement('p')
+    editorContent.className = 'editor-content'
+    editorContent.append(paragraph)
+    boundary.append(editorContent)
+
+    expect(blockMarqueeStartModeForTarget({
+      boundaryElement: boundary,
+      button: 0,
+      target: paragraph
+    })).toBe('ignore')
+  })
+
+  it('uses a visible marquee when dragging inside the selection boundary outside editor content', () => {
+    const boundary = document.createElement('div')
+    const gutter = document.createElement('div')
+    boundary.append(gutter)
+
+    expect(blockMarqueeStartModeForTarget({
+      boundaryElement: boundary,
+      button: 0,
+      target: gutter
+    })).toBe('block-with-marquee')
+  })
+
+  it('ignores non-primary buttons, interactive targets, and targets outside the boundary', () => {
+    const boundary = document.createElement('div')
+    const button = document.createElement('button')
+    const outside = document.createElement('div')
+    boundary.append(button)
+
+    expect(blockMarqueeStartModeForTarget({
+      boundaryElement: boundary,
+      button: 1,
+      target: boundary
+    })).toBe('ignore')
+    expect(blockMarqueeStartModeForTarget({
+      boundaryElement: boundary,
+      button: 0,
+      target: button
+    })).toBe('ignore')
+    expect(blockMarqueeStartModeForTarget({
+      boundaryElement: boundary,
+      button: 0,
+      target: outside
+    })).toBe('ignore')
   })
 
   it('suppresses child overlays when a visual container is selected', () => {
@@ -117,6 +181,7 @@ describe('block selection geometry', () => {
 
     expect(visualBlockSelectionTargets([tableTarget, rowTarget, cellTarget]).map((item) => item.id))
       .toEqual(['table'])
+    expect(hasTableBlockTarget(visualBlockSelectionTargets([tableTarget, rowTarget, cellTarget]))).toBe(true)
   })
 
   it('keeps table selection geometry on the table box', () => {

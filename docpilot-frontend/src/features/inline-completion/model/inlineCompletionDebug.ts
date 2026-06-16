@@ -10,11 +10,10 @@ type InlineCompletionDebugEvent = {
 }
 
 const INLINE_COMPLETION_DEBUG_EVENT_LIMIT = 100
-const INLINE_COMPLETION_VERBOSE_LOG_KEY = 'docpilot.inlineCompletion.verboseLogs'
 
 /**
- * Keeps recent inline-completion diagnostics available for manual inspection without
- * filling the console during normal editing.
+ * Keeps recent inline-completion diagnostics available and prints every frontend
+ * completion operation so trigger decisions are visible during editing.
  */
 export function recordInlineCompletionDebug(
   scope: string,
@@ -34,7 +33,5 @@ export function recordInlineCompletionDebug(
   }
   target.__docpilotInlineCompletionDebugEvents = events
 
-  if (globalThis.localStorage?.getItem(INLINE_COMPLETION_VERBOSE_LOG_KEY) === 'true') {
-    console.info(`[inline-completion:${scope}] ${message}`, detail)
-  }
+  console.info(`[inline-completion:${scope}] ${message}`, detail)
 }

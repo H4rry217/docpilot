@@ -3,6 +3,7 @@
   --table-hover-indicator-dot-size: 7px;
   --table-hover-indicator-dot-offset: -6px;
   --table-hover-indicator-dot-inner-size: 3.5px;
+  --table-hover-indicator-block-gap: 0px;
 
   position: absolute;
   inset: 0;
@@ -10,14 +11,19 @@
   pointer-events: none;
 }
 
+.block-editor-surface.is-debug-mode .table-hover-indicator-layer,
+.block-editor-surface.has-selected-table-block .table-hover-indicator-layer {
+  --table-hover-indicator-block-gap: var(--docpilot-table-indicator-block-gap);
+}
+
 .table-hover-column-rail,
 .table-hover-row-rail {
   position: absolute;
   box-sizing: border-box;
   overflow: visible;
-  border: 1px solid #dbe1ea;
+  border: 1px solid var(--docpilot-table-indicator-rail-border-color);
   border-radius: 0;
-  background: #f0f2f5;
+  background: var(--docpilot-table-indicator-rail-bg);
   opacity: 0;
   pointer-events: none;
   animation: table-hover-indicator-reveal 120ms ease forwards;
@@ -31,7 +37,7 @@
   border-top-right-radius: var(--table-hover-indicator-rail-size);
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;
-  transform: translateY(-100%);
+  transform: translateY(calc(-100% - var(--table-hover-indicator-block-gap)));
 }
 
 .table-hover-row-rail {
@@ -40,7 +46,7 @@
   border-top-left-radius: var(--table-hover-indicator-rail-size);
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
-  transform: translateX(-100%);
+  transform: translateX(calc(-100% - var(--table-hover-indicator-block-gap)));
 }
 
 .table-hover-column-segment,
@@ -76,7 +82,7 @@
 .table-hover-column-segment:focus-visible,
 .table-hover-row-segment:hover,
 .table-hover-row-segment:focus-visible {
-  background-color: #dfe4eb;
+  background-color: var(--docpilot-table-indicator-hover-bg);
 }
 
 .table-hover-column-segment:focus-visible,
@@ -86,26 +92,26 @@
 
 .table-hover-column-segment.is-selected,
 .table-hover-row-segment.is-selected {
-  background-color: #3370ff;
+  background-color: var(--docpilot-table-indicator-selected-bg);
 }
 
 .table-hover-indicator-layer.is-delete-preview .table-hover-column-segment.is-selected,
 .table-hover-indicator-layer.is-delete-preview .table-hover-row-segment.is-selected {
-  background-color: #dc3b31;
+  background-color: var(--docpilot-table-indicator-delete-bg);
 }
 
 .table-hover-column-segment.is-selected:hover,
 .table-hover-column-segment.is-selected:focus-visible,
 .table-hover-row-segment.is-selected:hover,
 .table-hover-row-segment.is-selected:focus-visible {
-  background-color: #3370ff;
+  background-color: var(--docpilot-table-indicator-selected-bg);
 }
 
 .table-hover-indicator-layer.is-delete-preview .table-hover-column-segment.is-selected:hover,
 .table-hover-indicator-layer.is-delete-preview .table-hover-column-segment.is-selected:focus-visible,
 .table-hover-indicator-layer.is-delete-preview .table-hover-row-segment.is-selected:hover,
 .table-hover-indicator-layer.is-delete-preview .table-hover-row-segment.is-selected:focus-visible {
-  background-color: #dc3b31;
+  background-color: var(--docpilot-table-indicator-delete-bg);
 }
 
 .table-selection-toolbar {
@@ -115,10 +121,10 @@
   align-items: center;
   gap: 2px;
   height: 34px;
-  border: 1px solid #dce3ec;
+  border: 1px solid var(--docpilot-table-toolbar-border-color);
   border-radius: 6px;
-  background: #fff;
-  box-shadow: 0 6px 16px rgb(15 23 42 / 14%);
+  background: var(--docpilot-table-toolbar-bg);
+  box-shadow: var(--docpilot-table-toolbar-shadow);
   opacity: 0;
   padding: 3px 4px;
   pointer-events: auto;
@@ -135,7 +141,7 @@
   border: 0;
   border-radius: 5px;
   background: transparent;
-  color: #253044;
+  color: var(--docpilot-table-toolbar-color);
   cursor: pointer;
   padding: 0;
   transition:
@@ -146,22 +152,22 @@
 .table-selection-toolbar-button:hover,
 .table-selection-toolbar-button:focus-visible,
 .table-selection-toolbar-button.is-active {
-  background: #edf4ff;
-  color: #1d5fa8;
+  background: var(--docpilot-table-toolbar-hover-bg);
+  color: var(--docpilot-table-toolbar-hover-color);
   outline: none;
 }
 
 .table-selection-toolbar-button.is-danger:hover,
 .table-selection-toolbar-button.is-danger:focus-visible {
-  background: #fff1f0;
-  color: #c24135;
+  background: var(--docpilot-table-toolbar-danger-bg);
+  color: var(--docpilot-table-toolbar-danger-color);
 }
 
 .table-selection-toolbar-divider {
   width: 1px;
   height: 20px;
   margin: 0 3px;
-  background: #dfe5ee;
+  background: var(--docpilot-table-toolbar-divider-color);
 }
 
 .table-hover-column-dot,
@@ -193,7 +199,7 @@
   width: var(--table-hover-indicator-dot-inner-size);
   height: var(--table-hover-indicator-dot-inner-size);
   border-radius: 999px;
-  background: #aeb7c3;
+  background: var(--docpilot-table-indicator-dot-bg);
   transform: translate(-50%, -50%);
 }
 
@@ -233,10 +239,10 @@
   height: 1px;
   background: linear-gradient(
     90deg,
-    rgb(51 112 255 / 0%),
-    #3370ff 24px,
-    #3370ff calc(100% - 24px),
-    rgb(51 112 255 / 0%)
+    var(--docpilot-table-divider-color-transparent),
+    var(--docpilot-table-divider-color) 24px,
+    var(--docpilot-table-divider-color) calc(100% - 24px),
+    var(--docpilot-table-divider-color-transparent)
   );
   transform: translateY(-0.5px);
 }
@@ -245,10 +251,10 @@
   width: 1px;
   background: linear-gradient(
     180deg,
-    rgb(51 112 255 / 0%),
-    #3370ff 24px,
-    #3370ff calc(100% - 24px),
-    rgb(51 112 255 / 0%)
+    var(--docpilot-table-divider-color-transparent),
+    var(--docpilot-table-divider-color) 24px,
+    var(--docpilot-table-divider-color) calc(100% - 24px),
+    var(--docpilot-table-divider-color-transparent)
   );
   transform: translateX(-0.5px);
 }
@@ -261,20 +267,20 @@
   justify-content: center;
   width: 22px;
   height: 22px;
-  border: 2px solid #fff;
+  border: 2px solid var(--docpilot-table-divider-handle-border-color);
   border-radius: 50%;
-  background: #3370ff;
-  color: #fff;
+  background: var(--docpilot-table-divider-handle-bg);
+  color: var(--docpilot-table-divider-handle-color);
   opacity: 0;
   padding: 0;
-  box-shadow: 0 4px 12px rgb(51 112 255 / 28%);
+  box-shadow: var(--docpilot-table-divider-handle-shadow);
   pointer-events: auto;
   will-change: opacity, transform;
 }
 
 .table-divider-insert:hover,
 .table-divider-insert:focus-visible {
-  background: #245bdb;
+  background: var(--docpilot-table-divider-handle-hover-bg);
   outline: none;
 }
 
@@ -313,12 +319,12 @@
 @keyframes table-divider-line-reveal {
   from {
     opacity: 0;
-    box-shadow: 0 0 0 rgb(51 112 255 / 0%);
+    box-shadow: var(--docpilot-table-divider-line-shadow-start);
   }
 
   to {
     opacity: 1;
-    box-shadow: 0 0 5px rgb(51 112 255 / 18%);
+    box-shadow: var(--docpilot-table-divider-line-shadow-end);
   }
 }
 

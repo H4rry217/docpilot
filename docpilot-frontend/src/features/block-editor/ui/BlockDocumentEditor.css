@@ -1,16 +1,57 @@
 ﻿.block-editor-surface {
+  --docpilot-editor-surface-bg: #fff;
+  --docpilot-selection-fill: #d5e1fa;
+  --docpilot-selection-outline-color: rgb(59 130 246 / 70%);
+  --docpilot-selection-ring-color: rgb(59 130 246 / 68%);
+  --docpilot-selection-shadow: 0 8px 22px rgb(59 130 246 / 12%);
+  --docpilot-table-selection-border-color: rgb(151 178 229 / 82%);
+  --docpilot-table-selection-cell-fill: color-mix(in srgb, var(--docpilot-selection-fill) 72%, var(--docpilot-editor-surface-bg));
+  --docpilot-table-selection-header-fill: color-mix(in srgb, var(--docpilot-selection-fill) 82%, var(--docpilot-editor-surface-bg));
+  --docpilot-table-cell-selected-fill: rgb(59 130 246 / 8%);
+  --docpilot-table-cell-selected-ring-color: rgb(59 130 246 / 45%);
+  --docpilot-table-indicator-block-gap: 6px;
+  --docpilot-table-indicator-rail-border-color: #dbe1ea;
+  --docpilot-table-indicator-rail-bg: #f0f2f5;
+  --docpilot-table-indicator-hover-bg: #dfe4eb;
+  --docpilot-table-indicator-selected-bg: #3370ff;
+  --docpilot-table-indicator-delete-bg: #dc3b31;
+  --docpilot-table-indicator-dot-bg: #aeb7c3;
+  --docpilot-table-toolbar-border-color: #dce3ec;
+  --docpilot-table-toolbar-bg: #fff;
+  --docpilot-table-toolbar-shadow: 0 6px 16px rgb(15 23 42 / 14%);
+  --docpilot-table-toolbar-color: #253044;
+  --docpilot-table-toolbar-hover-bg: #edf4ff;
+  --docpilot-table-toolbar-hover-color: #1d5fa8;
+  --docpilot-table-toolbar-danger-bg: #fff1f0;
+  --docpilot-table-toolbar-danger-color: #c24135;
+  --docpilot-table-toolbar-divider-color: #dfe5ee;
+  --docpilot-table-divider-color: #3370ff;
+  --docpilot-table-divider-color-transparent: rgb(51 112 255 / 0%);
+  --docpilot-table-divider-handle-bg: #3370ff;
+  --docpilot-table-divider-handle-hover-bg: #245bdb;
+  --docpilot-table-divider-handle-border-color: #fff;
+  --docpilot-table-divider-handle-color: #fff;
+  --docpilot-table-divider-handle-shadow: 0 4px 12px rgb(51 112 255 / 28%);
+  --docpilot-table-divider-line-shadow-start: 0 0 0 rgb(51 112 255 / 0%);
+  --docpilot-table-divider-line-shadow-end: 0 0 5px rgb(51 112 255 / 18%);
+  --docpilot-inline-completion-ghost-color: #8a98aa;
+  --docpilot-inline-completion-menu-offset: 4px;
+  --docpilot-inline-completion-menu-width: 300px;
+  --docpilot-block-marquee-border-color: #3b82f6;
+  --docpilot-block-marquee-fill: rgb(59 130 246 / 8%);
+
   position: relative;
   width: 100%;
   min-height: calc(100vh - 188px);
   margin: 0 auto;
-  background: #fff;
+  background: var(--docpilot-editor-surface-bg);
 }
 
 .editor-content {
   width: min(760px, 100%);
   min-height: calc(100vh - 188px);
   margin: 0 auto;
-  background: #fff;
+  background: var(--docpilot-editor-surface-bg);
 }
 
 .prose-editor {
@@ -21,6 +62,12 @@
   color: #303b49;
   font-size: 1.02rem;
   line-height: 1.9;
+}
+
+.prose-editor::selection,
+.prose-editor ::selection {
+  background: var(--docpilot-selection-fill);
+  color: inherit;
 }
 
 .block-editor-surface.is-debug-mode .prose-editor {
@@ -73,6 +120,18 @@
   outline: 0;
 }
 
+.block-editor-surface.is-debug-mode .prose-editor .tableWrapper {
+  --docpilot-block-debug-outline: var(--docpilot-block-debug-outline-0);
+
+  outline: 2px solid var(--docpilot-block-debug-outline);
+  outline-offset: 2px;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
+}
+
+.block-editor-surface.is-debug-mode .prose-editor .tableWrapper > table[data-block-id] {
+  outline: 0;
+}
+
 .prose-editor [data-block-id].docpilot-block-jump-target {
   border-radius: 4px;
   animation: docpilot-block-jump-highlight 1400ms ease;
@@ -96,7 +155,7 @@
 }
 
 .prose-editor .docpilot-inline-completion-ghost {
-  color: #8a98aa;
+  color: var(--docpilot-inline-completion-ghost-color);
   pointer-events: none;
   user-select: none;
   white-space: pre-wrap;
@@ -111,7 +170,7 @@
 
 .prose-editor .docpilot-inline-completion-widget.is-block {
   display: block;
-  margin: 8px 0 0;
+  margin: calc(var(--docpilot-inline-completion-menu-offset) * 2) 0 0;
 }
 
 .prose-editor .docpilot-inline-completion-widget.is-block .docpilot-inline-completion-ghost {
@@ -134,70 +193,77 @@
 }
 
 .prose-editor .docpilot-inline-completion-ghost-spacer {
-  height: 8px;
+  height: calc(var(--docpilot-inline-completion-menu-offset) * 2);
 }
 
 .prose-editor .docpilot-inline-completion-menu {
   position: absolute;
   z-index: 50;
   left: 0;
-  top: calc(100% + 5px);
+  top: calc(100% + var(--docpilot-inline-completion-menu-offset));
   display: flex;
-  width: min(320px, 64vw);
+  width: min(var(--docpilot-inline-completion-menu-width), calc(100vw - 32px));
   flex-direction: column;
-  gap: 2px;
-  padding: 5px;
-  border: 1px solid #dfe7f2;
-  border-radius: 8px;
-  background: #ffffff;
-  box-shadow: 0 8px 22px rgb(15 23 42 / 8%);
-  color: #273344;
+  gap: 1px;
+  padding: 4px;
+  border-radius: 7px;
+  background: var(--popover);
+  box-shadow:
+    0 0 0 1px rgb(15 23 42 / 8%),
+    0 10px 24px rgb(15 23 42 / 10%);
+  color: var(--popover-foreground);
   font-family: inherit;
-  font-size: 11px;
-  line-height: 16px;
+  font-size: 12px;
+  line-height: 17px;
   pointer-events: auto;
   user-select: none;
 }
 
+.prose-editor .docpilot-inline-completion-menu[data-docpilot-inline-completion-placement="above"] {
+  top: auto;
+  bottom: calc(100% + var(--docpilot-inline-completion-menu-offset));
+}
+
 .prose-editor .docpilot-inline-completion-menu-item {
   display: grid;
-  min-height: 22px;
+  min-height: 24px;
   min-width: 0;
-  grid-template-columns: 18px minmax(0, 1fr);
+  grid-template-columns: 16px minmax(0, 1fr);
   align-items: center;
-  gap: 6px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  padding: 2px 6px 2px 4px;
+  gap: 7px;
+  border-radius: 5px;
+  padding: 3px 7px 3px 5px;
+  color: color-mix(in srgb, var(--popover-foreground) 78%, transparent);
   cursor: default;
 }
 
+.prose-editor .docpilot-inline-completion-menu-item:hover {
+  background: color-mix(in srgb, var(--foreground) 8%, var(--background));
+  color: var(--foreground);
+}
+
 .prose-editor .docpilot-inline-completion-menu-item.is-selected {
-  border-color: #dbe7ff;
-  background: #f5f8ff;
-  color: #273344;
-  box-shadow: none;
+  background: color-mix(in srgb, var(--foreground) 12%, var(--background));
+  color: var(--foreground);
 }
 
 .prose-editor .docpilot-inline-completion-menu-index {
   display: inline-flex;
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  border: 1px solid #dbe3ee;
   border-radius: 4px;
-  background: #f1f5f9;
-  color: #66758a;
+  color: var(--muted-foreground);
   font-size: 10px;
-  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
 }
 
 .prose-editor .docpilot-inline-completion-menu-item.is-selected .docpilot-inline-completion-menu-index {
-  border-color: #dbe7ff;
-  background: #eef4ff;
-  color: #3d6eff;
+  background: color-mix(in srgb, var(--foreground) 10%, transparent);
+  color: inherit;
 }
 
 .prose-editor .docpilot-inline-completion-menu-text {
@@ -826,8 +892,8 @@
   top: 0;
   left: 0;
   z-index: 24;
-  border: 1px solid #3b82f6;
-  background: rgb(59 130 246 / 8%);
+  border: 1px solid var(--docpilot-block-marquee-border-color);
+  background: var(--docpilot-block-marquee-fill);
   border-radius: 2px;
   pointer-events: none;
   will-change: transform, width, height;
@@ -858,7 +924,7 @@
     + var(--docpilot-selection-inline-outset)
   );
   border-radius: 7px;
-  background: #d5e1fa;
+  background: var(--docpilot-selection-fill);
   pointer-events: none;
 }
 
@@ -881,7 +947,7 @@
 }
 
 .prose-editor hr.docpilot-block-selected {
-  background: #d5e1fa;
+  background: var(--docpilot-selection-fill);
 }
 
 .prose-editor .tableWrapper.docpilot-block-selected::before,
@@ -893,17 +959,24 @@
 }
 
 .prose-editor .tableWrapper.docpilot-block-selected {
-  border-color: rgb(59 130 246 / 70%);
-  background: rgb(59 130 246 / 8%);
+  border-color: var(--docpilot-selection-outline-color);
+  background: var(--docpilot-selection-fill);
   box-shadow:
-    0 0 0 2px rgb(59 130 246 / 68%),
-    0 8px 22px rgb(59 130 246 / 12%);
+    0 0 0 2px var(--docpilot-selection-ring-color),
+    var(--docpilot-selection-shadow);
+}
+
+.prose-editor table.docpilot-block-selected {
+  border-color: var(--docpilot-selection-outline-color);
+  background: var(--docpilot-selection-fill);
+  box-shadow:
+    0 0 0 2px var(--docpilot-selection-ring-color),
+    var(--docpilot-selection-shadow);
 }
 
 .prose-editor .tableWrapper.docpilot-block-selected table,
 .prose-editor table.docpilot-block-selected {
-  background: rgb(59 130 246 / 6%);
-  box-shadow: inset 0 0 0 1px rgb(59 130 246 / 38%);
+  background: var(--docpilot-selection-fill);
 }
 
 .prose-editor tr.docpilot-block-selected,
@@ -914,20 +987,20 @@
 
 .prose-editor td.docpilot-block-selected,
 .prose-editor th.docpilot-block-selected {
-  background: rgb(59 130 246 / 8%);
-  box-shadow: inset 0 0 0 2px rgb(59 130 246 / 45%);
+  background: var(--docpilot-table-cell-selected-fill);
+  box-shadow: inset 0 0 0 2px var(--docpilot-table-cell-selected-ring-color);
 }
 
 .prose-editor .tableWrapper.docpilot-block-selected td,
 .prose-editor .tableWrapper.docpilot-block-selected th,
 .prose-editor table.docpilot-block-selected td,
 .prose-editor table.docpilot-block-selected th {
-  border-color: rgb(151 178 229 / 82%);
-  background: rgb(59 130 246 / 7%);
+  border-color: var(--docpilot-table-selection-border-color);
+  background: var(--docpilot-table-selection-cell-fill);
 }
 
 .prose-editor .tableWrapper.docpilot-block-selected th,
 .prose-editor table.docpilot-block-selected th {
-  background: rgb(59 130 246 / 13%);
+  background: var(--docpilot-table-selection-header-fill);
 }
 

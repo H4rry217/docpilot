@@ -1,8 +1,9 @@
 import { Editor } from '@tiptap/core'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { InlineCompletionShape } from '../../inline-completion/api/inlineCompletionApi'
 import { editorExtensions } from './extensions'
 import {
+  applyCandidateMenuLayout,
   clearInlineCompletion,
   getInlineCompletionSuggestion,
   setInlineCompletionSuggestion
@@ -64,6 +65,33 @@ function singleCandidateSuggestion(input: {
     ],
     selectedIndex: 0,
     menuOpen: false
+  }
+}
+
+function elementRect(rect: Partial<DOMRect>): DOMRect {
+  return {
+    x: rect.x ?? rect.left ?? 0,
+    y: rect.y ?? rect.top ?? 0,
+    width: rect.width ?? 0,
+    height: rect.height ?? 0,
+    top: rect.top ?? 0,
+    right: rect.right ?? ((rect.left ?? 0) + (rect.width ?? 0)),
+    bottom: rect.bottom ?? ((rect.top ?? 0) + (rect.height ?? 0)),
+    left: rect.left ?? 0,
+    toJSON: () => ({})
+  }
+}
+
+function withViewport<T>(size: { width: number; height: number }, callback: () => T): T {
+  const originalWidth = window.innerWidth
+  const originalHeight = window.innerHeight
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: size.width })
+  Object.defineProperty(window, 'innerHeight', { configurable: true, value: size.height })
+  try {
+    return callback()
+  } finally {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalWidth })
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: originalHeight })
   }
 }
 
@@ -260,6 +288,69 @@ describe('DocpilotInlineCompletion', () => {
     editor.destroy()
   })
 
+  it('places the candidate menu below when there is enough space and keeps the inline ghost visible', () => {
+    const editor = new Editor({
+      extensions: editorExtensions,
+      content: '<p>Hello </p>'
+    })
+    const position = findTextPosition(editor, 'Hello') + 'Hello '.length
+    editor.commands.setTextSelection(position)
+
+    withViewport({ width: 800, height: 600 }, () => {
+      setInlineCompletionSuggestion(editor, {
+        requestSeq: 1,
+        from: position,
+        to: position,
+        shape: 'SENTENCE',
+        candidates: [
+          { index: 0, markdown: ' first', previewText: ' first' },
+          { index: 1, markdown: ' second', previewText: ' second' }
+        ],
+        selectedIndex: 0,
+        menuOpen: true
+      })
+    })
+
+    const widget = editor.view.dom.querySelector<HTMLElement>('.docpilot-inline-completion-widget')
+    const ghost = editor.view.dom.querySelector<HTMLElement>('.docpilot-inline-completion-ghost')
+    const menu = editor.view.dom.querySelector<HTMLElement>('.docpilot-inline-completion-menu')
+    expect(widget).toHaveClass('has-menu', 'menu-below')
+    expect(ghost?.textContent).toBe(' first')
+    expect(menu?.dataset.docpilotInlineCompletionPlacement).toBe('below')
+    editor.destroy()
+  })
+
+  it('places the candidate menu above when there is not enough space below', () => {
+    const wrapper = document.createElement('span')
+    const menu = document.createElement('span')
+    menu.style.left = '12px'
+    wrapper.appendChild(menu)
+    wrapper.getBoundingClientRect = () => elementRect({
+      top: 160,
+      bottom: 180,
+      left: 100,
+      right: 160,
+      width: 60,
+      height: 20
+    })
+    menu.getBoundingClientRect = () => elementRect({
+      top: 184,
+      bottom: 284,
+      left: 100,
+      right: 380,
+      width: 280,
+      height: 100
+    })
+
+    withViewport({ width: 640, height: 200 }, () => {
+      applyCandidateMenuLayout(wrapper, menu)
+    })
+
+    expect(wrapper).toHaveClass('menu-above')
+    expect(wrapper).not.toHaveClass('menu-below')
+    expect(menu.dataset.docpilotInlineCompletionPlacement).toBe('above')
+  })
+
   it('clears suggestions on Escape and leaves Tab alone without a suggestion', () => {
     const editor = new Editor({
       extensions: editorExtensions,
@@ -280,6 +371,37 @@ describe('DocpilotInlineCompletion', () => {
     clearInlineCompletion(editor)
     expect(pressKey(editor, 'Tab')).toBe(false)
     expect(pressAltKey(editor, 'ArrowDown')).toBe(false)
+    editor.destroy()
+  })
+
+  it('does not dispatch a clear transaction when no matching suggestion exists', () => {
+    const editor = new Editor({
+      extensions: editorExtensions,
+      content: '<p>Hello </p>'
+    })
+    const position = findTextPosition(editor, 'Hello') + 'Hello '.length
+    editor.commands.setTextSelection(position)
+    const dispatchSpy = vi.spyOn(editor.view, 'dispatch')
+
+    clearInlineCompletion(editor)
+    expect(dispatchSpy).not.toHaveBeenCalled()
+
+    setInlineCompletionSuggestion(editor, singleCandidateSuggestion({
+      from: position,
+      to: position,
+      markdown: ' world',
+      previewText: ' world',
+      shape: 'SENTENCE'
+    }))
+    dispatchSpy.mockClear()
+
+    clearInlineCompletion(editor, 2)
+    expect(dispatchSpy).not.toHaveBeenCalled()
+    expect(getInlineCompletionSuggestion(editor)).not.toBeNull()
+
+    clearInlineCompletion(editor, 1)
+    expect(dispatchSpy).toHaveBeenCalledTimes(1)
+    expect(getInlineCompletionSuggestion(editor)).toBeNull()
     editor.destroy()
   })
 })

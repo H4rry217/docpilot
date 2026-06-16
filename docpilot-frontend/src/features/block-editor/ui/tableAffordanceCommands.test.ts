@@ -2,6 +2,7 @@ import type { Editor } from '@tiptap/react'
 import { describe, expect, it, vi } from 'vitest'
 import {
   insertedColumnWidthPlanFromDivider,
+  runTableDividerInsert,
   runTableToolbarDelete
 } from './tableAffordanceCommands'
 import type { TableDividerGeometry } from './tableAffordanceTypes'
@@ -73,5 +74,34 @@ describe('table affordance commands', () => {
     expect(runTableToolbarDelete(editor)).toBe(true)
     expect(deleteTable).toHaveBeenCalled()
     expect(run).toHaveBeenCalled()
+  })
+
+  it('keeps row divider insertion available through the table command chain', () => {
+    const divider = tableDivider('after', 0)
+    divider.axis = 'row'
+    const run = vi.fn(() => true)
+    const addRowAfter = vi.fn(() => chain)
+    const focus = vi.fn(() => chain)
+    const setTextSelection = vi.fn(() => chain)
+    const chain = {
+      addRowAfter,
+      focus,
+      run,
+      setTextSelection
+    }
+    const editor = {
+      chain: vi.fn(() => chain),
+      view: {
+        posAtCoords: vi.fn(() => ({ pos: 4 }))
+      }
+    } as unknown as Editor
+
+    expect(runTableDividerInsert(editor, divider)).toBe(true)
+    expect(setTextSelection).toHaveBeenCalledWith(4)
+    expect(focus).toHaveBeenCalled()
+    expect(addRowAfter).toHaveBeenCalled()
+    expect(run).toHaveBeenCalled()
+
+    divider.cell.closest('table')?.remove()
   })
 })

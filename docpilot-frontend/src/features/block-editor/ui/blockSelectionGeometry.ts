@@ -25,6 +25,8 @@ export type SelectableBlockTarget = {
   selectionHeight?: number
 }
 
+export type BlockMarqueeStartMode = 'ignore' | 'block-with-marquee'
+
 const BLOCK_MARQUEE_START_DISTANCE_PX = 6
 const BLOCK_SELECTION_DEFAULT_BLOCK_OUTSET_PX = 8
 const BLOCK_SELECTION_MIN_VISUAL_GAP_PX = 6
@@ -35,6 +37,13 @@ export function rectFromPoints(start: Point, end: Point): Rect {
     top: Math.min(start.y, end.y),
     right: Math.max(start.x, end.x),
     bottom: Math.max(start.y, end.y)
+  }
+}
+
+export function clampPointToRect(point: Point, rect: Rect): Point {
+  return {
+    x: Math.min(Math.max(point.x, rect.left), rect.right),
+    y: Math.min(Math.max(point.y, rect.top), rect.bottom)
   }
 }
 
@@ -88,6 +97,23 @@ export function isInteractiveSelectionTarget(target: Element): boolean {
     '.column-resize-handle',
     '.html-block-controls'
   ].join(',')))
+}
+
+export function blockMarqueeStartModeForTarget({
+  boundaryElement,
+  button,
+  target
+}: {
+  boundaryElement: HTMLElement
+  button: number
+  target: EventTarget | null
+}): BlockMarqueeStartMode {
+  if (button !== 0) return 'ignore'
+  const targetElement = eventTargetElement(target)
+  if (!targetElement || !boundaryElement.contains(targetElement)) return 'ignore'
+  if (isInteractiveSelectionTarget(targetElement)) return 'ignore'
+  if (targetElement.closest('.editor-content')) return 'ignore'
+  return 'block-with-marquee'
 }
 
 export function isSelectableBlockElement(element: HTMLElement, editorDom: HTMLElement, blockId = element.dataset.blockId): boolean {
@@ -218,8 +244,12 @@ export function isPastDragStartDistance(origin: Point, current: Point): boolean 
   return deltaX * deltaX + deltaY * deltaY >= BLOCK_MARQUEE_START_DISTANCE_PX * BLOCK_MARQUEE_START_DISTANCE_PX
 }
 
-function isTableBlockElement(element: HTMLElement): boolean {
+export function isTableBlockElement(element: HTMLElement): boolean {
   return element.tagName === 'TABLE' || element.classList.contains('tableWrapper')
+}
+
+export function hasTableBlockTarget(targets: SelectableBlockTarget[]): boolean {
+  return targets.some((target) => isTableBlockElement(target.element))
 }
 
 export function isVisualContainerTarget(target: SelectableBlockTarget): boolean {

@@ -284,6 +284,7 @@ export function DocumentEditor({
   const aiWorkspaceDockedMinimized = hasDocument
     && aiWorkspaceLayout.state.dockMode === 'docked'
     && aiWorkspaceLayout.state.minimized
+  const outlineOpen = hasDocument && !outlineCollapsed
   const documentOperationsInBottom = developerMode
     && hasDocument
     && toolPanelLayout.state.placements.documentOperations === 'bottom'
@@ -299,7 +300,7 @@ export function DocumentEditor({
   return (
     <main
       ref={editorLayoutRef}
-      className={`editor-layout ${hasDocument ? '' : 'is-empty'} ${documentOperationsInBottom ? 'has-bottom-tool-panel' : ''} ${toolPanelLayout.state.bottomCollapsed ? 'bottom-tool-panel-collapsed' : ''} ${aiWorkspaceDockedOpen ? 'has-ai-dock' : ''} ${aiWorkspaceDockedMinimized ? 'has-ai-rail' : ''} ${outlineCompact ? 'outline-compact' : ''}`}
+      className={`editor-layout ${hasDocument ? '' : 'is-empty'} ${documentOperationsInBottom ? 'has-bottom-tool-panel' : ''} ${toolPanelLayout.state.bottomCollapsed ? 'bottom-tool-panel-collapsed' : ''} ${aiWorkspaceDockedOpen ? 'has-ai-dock' : ''} ${aiWorkspaceDockedMinimized ? 'has-ai-rail' : ''} ${outlineCompact ? 'outline-compact' : ''} ${outlineOpen ? 'outline-open' : ''}`}
       style={editorLayoutStyle}
     >
       {hasDocument ? (

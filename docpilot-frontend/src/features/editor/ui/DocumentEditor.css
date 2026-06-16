@@ -1,4 +1,6 @@
 .editor-layout {
+  --document-outline-width: 220px;
+
   position: relative;
   display: grid;
   min-width: 0;
@@ -124,6 +126,7 @@
   scrollbar-color: #b9c5d4 transparent;
   scrollbar-gutter: stable;
   scrollbar-width: auto;
+  transition: padding-left 180ms ease;
 }
 
 .document-canvas::-webkit-scrollbar {
@@ -165,7 +168,7 @@
   z-index: 30;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  width: 220px;
+  width: var(--document-outline-width);
   min-height: 0;
   overflow: visible;
   background: transparent;
@@ -204,13 +207,15 @@
 
 .document-outline-body {
   display: grid;
+  align-self: start;
   min-height: 0;
+  max-height: 100%;
   grid-template-rows: auto minmax(0, 1fr);
   gap: 10px;
   overflow: hidden;
   margin-top: 6px;
-  border-radius: 8px;
-  background: rgb(255 255 255 / 88%);
+  border-radius: 0;
+  background: transparent;
   padding: 4px 4px 8px 0;
   opacity: 1;
   pointer-events: auto;
@@ -346,15 +351,25 @@
   bottom: 0;
   left: 0;
   display: block;
-  width: 220px;
+  width: var(--document-outline-width);
+}
+
+.editor-layout.outline-compact.outline-open .document-outline-nav {
+  border-right: 1px solid #edf1f6;
+  background: #fbfdff;
+  backdrop-filter: blur(4px);
+}
+
+.editor-layout.outline-compact.outline-open .document-canvas {
+  padding-left: max(calc(var(--document-outline-width) + 40px), clamp(40px, 8vw, 120px));
 }
 
 .editor-layout.outline-compact .document-outline-collapse {
   position: absolute;
-  top: 10px;
-  left: 12px;
+  top: 24px;
+  left: 16px;
   z-index: 2;
-  margin-left: 0;
+  margin: 0;
 }
 
 .editor-layout.outline-compact .document-outline-body {
@@ -362,21 +377,18 @@
   inset: 0;
   min-height: 0;
   margin-top: 0;
-  border-right: 1px solid #edf1f6;
+  border-right: 0;
   border-radius: 0;
-  background: rgb(251 253 255 / 96%);
-  padding: 10px 10px 0 12px;
+  background: transparent;
+  padding: 68px 10px 10px 16px;
   box-shadow: none;
-  backdrop-filter: blur(4px);
 }
 
 .editor-layout.outline-compact .document-outline-document-title {
   display: block;
-  min-height: 32px;
-  padding-left: 36px;
   color: #314052;
   font-size: 0.82rem;
-  line-height: 32px;
+  line-height: 1.45;
 }
 
 .editor-layout.outline-compact .document-outline-list {

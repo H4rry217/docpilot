@@ -135,11 +135,17 @@ export const BlockDocumentEditor = forwardRef<BlockDocumentEditorHandle, BlockDo
     } = useTableAffordances({ editor, surfaceRef })
 
     const {
+      blockSelectionUiState,
       clearBlockSelection,
-      handleSurfaceClickCapture,
-      handleSurfacePointerDown,
       isBlockSelectionDragging
     } = useBlockMarqueeSelection({ editor, marqueeRef, surfaceRef })
+
+    const surfaceClassName = [
+      'block-editor-surface',
+      debugMode ? 'is-debug-mode' : '',
+      blockSelectionUiState.isDragging ? 'is-block-selection-dragging' : '',
+      blockSelectionUiState.hasSelectedTableBlock ? 'has-selected-table-block' : ''
+    ].filter(Boolean).join(' ')
 
     const applyProseMirrorJson = useCallback(
       (activeEditor: Editor, proseMirrorJson: JSONContent, source: BlockDocumentEditorSnapshotSource) => {
@@ -210,9 +216,7 @@ export const BlockDocumentEditor = forwardRef<BlockDocumentEditorHandle, BlockDo
     return (
       <div
         ref={surfaceRef}
-        className={`block-editor-surface ${debugMode ? 'is-debug-mode' : ''}`}
-        onClickCapture={handleSurfaceClickCapture}
-        onPointerDownCapture={handleSurfacePointerDown}
+        className={surfaceClassName}
         onPointerLeave={handleSurfacePointerLeave}
         onPointerMove={handleSurfacePointerMove}
         onWheelCapture={handleTableWheel}

@@ -3,8 +3,7 @@ import {
   useCallback,
   useEffect,
   useRef,
-  type MouseEvent as ReactMouseEvent,
-  type PointerEvent as ReactPointerEvent,
+  useState,
   type RefObject
 } from 'react'
 import {
@@ -13,21 +12,27 @@ import {
   type BlockSelectionDecoration
 } from '../model/blockSelection'
 import {
+  blockMarqueeStartModeForTarget,
   blockSelectionDecorationsFromTargets,
   blockSelectionSignature,
+  clampPointToRect,
   clientPointFromElementPoint,
-  eventTargetElement,
-  isInteractiveSelectionTarget,
+  hasTableBlockTarget,
   isPastDragStartDistance,
   pointFromClientPoint,
-  pointFromElement,
   rectFromPoints,
   rectsOverlap,
   selectableBlockTargets,
   visualBlockSelectionTargets,
   type Point,
+  type Rect,
   type SelectableBlockTarget
 } from './blockSelectionGeometry'
+
+type BlockSelectionUiState = {
+  hasSelectedTableBlock: boolean
+  isDragging: boolean
+}
 
 type DragSelectionState = {
   editor: Editor
@@ -36,7 +41,44 @@ type DragSelectionState = {
   latestClientPoint: Point
   originClientPoint: Point
   originSurfacePoint: Point
+  boundaryElement: HTMLElement
   targets: SelectableBlockTarget[]
+}
+
+function elementLocalRect(element: HTMLElement): Rect {
+  return {
+    left: 0,
+    top: 0,
+    right: element.clientWidth,
+    bottom: element.clientHeight
+  }
+}
+
+function selectionBoundaryElement(surface: HTMLElement): HTMLElement {
+  const documentMain = surface.closest('.document-main')
+  if (documentMain instanceof HTMLElement) return documentMain
+
+  const documentCanvas = surface.closest('.document-canvas')
+  if (documentCanvas instanceof HTMLElement) return documentCanvas
+
+  return surface
+}
+
+function boundaryLocalRect(surface: HTMLElement, boundary: HTMLElement): Rect {
+  const surfaceRect = surface.getBoundingClientRect()
+  const boundaryRect = boundary.getBoundingClientRect()
+  const rect = {
+    left: boundaryRect.left - surfaceRect.left,
+    top: boundaryRect.top - surfaceRect.top,
+    right: boundaryRect.right - surfaceRect.left,
+    bottom: boundaryRect.bottom - surfaceRect.top
+  }
+
+  if (rect.right <= rect.left || rect.bottom <= rect.top) {
+    return elementLocalRect(surface)
+  }
+
+  return rect
 }
 
 export function useBlockMarqueeSelection({
@@ -53,11 +95,29 @@ export function useBlockMarqueeSelection({
   const selectedVisualSignatureRef = useRef('')
   const dragSelectionRef = useRef<DragSelectionState | null>(null)
   const suppressNextClickRef = useRef(false)
+  const [uiState, setUiState] = useState<BlockSelectionUiState>({
+    hasSelectedTableBlock: false,
+    isDragging: false
+  })
+
+  function updateUiState(nextState: Partial<BlockSelectionUiState>) {
+    setUiState((currentState) => {
+      const next = {
+        ...currentState,
+        ...nextState
+      }
+      return next.hasSelectedTableBlock === currentState.hasSelectedTableBlock
+        && next.isDragging === currentState.isDragging
+        ? currentState
+        : next
+    })
+  }
 
   const clearBlockSelection = useCallback(() => {
     selectedBlockIdsRef.current.clear()
     selectedVisualBlockIdsRef.current.clear()
     selectedVisualSignatureRef.current = ''
+    updateUiState({ hasSelectedTableBlock: false })
     if (editor) {
       setBlockSelectionDecorations(editor, [])
     }
@@ -80,6 +140,9 @@ export function useBlockMarqueeSelection({
   function applySelectedBlockTargets(targets: SelectableBlockTarget[]) {
     const visualTargets = visualBlockSelectionTargets(targets)
     selectedBlockIdsRef.current = new Set(visualTargets.map((target) => target.id))
+    updateUiState({
+      hasSelectedTableBlock: hasTableBlockTarget(visualTargets)
+    })
     applyVisualBlockSelection(
       blockSelectionDecorationsFromTargets(visualTargets)
     )
@@ -91,10 +154,14 @@ export function useBlockMarqueeSelection({
     element.hidden = !visible
   }
 
-  function updateMarqueeElement(origin: Point, current: Point) {
+  function updateMarqueeElement(surface: HTMLElement, boundary: HTMLElement, origin: Point, current: Point) {
     const element = marqueeRef.current
     if (!element) return
-    const rect = rectFromPoints(origin, current)
+    const bounds = boundaryLocalRect(surface, boundary)
+    const rect = rectFromPoints(
+      clampPointToRect(origin, bounds),
+      clampPointToRect(current, bounds)
+    )
     element.style.transform = `translate(${rect.left}px, ${rect.top}px)`
     element.style.width = `${rect.right - rect.left}px`
     element.style.height = `${rect.bottom - rect.top}px`
@@ -137,21 +204,10 @@ export function useBlockMarqueeSelection({
       dragSelectionRef.current = null
       suppressNextClickRef.current = false
       setMarqueeVisible(false)
+      updateUiState({ isDragging: false })
       clearBlockSelection()
     }
   }, [clearBlockSelection])
-
-  function shouldStartBlockMarquee(event: ReactPointerEvent<HTMLDivElement>): boolean {
-    if (!editor || event.button !== 0) return false
-    const target = eventTargetElement(event.target)
-    if (!target) return false
-    if (!surfaceRef.current?.contains(target)) return false
-    if (isInteractiveSelectionTarget(target)) return false
-
-    // Block marquee intentionally starts from normal document text too; the
-    // drag threshold keeps ordinary clicks as cursor placement.
-    return true
-  }
 
   function applyDragSelection(clientPoint: Point) {
     const dragState = dragSelectionRef.current
@@ -159,12 +215,14 @@ export function useBlockMarqueeSelection({
     if (!dragState || !surface) return
 
     dragState.latestClientPoint = clientPoint
-    const currentSurfacePoint = pointFromClientPoint(clientPoint, surface)
-    updateMarqueeElement(dragState.originSurfacePoint, currentSurfacePoint)
+    const surfaceBounds = boundaryLocalRect(surface, dragState.boundaryElement)
+    const originSurfacePoint = clampPointToRect(dragState.originSurfacePoint, surfaceBounds)
+    const currentSurfacePoint = clampPointToRect(pointFromClientPoint(clientPoint, surface), surfaceBounds)
+    updateMarqueeElement(surface, dragState.boundaryElement, originSurfacePoint, currentSurfacePoint)
 
     const selectionRect = rectFromPoints(
-      clientPointFromElementPoint(dragState.originSurfacePoint, surface),
-      clientPoint
+      clientPointFromElementPoint(originSurfacePoint, surface),
+      clientPointFromElementPoint(currentSurfacePoint, surface)
     )
     dragState.targets = selectableBlockTargets(dragState.editor)
     applySelectedBlockTargets(
@@ -187,7 +245,7 @@ export function useBlockMarqueeSelection({
     })
   }
 
-  function handleSurfacePointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+  function handleBoundaryPointerDown(event: PointerEvent, boundaryElement: HTMLElement) {
     const activeEditor = editor
     if (!activeEditor) {
       if (selectedBlockIdsRef.current.size) {
@@ -196,22 +254,30 @@ export function useBlockMarqueeSelection({
       return
     }
 
-    if (!shouldStartBlockMarquee(event)) {
+    const startMode = blockMarqueeStartModeForTarget({
+      boundaryElement,
+      button: event.button,
+      target: event.target
+    })
+    if (startMode === 'ignore') {
       if (selectedBlockIdsRef.current.size) {
         clearBlockSelection()
       }
       return
     }
 
+    const surfaceElement = surfaceRef.current
+    if (!surfaceElement) return
+    const activeSurfaceElement: HTMLElement = surfaceElement
+
     const dragEditor: Editor = activeEditor
-    const surfaceElement = event.currentTarget
     try {
-      surfaceElement.setPointerCapture(event.pointerId)
+      boundaryElement.setPointerCapture(event.pointerId)
     } catch {
       // Pointer capture is best-effort; window listeners below still handle the drag.
     }
     const originClientPoint = { x: event.clientX, y: event.clientY }
-    const originSurfacePoint = pointFromElement(event, surfaceElement)
+    const originSurfacePoint = pointFromClientPoint(originClientPoint, activeSurfaceElement)
     clearBlockSelection()
     dragSelectionRef.current = {
       editor: activeEditor,
@@ -220,6 +286,7 @@ export function useBlockMarqueeSelection({
       latestClientPoint: originClientPoint,
       originClientPoint,
       originSurfacePoint,
+      boundaryElement,
       targets: selectableBlockTargets(activeEditor)
     }
 
@@ -231,8 +298,14 @@ export function useBlockMarqueeSelection({
       if (!dragState.isSelecting) {
         if (!isPastDragStartDistance(dragState.originClientPoint, clientPoint)) return
         dragState.isSelecting = true
-        updateMarqueeElement(dragState.originSurfacePoint, pointFromClientPoint(clientPoint, surfaceElement))
+        updateMarqueeElement(
+          activeSurfaceElement,
+          dragState.boundaryElement,
+          dragState.originSurfacePoint,
+          pointFromClientPoint(clientPoint, activeSurfaceElement)
+        )
         setMarqueeVisible(true)
+        updateUiState({ isDragging: true })
       }
 
       pointerEvent.preventDefault()
@@ -253,8 +326,9 @@ export function useBlockMarqueeSelection({
       }
       dragSelectionRef.current = null
       setMarqueeVisible(false)
+      updateUiState({ isDragging: false })
       try {
-        surfaceElement.releasePointerCapture(pointerEvent.pointerId)
+        boundaryElement.releasePointerCapture(pointerEvent.pointerId)
       } catch {
         // The pointer may already be released by the browser.
       }
@@ -266,19 +340,35 @@ export function useBlockMarqueeSelection({
     window.addEventListener('pointerup', handlePointerUp)
   }
 
-  function handleSurfaceClickCapture(event: ReactMouseEvent<HTMLDivElement>) {
+  function handleBoundaryClickCapture(event: MouseEvent) {
     if (!suppressNextClickRef.current) return
     suppressNextClickRef.current = false
     event.preventDefault()
     event.stopPropagation()
   }
 
+  useEffect(() => {
+    const surface = surfaceRef.current
+    if (!surface) return
+    const boundaryElement = selectionBoundaryElement(surface)
+
+    function handlePointerDown(event: PointerEvent) {
+      handleBoundaryPointerDown(event, boundaryElement)
+    }
+
+    boundaryElement.addEventListener('pointerdown', handlePointerDown, true)
+    boundaryElement.addEventListener('click', handleBoundaryClickCapture, true)
+    return () => {
+      boundaryElement.removeEventListener('pointerdown', handlePointerDown, true)
+      boundaryElement.removeEventListener('click', handleBoundaryClickCapture, true)
+    }
+  }, [clearBlockSelection, editor, surfaceRef])
+
   const isBlockSelectionDragging = useCallback(() => dragSelectionRef.current !== null, [])
 
   return {
+    blockSelectionUiState: uiState,
     clearBlockSelection,
-    handleSurfaceClickCapture,
-    handleSurfacePointerDown,
     isBlockSelectionDragging
   }
 }
