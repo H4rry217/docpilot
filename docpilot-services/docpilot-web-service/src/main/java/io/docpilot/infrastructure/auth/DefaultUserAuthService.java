@@ -6,7 +6,7 @@ import io.docpilot.common.exception.BadRequestException;
 import io.docpilot.common.exception.ConflictException;
 import io.docpilot.common.exception.ForbiddenException;
 import io.docpilot.common.exception.UnauthorizedException;
-import io.docpilot.common.web.logging.LogMask;
+import io.docpilot.infrastructure.auth.provider.AuthSession;
 import io.docpilot.user.model.UserInformation;
 import org.springframework.util.StringUtils;
 
@@ -133,9 +133,6 @@ public class DefaultUserAuthService {
         userInformation.setDisplayName(account.getDisplayName());
         userInformation.setEmail(account.getEmail());
         return userInformation;
-    }
-
-    public record AuthSession(@LogMask String token, UserInformation user) {
     }
 
 }

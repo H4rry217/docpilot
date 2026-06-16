@@ -17,7 +17,7 @@ public class DatabaseUserSettingRepository implements UserSettingRepository {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, rollbackFor = Exception.class)
     public List<UserSettingRecord> findByUserIdAndKeys(Long userId, Collection<String> keys) {
         if (keys == null || keys.isEmpty()) {
             return List.of();
@@ -32,7 +32,7 @@ public class DatabaseUserSettingRepository implements UserSettingRepository {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void saveAll(Long userId, Map<String, String> settingValueByKey) {
         if (settingValueByKey == null || settingValueByKey.isEmpty()) {
             return;
@@ -49,7 +49,7 @@ public class DatabaseUserSettingRepository implements UserSettingRepository {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void removeByUserIdAndKeys(Long userId, Collection<String> keys) {
         if (keys == null || keys.isEmpty()) {
             return;

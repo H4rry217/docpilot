@@ -6,6 +6,23 @@ export type AuthSession = {
   user: UserInformation
 }
 
+export type AuthProviderCapabilities = {
+  supportsPasswordLogin: boolean
+  supportsRegistration: boolean
+  supportsPasswordChange: boolean
+  supportsDisplayNameChange: boolean
+  supportsHostToken: boolean
+}
+
+export type AuthConfig = {
+  providerId: string
+  capabilities: AuthProviderCapabilities
+}
+
+export function getAuthConfig(): Promise<AuthConfig> {
+  return postJson('/auth/config', {})
+}
+
 export function register(input: {
   email: string
   password: string

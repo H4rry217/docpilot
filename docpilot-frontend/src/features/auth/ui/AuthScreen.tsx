@@ -9,13 +9,21 @@ import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useI18n } from '../../../shared/i18n'
-import { login, register, type AuthSession } from '../api/authApi'
+import { login, register, type AuthConfig, type AuthSession } from '../api/authApi'
 
 type AuthMode = 'login' | 'register'
 
 const docpilotLogoHorizontalUrl = new URL('../../../assets/brand/docpilot-logo-horizontal.svg', import.meta.url).href
 
-export function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSession) => void }) {
+export function AuthScreen({
+  authConfig,
+  onAuthenticated,
+  onRetryHostAuth
+}: {
+  authConfig?: AuthConfig
+  onAuthenticated: (session: AuthSession) => void
+  onRetryHostAuth?: () => Promise<boolean>
+}) {
   const { t } = useI18n()
   const [mode, setMode] = useState<AuthMode>('login')
   const [email, setEmail] = useState('')
@@ -24,7 +32,51 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: Aut
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [isSubmitting, setSubmitting] = useState(false)
-  const isRegister = mode === 'register'
+  const [isRetryingHostAuth, setRetryingHostAuth] = useState(false)
+  const capabilities = authConfig?.capabilities
+  const supportsPasswordLogin = capabilities?.supportsPasswordLogin ?? true
+  const supportsRegistration = capabilities?.supportsRegistration ?? true
+  const isRegister = supportsRegistration && mode === 'register'
+
+  async function retryHostAuth() {
+    if (!onRetryHostAuth) return
+    setError(null)
+    setRetryingHostAuth(true)
+    try {
+      const authenticated = await onRetryHostAuth()
+      if (!authenticated) {
+        setError(t('auth.failed'))
+      }
+    } finally {
+      setRetryingHostAuth(false)
+    }
+  }
+
+  if (!supportsPasswordLogin) {
+    return (
+      <main className="grid h-screen w-screen place-items-center bg-muted/40 p-6">
+        <Card className="w-full max-w-sm" aria-label={t('auth.panel')}>
+          <CardHeader className="gap-1">
+            <CardTitle>
+              <img className="h-12 w-auto" src={docpilotLogoHorizontalUrl} alt="DocPilot" />
+            </CardTitle>
+            <p className="text-sm font-medium text-muted-foreground">{authConfig?.providerId ?? t('auth.panel')}</p>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            {error ? (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            ) : null}
+            <Button className="w-full" disabled={isRetryingHostAuth || !onRetryHostAuth} type="button" onClick={retryHostAuth}>
+              {isRetryingHostAuth ? <Spinner data-icon="inline-start" /> : <LogIn data-icon="inline-start" />}
+              {isRetryingHostAuth ? t('auth.processing') : t('auth.login')}
+            </Button>
+          </CardContent>
+        </Card>
+      </main>
+    )
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -60,24 +112,26 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: Aut
         </CardHeader>
         <CardContent>
           <form className="flex flex-col gap-4" onSubmit={submit}>
-            <ToggleGroup
-              type="single"
-              value={mode}
-              variant="outline"
-              size="sm"
-              spacing={0}
-              className="grid w-full grid-cols-2"
-              aria-label={t('auth.mode')}
-              onValueChange={(value) => {
-                if (!value) return
-                setMode(value as AuthMode)
-                setError(null)
-                setMessage(null)
-              }}
-            >
-              <ToggleGroupItem value="login">{t('auth.login')}</ToggleGroupItem>
-              <ToggleGroupItem value="register">{t('auth.register')}</ToggleGroupItem>
-            </ToggleGroup>
+            {supportsRegistration ? (
+              <ToggleGroup
+                type="single"
+                value={mode}
+                variant="outline"
+                size="sm"
+                spacing={0}
+                className="grid w-full grid-cols-2"
+                aria-label={t('auth.mode')}
+                onValueChange={(value) => {
+                  if (!value) return
+                  setMode(value as AuthMode)
+                  setError(null)
+                  setMessage(null)
+                }}
+              >
+                <ToggleGroupItem value="login">{t('auth.login')}</ToggleGroupItem>
+                <ToggleGroupItem value="register">{t('auth.register')}</ToggleGroupItem>
+              </ToggleGroup>
+            ) : null}
 
             <FieldGroup className="gap-3">
               <Field>

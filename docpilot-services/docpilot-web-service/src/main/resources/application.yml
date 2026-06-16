@@ -38,11 +38,11 @@ docpilot:
     datacenter-id: ${DOCPILOT_ID_DATACENTER_ID:1}
     machine-id: ${DOCPILOT_ID_MACHINE_ID:1}
   auth:
+    provider: ${DOCPILOT_AUTH_PROVIDER:local-password}
     jwt:
       secret: ${DOCPILOT_AUTH_JWT_SECRET:DOCPILOT_SECRET}
       access-token-ttl-seconds: 604800
     default-user:
-      enabled: true
       init-schema: true
       allow-registration: ${DOCPILOT_AUTH_ALLOW_REGISTRATION:true}
       password-pepper: ${DOCPILOT_AUTH_PASSWORD_PEPPER:}

@@ -9,6 +9,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(properties = {
+        "docpilot.workspace.mongo.init-indexes=false",
+        "docpilot.knowledge.index.mode=direct",
+        "docpilot.user-settings.cache.enabled=false",
         "docpilot.ai.default-model-id=test",
         "docpilot.ai.models.test.enabled=true",
         "docpilot.ai.models.test.provider=openai-compatible",

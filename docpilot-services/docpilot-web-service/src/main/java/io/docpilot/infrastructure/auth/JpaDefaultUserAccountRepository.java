@@ -20,7 +20,7 @@ public class JpaDefaultUserAccountRepository implements DefaultUserAccountReposi
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public DefaultUserAccount create(DefaultUserAccount account) {
         try {
             account.setEmail(normalizeEmail(account.getEmail()));
@@ -31,7 +31,7 @@ public class JpaDefaultUserAccountRepository implements DefaultUserAccountReposi
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, rollbackFor = Exception.class)
     public Optional<DefaultUserAccount> findByEmail(String email) {
         if (!StringUtils.hasText(email)) {
             return Optional.empty();
@@ -40,7 +40,7 @@ public class JpaDefaultUserAccountRepository implements DefaultUserAccountReposi
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, rollbackFor = Exception.class)
     public Optional<DefaultUserAccount> findAccountByUserId(Long userId) {
         if (userId == null) {
             return Optional.empty();
@@ -49,7 +49,7 @@ public class JpaDefaultUserAccountRepository implements DefaultUserAccountReposi
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public DefaultUserAccount updatePasswordHash(Long userId, String passwordHash) {
         DefaultUserAccount account = accountStore.findById(userId)
                 .orElseThrow(() -> new NotFoundException("User not found"));
@@ -58,7 +58,7 @@ public class JpaDefaultUserAccountRepository implements DefaultUserAccountReposi
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public DefaultUserAccount updateDisplayName(Long userId, String displayName) {
         DefaultUserAccount account = accountStore.findById(userId)
                 .orElseThrow(() -> new NotFoundException("User not found"));
@@ -67,7 +67,7 @@ public class JpaDefaultUserAccountRepository implements DefaultUserAccountReposi
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public UserInformation save(UserInformation userInformation) {
         if (userInformation == null || userInformation.getUserId() == null) {
             throw new IllegalArgumentException("User id is required");
@@ -88,7 +88,7 @@ public class JpaDefaultUserAccountRepository implements DefaultUserAccountReposi
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, rollbackFor = Exception.class)
     public Optional<UserInformation> findByUserId(Long userId) {
         return findAccountByUserId(userId).map(this::toUserInformation);
     }

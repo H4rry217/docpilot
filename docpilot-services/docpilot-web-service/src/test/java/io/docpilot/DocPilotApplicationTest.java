@@ -7,7 +7,11 @@ import org.springframework.boot.test.context.SpringBootTest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest
+@SpringBootTest(properties = {
+        "docpilot.workspace.mongo.init-indexes=false",
+        "docpilot.knowledge.index.mode=direct",
+        "docpilot.user-settings.cache.enabled=false"
+})
 class DocPilotApplicationTest {
 
     @Autowired

@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { UserInformation } from '../../entities/user/types'
+import type { AuthProviderCapabilities } from '../../features/auth/api/authApi'
 import { ProfileControls } from '../../features/auth/ui/ProfileControls'
 import type {
   InlineCompletionCloudSettings,
@@ -36,6 +37,7 @@ type SettingsDialogProps = {
   onInlineCompletionCandidateCountChange: (candidateCount: number) => void
   onInlineCompletionMaxOutputTokensChange: (key: InlineCompletionTokenKey, value: number) => void
   onUserChange: (user: UserInformation) => void
+  authCapabilities?: AuthProviderCapabilities
 }
 
 type SettingsNavItem = {
@@ -245,14 +247,30 @@ function CompletionSettings({
 function LoginSettings({
   user,
   onLogout,
-  onUserChange
-}: Pick<SettingsDialogProps, 'user' | 'onLogout' | 'onUserChange'>) {
-  return <ProfileControls user={user} onUserChange={onUserChange} onLogout={onLogout} />
+  onUserChange,
+  authCapabilities
+}: Pick<SettingsDialogProps, 'user' | 'onLogout' | 'onUserChange' | 'authCapabilities'>) {
+  return (
+    <ProfileControls
+      user={user}
+      onUserChange={onUserChange}
+      onLogout={onLogout}
+      supportsDisplayNameChange={authCapabilities?.supportsDisplayNameChange ?? true}
+      supportsPasswordChange={authCapabilities?.supportsPasswordChange ?? true}
+    />
+  )
 }
 
 function renderSettingsPage(section: SettingsSection, input: SettingsDialogProps) {
   if (section === 'login') {
-    return <LoginSettings user={input.user} onUserChange={input.onUserChange} onLogout={input.onLogout} />
+    return (
+      <LoginSettings
+        user={input.user}
+        authCapabilities={input.authCapabilities}
+        onUserChange={input.onUserChange}
+        onLogout={input.onLogout}
+      />
+    )
   }
   if (section === 'completion') {
     return (
@@ -293,7 +311,8 @@ export function SettingsDialog({
   onInlineCompletionIdleDelayChange,
   onInlineCompletionCandidateCountChange,
   onInlineCompletionMaxOutputTokensChange,
-  onUserChange
+  onUserChange,
+  authCapabilities
 }: SettingsDialogProps) {
   const { t } = useI18n()
   const settingsNavItems: SettingsNavItem[] = [
@@ -339,6 +358,7 @@ export function SettingsDialog({
                 onInlineCompletionCandidateCountChange,
                 onInlineCompletionMaxOutputTokensChange,
                 onUserChange,
+                authCapabilities,
                 locale
               })}
             </TabsContent>

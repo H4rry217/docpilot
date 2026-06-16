@@ -88,7 +88,13 @@ export function App() {
   }
 
   if (authStatus === 'anonymous' || !currentUser) {
-    return <AuthScreen onAuthenticated={handleAuthenticated} />
+    return (
+      <AuthScreen
+        authConfig={authSession.authConfig}
+        onAuthenticated={handleAuthenticated}
+        onRetryHostAuth={authSession.refreshHostAuth}
+      />
+    )
   }
 
   return (
@@ -149,6 +155,7 @@ export function App() {
           onInlineCompletionMaxOutputTokensChange={cloudUserSettings.setInlineCompletionMaxOutputTokens}
           onLogout={clearAuthenticatedSession}
           onUserChange={setCurrentUser}
+          authCapabilities={authSession.authConfig?.capabilities}
         />
       ) : null}
       {activeDialog?.type === 'prompt' ? (

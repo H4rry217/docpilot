@@ -12,11 +12,15 @@ import { changeDisplayName, changePassword } from '../api/authApi'
 export function ProfileControls({
   user,
   onUserChange,
-  onLogout
+  onLogout,
+  supportsDisplayNameChange = true,
+  supportsPasswordChange = true
 }: {
   user: UserInformation
   onUserChange: (user: UserInformation) => void
   onLogout: () => void
+  supportsDisplayNameChange?: boolean
+  supportsPasswordChange?: boolean
 }) {
   const { t } = useI18n()
   const [displayName, setDisplayName] = useState(user.displayName ?? '')
@@ -82,63 +86,67 @@ export function ProfileControls({
         </Button>
       </div>
 
-      <form className="grid gap-3 border-t py-4" onSubmit={submitDisplayName}>
-        <FieldGroup className="gap-3">
-          <Field orientation="responsive">
-            <FieldLabel htmlFor="profile-display-name" className="min-w-32">{t('profile.displayName')}</FieldLabel>
-            <Input
-              id="profile-display-name"
-              className="max-w-sm"
-              value={displayName}
-              onChange={(event) => setDisplayName(event.target.value)}
-            />
-          </Field>
-        </FieldGroup>
-        <div className="flex justify-end">
-          <Button disabled={isSavingName || !displayName.trim()} variant="outline" type="submit">
-            <Save data-icon="inline-start" />
-            {t('profile.save')}
-          </Button>
-        </div>
-      </form>
+      {supportsDisplayNameChange ? (
+        <form className="grid gap-3 border-t py-4" onSubmit={submitDisplayName}>
+          <FieldGroup className="gap-3">
+            <Field orientation="responsive">
+              <FieldLabel htmlFor="profile-display-name" className="min-w-32">{t('profile.displayName')}</FieldLabel>
+              <Input
+                id="profile-display-name"
+                className="max-w-sm"
+                value={displayName}
+                onChange={(event) => setDisplayName(event.target.value)}
+              />
+            </Field>
+          </FieldGroup>
+          <div className="flex justify-end">
+            <Button disabled={isSavingName || !displayName.trim()} variant="outline" type="submit">
+              <Save data-icon="inline-start" />
+              {t('profile.save')}
+            </Button>
+          </div>
+        </form>
+      ) : null}
 
-      <form className="grid gap-3 border-t py-4" onSubmit={submitPassword}>
-        <FieldGroup className="gap-3">
-          <Field orientation="responsive">
-            <FieldLabel htmlFor="profile-current-password" className="min-w-32">{t('profile.currentPassword')}</FieldLabel>
-            <Input
-              id="profile-current-password"
-              className="max-w-sm"
-              autoComplete="current-password"
-              type="password"
-              value={currentPassword}
-              onChange={(event) => setCurrentPassword(event.target.value)}
-            />
-          </Field>
-          <Field orientation="responsive">
-            <FieldLabel htmlFor="profile-new-password" className="min-w-32">{t('profile.newPassword')}</FieldLabel>
-            <Input
-              id="profile-new-password"
-              className="max-w-sm"
-              autoComplete="new-password"
-              minLength={8}
-              type="password"
-              value={newPassword}
-              onChange={(event) => setNewPassword(event.target.value)}
-            />
-          </Field>
-        </FieldGroup>
-        <div className="flex justify-end">
-          <Button
-            disabled={isSavingPassword || currentPassword.length < 1 || newPassword.length < 8}
-            variant="outline"
-            type="submit"
-          >
-            <KeyRound data-icon="inline-start" />
-            {t('profile.changePassword')}
-          </Button>
-        </div>
-      </form>
+      {supportsPasswordChange ? (
+        <form className="grid gap-3 border-t py-4" onSubmit={submitPassword}>
+          <FieldGroup className="gap-3">
+            <Field orientation="responsive">
+              <FieldLabel htmlFor="profile-current-password" className="min-w-32">{t('profile.currentPassword')}</FieldLabel>
+              <Input
+                id="profile-current-password"
+                className="max-w-sm"
+                autoComplete="current-password"
+                type="password"
+                value={currentPassword}
+                onChange={(event) => setCurrentPassword(event.target.value)}
+              />
+            </Field>
+            <Field orientation="responsive">
+              <FieldLabel htmlFor="profile-new-password" className="min-w-32">{t('profile.newPassword')}</FieldLabel>
+              <Input
+                id="profile-new-password"
+                className="max-w-sm"
+                autoComplete="new-password"
+                minLength={8}
+                type="password"
+                value={newPassword}
+                onChange={(event) => setNewPassword(event.target.value)}
+              />
+            </Field>
+          </FieldGroup>
+          <div className="flex justify-end">
+            <Button
+              disabled={isSavingPassword || currentPassword.length < 1 || newPassword.length < 8}
+              variant="outline"
+              type="submit"
+            >
+              <KeyRound data-icon="inline-start" />
+              {t('profile.changePassword')}
+            </Button>
+          </div>
+        </form>
+      ) : null}
 
       <div className="grid gap-2 border-t pt-4">
         {message ? (

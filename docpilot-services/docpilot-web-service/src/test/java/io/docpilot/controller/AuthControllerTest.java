@@ -20,7 +20,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest
+@SpringBootTest(properties = {
+        "docpilot.workspace.mongo.init-indexes=false",
+        "docpilot.knowledge.index.mode=direct",
+        "docpilot.user-settings.cache.enabled=false",
+        "docpilot.inline-completion.prompts.complete.system=SYSTEM {{shape}} {{candidateCount}} {{candidateTokenLimit}}",
+        "docpilot.inline-completion.prompts.complete.user=Before={{textBeforeCursor}} Shape={{responseJsonShape}}"
+})
 @AutoConfigureMockMvc
 @Import(WorkspaceControllerTestConfig.class)
 class AuthControllerTest {
