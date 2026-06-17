@@ -8,14 +8,17 @@ import io.docpilot.auth.AuthPrincipal;
 import io.docpilot.auth.AuthProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * Maps provider principals to the DocPilot user table.
@@ -30,14 +33,17 @@ public class AuthIdentityService {
 
     private final DefaultUserAccountRepository accountRepository;
     private final AuthUserIdentityJpaStore identityStore;
+    private final TransactionTemplate transactionTemplate;
+    private final ConcurrentMap<String, Object> identityLocks = new ConcurrentHashMap<>();
 
     public AuthIdentityService(DefaultUserAccountRepository accountRepository,
-                               AuthUserIdentityJpaStore identityStore) {
+                               AuthUserIdentityJpaStore identityStore,
+                               TransactionTemplate transactionTemplate) {
         this.accountRepository = accountRepository;
         this.identityStore = identityStore;
+        this.transactionTemplate = transactionTemplate;
     }
 
-    @Transactional(rollbackFor = Exception.class)
     public AuthSubject resolve(AuthProvider provider, AuthPrincipal principal) {
         AuthPrincipal normalized = validatePrincipal(provider, principal);
         Optional<Long> resolvedUserId = provider.resolveUserId(normalized);
@@ -47,6 +53,46 @@ public class AuthIdentityService {
             return toSubject(resolvedUserId.get(), normalized.displayName(), normalized.roles());
         }
 
+        try {
+            return resolveWithLock(normalized);
+        } catch (ConflictException e) {
+            Optional<AuthSubject> existingSubject = resolveExistingIdentity(normalized);
+            if (existingSubject.isPresent()) {
+                log.info("auth identity resolved after creation conflict providerId={} subjectHash={}",
+                        normalized.providerId(), subjectHash(normalized));
+                return existingSubject.get();
+            }
+            if (StringUtils.hasText(normalized.email())) {
+                throw e;
+            }
+            log.info("auth identity creation conflicted, retrying placeholder binding providerId={} subjectHash={}",
+                    normalized.providerId(), subjectHash(normalized));
+            return resolveWithLock(normalized);
+        }
+    }
+
+    private Optional<AuthSubject> resolveExistingIdentity(AuthPrincipal normalized) {
+        String lockKey = identityLockKey(normalized);
+        Object lock = identityLocks.computeIfAbsent(lockKey, ignored -> new Object());
+        synchronized (lock) {
+            AuthSubject subject = transactionTemplate.execute(status -> identityStore
+                    .findByProviderIdAndSubject(normalized.providerId(), normalized.subject())
+                    .map(identity -> toSubject(identity.getUserId(), displayName(identity, normalized), normalized.roles()))
+                    .orElse(null));
+            return Optional.ofNullable(subject);
+        }
+    }
+
+    private AuthSubject resolveWithLock(AuthPrincipal normalized) {
+        String lockKey = identityLockKey(normalized);
+        Object lock = identityLocks.computeIfAbsent(lockKey, ignored -> new Object());
+        synchronized (lock) {
+            AuthSubject subject = transactionTemplate.execute(status -> resolveInTransaction(normalized));
+            return Objects.requireNonNull(subject, "Resolved auth subject is required");
+        }
+    }
+
+    private AuthSubject resolveInTransaction(AuthPrincipal normalized) {
         Optional<AuthUserIdentity> existingIdentity = identityStore
                 .findByProviderIdAndSubject(normalized.providerId(), normalized.subject());
         AuthUserIdentity identity = existingIdentity.orElseGet(() -> createIdentity(normalized));
@@ -78,18 +124,10 @@ public class AuthIdentityService {
 
     private AuthUserIdentity createIdentity(AuthPrincipal principal) {
         String email = email(principal);
-        if (StringUtils.hasText(principal.email()) && accountRepository.findByEmail(email).isPresent()) {
-            // Avoid silently attaching a provider subject to an existing password account.
-            log.warn("auth identity creation rejected reason=email-exists providerId={} subjectHash={}",
-                    principal.providerId(), subjectHash(principal));
-            throw new ConflictException("Email is already registered");
-        }
-
-        DefaultUserAccount account = new DefaultUserAccount();
-        account.setEmail(email);
-        account.setDisplayName(displayName(principal));
-        account.setPasswordHash(PROVIDER_MANAGED_PASSWORD_PLACEHOLDER);
-        DefaultUserAccount savedAccount = accountRepository.create(account);
+        boolean hasProviderEmail = StringUtils.hasText(principal.email());
+        DefaultUserAccount savedAccount = hasProviderEmail
+                ? createAccountWithProviderEmail(principal, email)
+                : createOrReusePlaceholderAccount(principal, email);
 
         AuthUserIdentity identity = new AuthUserIdentity();
         identity.setProviderId(principal.providerId());
@@ -101,6 +139,40 @@ public class AuthIdentityService {
         log.info("auth identity created providerId={} subjectHash={} userId={} emailProvided={}",
                 principal.providerId(), subjectHash(principal), savedAccount.getUserId(), StringUtils.hasText(principal.email()));
         return savedIdentity;
+    }
+
+    private DefaultUserAccount createAccountWithProviderEmail(AuthPrincipal principal, String email) {
+        if (accountRepository.findByEmail(email).isPresent()) {
+            // Avoid silently attaching a provider subject to an existing password account.
+            log.warn("auth identity creation rejected reason=email-exists providerId={} subjectHash={}",
+                    principal.providerId(), subjectHash(principal));
+            throw new ConflictException("Email is already registered");
+        }
+        return createProviderManagedAccount(email, displayName(principal));
+    }
+
+    private DefaultUserAccount createOrReusePlaceholderAccount(AuthPrincipal principal, String email) {
+        Optional<DefaultUserAccount> existingAccount = accountRepository.findByEmail(email);
+        if (existingAccount.isPresent()) {
+            DefaultUserAccount account = existingAccount.get();
+            if (!PROVIDER_MANAGED_PASSWORD_PLACEHOLDER.equals(account.getPasswordHash())) {
+                log.warn("auth identity creation rejected reason=placeholder-email-owned providerId={} subjectHash={}",
+                        principal.providerId(), subjectHash(principal));
+                throw new ConflictException("Email is already registered");
+            }
+            log.info("auth identity reused placeholder account providerId={} subjectHash={} userId={}",
+                    principal.providerId(), subjectHash(principal), account.getUserId());
+            return account;
+        }
+        return createProviderManagedAccount(email, displayName(principal));
+    }
+
+    private DefaultUserAccount createProviderManagedAccount(String email, String displayName) {
+        DefaultUserAccount account = new DefaultUserAccount();
+        account.setEmail(email);
+        account.setDisplayName(displayName);
+        account.setPasswordHash(PROVIDER_MANAGED_PASSWORD_PLACEHOLDER);
+        return accountRepository.create(account);
     }
 
     private AuthSubject toSubject(Long userId, String displayName, java.util.Set<String> roles) {
@@ -163,6 +235,10 @@ public class AuthIdentityService {
 
     private String subjectHash(AuthPrincipal principal) {
         return sha256(principal.providerId() + ":" + principal.subject()).substring(0, 16);
+    }
+
+    private String identityLockKey(AuthPrincipal principal) {
+        return principal.providerId() + ":" + principal.subject();
     }
 
 }

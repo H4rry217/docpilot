@@ -9,6 +9,8 @@ import io.docpilot.auth.AuthProviderCapabilities;
 import io.docpilot.auth.AuthRequest;
 import io.docpilot.common.exception.UnauthorizedException;
 import io.docpilot.common.result.StatusCode;
+import io.docpilot.infrastructure.auth.DefaultUserAccount;
+import io.docpilot.infrastructure.auth.DefaultUserAccountRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -21,6 +23,9 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.HexFormat;
 import java.util.Optional;
 import java.util.Set;
 
@@ -46,6 +51,9 @@ class CustomAuthProviderControllerTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private DefaultUserAccountRepository accountRepository;
 
     @Test
     void configExposesCurrentProviderCapabilities() throws Exception {
@@ -74,6 +82,31 @@ class CustomAuthProviderControllerTest {
                         .content("{}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.workspaces").isArray());
+    }
+
+    @Test
+    void customProviderCreatesAndReusesPlaceholderIdentityWhenEmailIsMissing() throws Exception {
+        JsonNode first = postJson("/auth/me", "host-opaque");
+        JsonNode second = postJson("/auth/me", "host-opaque");
+
+        assertThat(first.get("userId").asLong()).isEqualTo(second.get("userId").asLong());
+        assertThat(first.get("email").asText()).endsWith("@provider.docpilot.invalid");
+        assertThat(first.get("displayName").asText()).isEqualTo("Opaque User");
+    }
+
+    @Test
+    void customProviderBindsExistingProviderManagedPlaceholderAccount() throws Exception {
+        DefaultUserAccount account = new DefaultUserAccount();
+        account.setEmail(placeholderEmail("miniapp", "openid-orphan"));
+        account.setDisplayName("Existing Placeholder");
+        account.setPasswordHash("provider:disabled");
+        DefaultUserAccount savedAccount = accountRepository.create(account);
+
+        JsonNode user = postJson("/auth/me", "host-orphan");
+
+        assertThat(user.get("userId").asLong()).isEqualTo(savedAccount.getUserId());
+        assertThat(user.get("email").asText()).isEqualTo(savedAccount.getEmail());
+        assertThat(user.get("displayName").asText()).isEqualTo("Existing Placeholder");
     }
 
     @Test
@@ -160,10 +193,27 @@ class CustomAuthProviderControllerTest {
                                 providerId(), "openid-conflict-a", "conflict@example.com", "Conflict A", Set.of());
                         case "host-conflict-b" -> AuthPrincipal.of(
                                 providerId(), "openid-conflict-b", "conflict@example.com", "Conflict B", Set.of());
+                        case "host-opaque" -> AuthPrincipal.of(
+                                providerId(), "openid-opaque", null, "Opaque User", Set.of());
+                        case "host-orphan" -> AuthPrincipal.of(
+                                providerId(), "openid-orphan", null, "Orphan User", Set.of());
                         default -> throw new UnauthorizedException("Invalid host token");
                     });
         }
 
+    }
+
+    private String placeholderEmail(String providerId, String subject) {
+        return sha256(providerId + ":" + subject).substring(0, 32) + "@provider.docpilot.invalid";
+    }
+
+    private String sha256(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to hash test auth subject", e);
+        }
     }
 
 }

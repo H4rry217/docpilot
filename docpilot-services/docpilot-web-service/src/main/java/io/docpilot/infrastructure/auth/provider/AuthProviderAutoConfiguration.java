@@ -10,6 +10,8 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.List;
 
@@ -38,8 +40,9 @@ public class AuthProviderAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public AuthIdentityService authIdentityService(DefaultUserAccountRepository accountRepository,
-                                                   AuthUserIdentityJpaStore identityStore) {
-        return new AuthIdentityService(accountRepository, identityStore);
+                                                   AuthUserIdentityJpaStore identityStore,
+                                                   PlatformTransactionManager transactionManager) {
+        return new AuthIdentityService(accountRepository, identityStore, new TransactionTemplate(transactionManager));
     }
 
     @Bean
