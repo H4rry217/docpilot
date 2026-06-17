@@ -2,20 +2,15 @@ package io.docpilot.infrastructure.auth;
 
 import io.docpilot.common.auth.AuthContextProvider;
 import io.docpilot.common.web.auth.DocPilotJwtConfig;
-import io.docpilot.common.web.auth.AuthSubjectResolver;
-import io.docpilot.infrastructure.user.DatabaseUserSettingRepository;
-import io.docpilot.infrastructure.user.UserSettingStore;
-import io.docpilot.infrastructure.auth.provider.AuthProvider;
-import io.docpilot.infrastructure.auth.provider.AuthProviderProperties;
-import io.docpilot.infrastructure.auth.provider.AuthProviderRegistry;
-import io.docpilot.infrastructure.auth.provider.LocalPasswordAuthProvider;
-import io.docpilot.infrastructure.auth.provider.ProviderAuthSubjectResolver;
-import io.docpilot.user.repository.UserSettingRepository;
+import io.docpilot.common.web.auth.JwtTokenVerifier;
+import io.docpilot.infrastructure.auth.provider.DefaultUserAuthProvider;
+import io.docpilot.system.repository.SystemSettingRepository;
 import org.springframework.beans.factory.InitializingBean;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.context.annotation.Primary;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.Resource;
@@ -23,10 +18,9 @@ import org.springframework.core.io.ResourceLoader;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 
 import javax.sql.DataSource;
-import java.util.List;
 
 @Configuration
-@EnableConfigurationProperties({DefaultUserAuthConfig.class, AuthProviderProperties.class})
+@EnableConfigurationProperties(DefaultUserAuthConfig.class)
 public class DefaultUserAuthAutoConfiguration {
 
     @Bean
@@ -46,78 +40,55 @@ public class DefaultUserAuthAutoConfiguration {
     }
 
     @Bean
-    @ConditionalOnMissingBean(UserSettingRepository.class)
-    public DatabaseUserSettingRepository userSettingRepository(UserSettingStore settingStore) {
-        return new DatabaseUserSettingRepository(settingStore);
-    }
-
-    @Bean
     @ConditionalOnMissingBean
-    public DefaultUserAuthSettingsStore defaultUserAuthSettingsStore(DataSource dataSource,
-                                                                     DefaultUserAuthConfig config) {
-        return new DefaultUserAuthSettingsStore(dataSource, config.isInitSchema());
+    public DefaultUserAuthSettings defaultUserAuthSettings(
+            SystemSettingRepository systemSettingRepository,
+            DefaultUserAccountRepository accountRepository,
+            @Qualifier("defaultUserAuthSchemaInitializer") ObjectProvider<InitializingBean> schemaInitializer) {
+        // Ensure schema-mysql.sql runs before generated default-auth settings are read.
+        schemaInitializer.getIfAvailable();
+        return new DefaultUserAuthSettings(systemSettingRepository, accountRepository);
     }
 
     @Bean
-    @ConditionalOnProperty(prefix = "docpilot.auth", name = "provider", havingValue = LocalPasswordAuthProvider.PROVIDER_ID, matchIfMissing = true)
+    @ConditionalOnProperty(prefix = "docpilot.auth", name = "provider", havingValue = DefaultUserAuthProvider.PROVIDER_ID, matchIfMissing = true)
     public InitializingBean defaultUserJwtSecretInitializer(DocPilotJwtConfig jwtConfig,
-                                                           DefaultUserAuthSettingsStore settingsStore) {
-        return () -> jwtConfig.setSecret(settingsStore.jwtSecret(jwtConfig.getConfiguredSecret()));
+                                                           DefaultUserAuthSettings authSettings) {
+        return () -> jwtConfig.setSecret(authSettings.jwtSecret(jwtConfig.getConfiguredSecret()));
     }
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "docpilot.auth", name = "provider", havingValue = LocalPasswordAuthProvider.PROVIDER_ID, matchIfMissing = true)
-    public PasswordHasher passwordHasher(DefaultUserAuthConfig config,
-                                         DefaultUserAuthSettingsStore settingsStore) {
-        return new PasswordHasher(settingsStore.passwordPepper(config.getPasswordPepper()), config.getPasswordIterations());
+    @ConditionalOnProperty(prefix = "docpilot.auth", name = "provider", havingValue = DefaultUserAuthProvider.PROVIDER_ID, matchIfMissing = true)
+    public DefaultUserPasswordHasher defaultUserPasswordHasher(DefaultUserAuthConfig config,
+                                                               DefaultUserAuthSettings authSettings) {
+        return new DefaultUserPasswordHasher(authSettings.passwordPepper(config.getPasswordPepper()), config.getPasswordIterations());
     }
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "docpilot.auth", name = "provider", havingValue = LocalPasswordAuthProvider.PROVIDER_ID, matchIfMissing = true)
-    public DefaultJwtIssuer defaultJwtIssuer(DocPilotJwtConfig jwtConfig) {
-        return new DefaultJwtIssuer(jwtConfig);
+    @ConditionalOnProperty(prefix = "docpilot.auth", name = "provider", havingValue = DefaultUserAuthProvider.PROVIDER_ID, matchIfMissing = true)
+    public DefaultUserJwtIssuer defaultUserJwtIssuer(DocPilotJwtConfig jwtConfig) {
+        return new DefaultUserJwtIssuer(jwtConfig);
     }
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "docpilot.auth", name = "provider", havingValue = LocalPasswordAuthProvider.PROVIDER_ID, matchIfMissing = true)
+    @ConditionalOnProperty(prefix = "docpilot.auth", name = "provider", havingValue = DefaultUserAuthProvider.PROVIDER_ID, matchIfMissing = true)
     public DefaultUserAuthService defaultUserAuthService(DefaultUserAccountRepository accountRepository,
-                                                         PasswordHasher passwordHasher,
-                                                         DefaultJwtIssuer jwtIssuer,
+                                                         DefaultUserPasswordHasher passwordHasher,
+                                                         DefaultUserJwtIssuer jwtIssuer,
                                                          DefaultUserAuthConfig config,
                                                          AuthContextProvider authContextProvider) {
         return new DefaultUserAuthService(accountRepository, passwordHasher, jwtIssuer, config.isAllowRegistration(), authContextProvider);
     }
 
     @Bean
-    @ConditionalOnMissingBean
-    public AuthIdentityService authIdentityService(DefaultUserAccountRepository accountRepository,
-                                                   AuthUserIdentityJpaStore identityStore) {
-        return new AuthIdentityService(accountRepository, identityStore);
-    }
-
-    @Bean
-    @ConditionalOnProperty(prefix = "docpilot.auth", name = "provider", havingValue = LocalPasswordAuthProvider.PROVIDER_ID, matchIfMissing = true)
-    public LocalPasswordAuthProvider localPasswordAuthProvider(DefaultUserAuthService authService,
-                                                              DefaultUserAuthConfig config,
-                                                              DocPilotJwtConfig jwtConfig) {
-        return new LocalPasswordAuthProvider(authService, config, jwtConfig);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public AuthProviderRegistry authProviderRegistry(AuthProviderProperties properties,
-                                                     List<AuthProvider> providers) {
-        return new AuthProviderRegistry(properties, providers);
-    }
-
-    @Bean
-    @Primary
-    public AuthSubjectResolver providerAuthSubjectResolver(AuthProviderRegistry providerRegistry,
-                                                           AuthIdentityService identityService) {
-        return new ProviderAuthSubjectResolver(providerRegistry, identityService);
+    @ConditionalOnProperty(prefix = "docpilot.auth", name = "provider", havingValue = DefaultUserAuthProvider.PROVIDER_ID, matchIfMissing = true)
+    public DefaultUserAuthProvider defaultUserAuthProvider(DefaultUserAuthService authService,
+                                                          DefaultUserAuthConfig config,
+                                                          JwtTokenVerifier jwtTokenVerifier) {
+        return new DefaultUserAuthProvider(authService, config, jwtTokenVerifier);
     }
 
 }

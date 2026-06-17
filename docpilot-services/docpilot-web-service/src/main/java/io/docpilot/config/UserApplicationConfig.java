@@ -2,8 +2,10 @@ package io.docpilot.config;
 
 import io.docpilot.user.application.UserInformationManager;
 import io.docpilot.user.application.UserSettingManager;
+import io.docpilot.infrastructure.user.DatabaseUserSettingRepository;
 import io.docpilot.infrastructure.user.RedisUserSettingCache;
 import io.docpilot.infrastructure.user.UserSettingCacheProperties;
+import io.docpilot.infrastructure.user.UserSettingStore;
 import io.docpilot.user.model.UserInformation;
 import io.docpilot.user.model.UserSettingRecord;
 import io.docpilot.user.repository.UserInformationRepository;
@@ -59,6 +61,13 @@ public class UserApplicationConfig {
     public UserSettingManager userSettingManager(UserSettingRepository userSettingRepository,
                                                  ObjectProvider<UserSettingCache> userSettingCache) {
         return new UserSettingManager(userSettingRepository, userSettingCache.getIfAvailable());
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(UserSettingRepository.class)
+    @ConditionalOnProperty(prefix = "docpilot.auth.default-user", name = "enabled", havingValue = "true", matchIfMissing = true)
+    public UserSettingRepository databaseUserSettingRepository(UserSettingStore settingStore) {
+        return new DatabaseUserSettingRepository(settingStore);
     }
 
     @Bean

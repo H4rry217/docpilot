@@ -8,7 +8,7 @@ import org.springframework.mock.web.MockHttpServletRequest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class DefaultJwtIssuerTest {
+class DefaultUserJwtIssuerTest {
 
     @Test
     void issuedTokenCanBeResolvedByDefaultBearerResolver() {
@@ -20,7 +20,7 @@ class DefaultJwtIssuerTest {
         account.setUserId(1L);
         account.setDisplayName("Alice");
 
-        String token = new DefaultJwtIssuer(config).issue(account);
+        String token = new DefaultUserJwtIssuer(config).issue(account);
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader("Authorization", "Bearer " + token);
 

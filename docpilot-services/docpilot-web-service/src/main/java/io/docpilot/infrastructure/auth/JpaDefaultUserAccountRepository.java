@@ -49,6 +49,12 @@ public class JpaDefaultUserAccountRepository implements DefaultUserAccountReposi
     }
 
     @Override
+    @Transactional(readOnly = true, rollbackFor = Exception.class)
+    public boolean hasAnyAccount() {
+        return accountStore.count() > 0;
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public DefaultUserAccount updatePasswordHash(Long userId, String passwordHash) {
         DefaultUserAccount account = accountStore.findById(userId)

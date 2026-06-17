@@ -9,7 +9,14 @@ import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useI18n } from '../../../shared/i18n'
-import { login, register, type AuthConfig, type AuthSession } from '../api/authApi'
+import {
+  hasAccountAction,
+  hasLoginFlow,
+  login,
+  register,
+  type AuthConfig,
+  type AuthSession
+} from '../api/authApi'
 
 type AuthMode = 'login' | 'register'
 
@@ -34,8 +41,9 @@ export function AuthScreen({
   const [isSubmitting, setSubmitting] = useState(false)
   const [isRetryingHostAuth, setRetryingHostAuth] = useState(false)
   const capabilities = authConfig?.capabilities
-  const supportsPasswordLogin = capabilities?.supportsPasswordLogin ?? true
-  const supportsRegistration = capabilities?.supportsRegistration ?? true
+  const supportsPasswordLogin = capabilities ? hasLoginFlow(capabilities, 'PASSWORD_FORM') : true
+  const supportsHostToken = capabilities ? hasLoginFlow(capabilities, 'HOST_TOKEN') : false
+  const supportsRegistration = capabilities ? hasAccountAction(capabilities, 'REGISTER') : true
   const isRegister = supportsRegistration && mode === 'register'
 
   async function retryHostAuth() {
@@ -63,15 +71,17 @@ export function AuthScreen({
             <p className="text-sm font-medium text-muted-foreground">{authConfig?.providerId ?? t('auth.panel')}</p>
           </CardHeader>
           <CardContent className="grid gap-4">
-            {error ? (
+            {error || !supportsHostToken ? (
               <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
+                <AlertDescription>{error ?? t('auth.failed')}</AlertDescription>
               </Alert>
             ) : null}
-            <Button className="w-full" disabled={isRetryingHostAuth || !onRetryHostAuth} type="button" onClick={retryHostAuth}>
-              {isRetryingHostAuth ? <Spinner data-icon="inline-start" /> : <LogIn data-icon="inline-start" />}
-              {isRetryingHostAuth ? t('auth.processing') : t('auth.login')}
-            </Button>
+            {supportsHostToken ? (
+              <Button className="w-full" disabled={isRetryingHostAuth || !onRetryHostAuth} type="button" onClick={retryHostAuth}>
+                {isRetryingHostAuth ? <Spinner data-icon="inline-start" /> : <LogIn data-icon="inline-start" />}
+                {isRetryingHostAuth ? t('auth.processing') : t('auth.login')}
+              </Button>
+            ) : null}
           </CardContent>
         </Card>
       </main>

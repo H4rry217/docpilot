@@ -8,13 +8,20 @@ import io.docpilot.common.exception.ForbiddenException;
 import io.docpilot.common.exception.UnauthorizedException;
 import io.docpilot.infrastructure.auth.provider.AuthSession;
 import io.docpilot.user.model.UserInformation;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.util.StringUtils;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.HexFormat;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.regex.Pattern;
 
 public class DefaultUserAuthService {
+
+    private static final Logger log = LoggerFactory.getLogger(DefaultUserAuthService.class);
 
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
     private static final int MAX_EMAIL_LENGTH = 255;
@@ -23,14 +30,14 @@ public class DefaultUserAuthService {
     private static final int MAX_DISPLAY_NAME_LENGTH = 80;
 
     private final DefaultUserAccountRepository accountRepository;
-    private final PasswordHasher passwordHasher;
-    private final DefaultJwtIssuer jwtIssuer;
+    private final DefaultUserPasswordHasher passwordHasher;
+    private final DefaultUserJwtIssuer jwtIssuer;
     private final boolean allowRegistration;
     private final AuthContextProvider authContextProvider;
 
     public DefaultUserAuthService(DefaultUserAccountRepository accountRepository,
-                                  PasswordHasher passwordHasher,
-                                  DefaultJwtIssuer jwtIssuer,
+                                  DefaultUserPasswordHasher passwordHasher,
+                                  DefaultUserJwtIssuer jwtIssuer,
                                   boolean allowRegistration,
                                   AuthContextProvider authContextProvider) {
         this.accountRepository = accountRepository;
@@ -42,12 +49,14 @@ public class DefaultUserAuthService {
 
     public UserInformation register(String email, String password, String displayName) {
         if (!allowRegistration) {
+            log.warn("default user registration rejected reason=registration-disabled");
             throw new ForbiddenException("Registration is disabled");
         }
         String normalizedEmail = normalizeEmail(email);
         validatePassword(password);
         String normalizedDisplayName = normalizeDisplayName(displayName, normalizedEmail);
         if (accountRepository.findByEmail(normalizedEmail).isPresent()) {
+            log.warn("default user registration rejected reason=email-exists emailHash={}", hashForLog(normalizedEmail));
             throw new ConflictException("Email is already registered");
         }
 
@@ -56,16 +65,23 @@ public class DefaultUserAuthService {
         account.setDisplayName(normalizedDisplayName);
         account.setPasswordHash(passwordHasher.hash(password));
         DefaultUserAccount saved = accountRepository.create(account);
+        log.info("default user registered userId={} emailHash={}", saved.getUserId(), hashForLog(saved.getEmail()));
         return toUserInformation(saved);
     }
 
     public AuthSession login(String email, String password) {
         String normalizedEmail = normalizeEmail(email);
         DefaultUserAccount account = accountRepository.findByEmail(normalizedEmail)
-                .orElseThrow(() -> new UnauthorizedException("Invalid email or password"));
+                .orElseThrow(() -> {
+                    log.warn("default user login failed reason=account-not-found emailHash={}", hashForLog(normalizedEmail));
+                    return new UnauthorizedException("Invalid email or password");
+                });
         if (!passwordHasher.verify(password, account.getPasswordHash())) {
+            log.warn("default user login failed reason=password-mismatch userId={} emailHash={}",
+                    account.getUserId(), hashForLog(account.getEmail()));
             throw new UnauthorizedException("Invalid email or password");
         }
+        log.info("default user login succeeded userId={}", account.getUserId());
         return new AuthSession(jwtIssuer.issue(account), toUserInformation(account));
     }
 
@@ -77,9 +93,11 @@ public class DefaultUserAuthService {
         validatePassword(newPassword);
         DefaultUserAccount account = currentAccount();
         if (!passwordHasher.verify(currentPassword, account.getPasswordHash())) {
+            log.warn("default user password change rejected reason=current-password-mismatch userId={}", account.getUserId());
             throw new UnauthorizedException("Current password is incorrect");
         }
         accountRepository.updatePasswordHash(account.getUserId(), passwordHasher.hash(newPassword));
+        log.info("default user password changed userId={}", account.getUserId());
     }
 
     public UserInformation changeDisplayName(String displayName) {
@@ -88,6 +106,7 @@ public class DefaultUserAuthService {
                 account.getUserId(),
                 normalizeDisplayName(displayName, account.getEmail())
         );
+        log.info("default user display name changed userId={}", updated.getUserId());
         return toUserInformation(updated);
     }
 
@@ -133,6 +152,15 @@ public class DefaultUserAuthService {
         userInformation.setDisplayName(account.getDisplayName());
         userInformation.setEmail(account.getEmail());
         return userInformation;
+    }
+
+    private String hashForLog(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(value.getBytes(StandardCharsets.UTF_8))).substring(0, 16);
+        } catch (Exception e) {
+            return "unavailable";
+        }
     }
 
 }

@@ -9,6 +9,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "docpilot.auth")
 public class AuthProviderProperties {
 
-    private String provider = LocalPasswordAuthProvider.PROVIDER_ID;
+    private String provider = DefaultUserAuthProvider.PROVIDER_ID;
 
 }

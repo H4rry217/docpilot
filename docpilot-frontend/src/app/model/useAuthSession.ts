@@ -3,6 +3,7 @@ import type { UserInformation } from '../../entities/user/types'
 import {
   getAuthConfig,
   getCurrentUser,
+  hasLoginFlow,
   type AuthConfig,
   type AuthSession
 } from '../../features/auth/api/authApi'
@@ -49,21 +50,56 @@ export function useAuthSession() {
   const refreshHostAuth = useCallback(async () => {
     setAuthStatus('checking')
     try {
-      const token = await readInjectedAuthToken()
-      if (!token) {
-        clearAuth()
-        return false
+      const capabilities = authConfig?.capabilities
+      if (!capabilities || hasLoginFlow(capabilities, 'HOST_TOKEN')) {
+        const token = await readInjectedAuthToken()
+        if (token) {
+          await authenticateWithToken(token)
+          return true
+        }
       }
-      await authenticateWithToken(token)
-      return true
+      if (capabilities && hasLoginFlow(capabilities, 'REMOTE_USER')) {
+        globalThis.localStorage?.removeItem('docpilot.auth.token')
+        const user = await getCurrentUser()
+        setCurrentUser(user)
+        setAuthStatus('authenticated')
+        return true
+      }
+      clearAuth()
+      return false
     } catch {
       clearAuth()
       return false
     }
-  }, [authenticateWithToken, clearAuth])
+  }, [authConfig, authenticateWithToken, clearAuth])
 
   useEffect(() => {
     let cancelled = false
+
+    async function authenticateWithStoredToken(token: string) {
+      globalThis.localStorage?.setItem('docpilot.auth.token', token)
+      const user = await getCurrentUser()
+      if (cancelled) return false
+      setCurrentUser(user)
+      setAuthStatus('authenticated')
+      return true
+    }
+
+    async function authenticateWithRemoteUser(previousToken: string) {
+      globalThis.localStorage?.removeItem('docpilot.auth.token')
+      try {
+        const user = await getCurrentUser()
+        if (cancelled) return false
+        setCurrentUser(user)
+        setAuthStatus('authenticated')
+        return true
+      } catch {
+        if (previousToken) {
+          globalThis.localStorage?.setItem('docpilot.auth.token', previousToken)
+        }
+        return false
+      }
+    }
 
     async function initializeAuth() {
       try {
@@ -71,21 +107,40 @@ export function useAuthSession() {
         if (cancelled) return
         setAuthConfig(config)
 
-        let token = globalThis.localStorage?.getItem('docpilot.auth.token') ?? ''
-        if (!token && config.capabilities.supportsHostToken) {
-          token = await readInjectedAuthToken()
-        }
-        if (cancelled) return
-        if (!token) {
-          setAuthStatus('anonymous')
-          return
+        const capabilities = config.capabilities
+        const storedToken = globalThis.localStorage?.getItem('docpilot.auth.token') ?? ''
+
+        if (hasLoginFlow(capabilities, 'HOST_TOKEN')) {
+          const hostToken = await readInjectedAuthToken()
+          if (cancelled) return
+          if (hostToken) {
+            try {
+              if (await authenticateWithStoredToken(hostToken)) return
+            } catch {
+              if (storedToken) {
+                globalThis.localStorage?.setItem('docpilot.auth.token', storedToken)
+              } else {
+                globalThis.localStorage?.removeItem('docpilot.auth.token')
+              }
+            }
+          }
         }
 
-        globalThis.localStorage?.setItem('docpilot.auth.token', token)
-        const user = await getCurrentUser()
+        if (hasLoginFlow(capabilities, 'REMOTE_USER')) {
+          if (await authenticateWithRemoteUser(storedToken)) return
+          if (cancelled) return
+        }
+
+        if (hasLoginFlow(capabilities, 'PASSWORD_FORM') && storedToken) {
+          try {
+            if (await authenticateWithStoredToken(storedToken)) return
+          } catch {
+            globalThis.localStorage?.removeItem('docpilot.auth.token')
+          }
+        }
+
         if (cancelled) return
-        setCurrentUser(user)
-        setAuthStatus('authenticated')
+        clearAuth()
       } catch {
         if (cancelled) return
         clearAuth()
@@ -97,7 +152,7 @@ export function useAuthSession() {
     return () => {
       cancelled = true
     }
-  }, [authenticateWithToken, clearAuth])
+  }, [clearAuth])
 
   return {
     authStatus,

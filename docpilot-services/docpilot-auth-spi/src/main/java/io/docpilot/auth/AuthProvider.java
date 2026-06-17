@@ -1,4 +1,4 @@
-package io.docpilot.infrastructure.auth.provider;
+package io.docpilot.auth;
 
 import java.util.Optional;
 
@@ -33,12 +33,12 @@ public interface AuthProvider {
     }
 
     /**
-     * Authenticates the current HTTP request.
+     * Authenticates the current request.
      *
      * <p>Return {@link Optional#empty()} when the request has no authenticated
-     * principal. Throw an auth exception when a supplied token is malformed,
+     * principal. Throw an auth exception when supplied credentials are malformed,
      * expired, or otherwise rejected.</p>
      */
-    Optional<AuthPrincipal> authenticateRequest(AuthRequest request);
+    Optional<AuthPrincipal> authenticate(AuthRequest request);
 
 }

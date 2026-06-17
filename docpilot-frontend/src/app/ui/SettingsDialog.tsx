@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { UserInformation } from '../../entities/user/types'
-import type { AuthProviderCapabilities } from '../../features/auth/api/authApi'
+import { hasAccountAction, type AuthProviderCapabilities } from '../../features/auth/api/authApi'
 import { ProfileControls } from '../../features/auth/ui/ProfileControls'
 import type {
   InlineCompletionCloudSettings,
@@ -255,8 +255,8 @@ function LoginSettings({
       user={user}
       onUserChange={onUserChange}
       onLogout={onLogout}
-      supportsDisplayNameChange={authCapabilities?.supportsDisplayNameChange ?? true}
-      supportsPasswordChange={authCapabilities?.supportsPasswordChange ?? true}
+      supportsDisplayNameChange={authCapabilities ? hasAccountAction(authCapabilities, 'CHANGE_DISPLAY_NAME') : true}
+      supportsPasswordChange={authCapabilities ? hasAccountAction(authCapabilities, 'CHANGE_PASSWORD') : true}
     />
   )
 }

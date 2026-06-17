@@ -10,7 +10,7 @@ import java.util.Base64;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 
-public class PasswordHasher {
+public class DefaultUserPasswordHasher {
 
     private static final String ALGORITHM = "PBKDF2WithHmacSHA256";
     private static final String FORMAT = "pbkdf2_sha256";
@@ -22,11 +22,11 @@ public class PasswordHasher {
     private final String pepper;
     private final int iterations;
 
-    public PasswordHasher() {
+    public DefaultUserPasswordHasher() {
         this("", DEFAULT_ITERATIONS);
     }
 
-    public PasswordHasher(String pepper, int iterations) {
+    public DefaultUserPasswordHasher(String pepper, int iterations) {
         if (iterations < 100000) {
             throw new IllegalArgumentException("Password iterations must be at least 100000");
         }

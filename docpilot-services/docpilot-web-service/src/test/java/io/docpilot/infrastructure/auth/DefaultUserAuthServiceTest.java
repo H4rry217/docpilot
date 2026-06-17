@@ -19,11 +19,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class DefaultUserAuthServiceTest {
 
     private final InMemoryAccountRepository repository = new InMemoryAccountRepository();
-    private final PasswordHasher passwordHasher = new PasswordHasher("", 100000);
+    private final DefaultUserPasswordHasher passwordHasher = new DefaultUserPasswordHasher("", 100000);
     private final DefaultUserAuthService authService = new DefaultUserAuthService(
             repository,
             passwordHasher,
-            new DefaultJwtIssuer(new DocPilotJwtConfig()),
+            new DefaultUserJwtIssuer(new DocPilotJwtConfig()),
             true,
             AuthSubjectContext::currentSubject
     );
@@ -50,7 +50,7 @@ class DefaultUserAuthServiceTest {
         DefaultUserAuthService disabledAuthService = new DefaultUserAuthService(
                 repository,
                 passwordHasher,
-                new DefaultJwtIssuer(new DocPilotJwtConfig()),
+                new DefaultUserJwtIssuer(new DocPilotJwtConfig()),
                 false,
                 AuthSubjectContext::currentSubject
         );
@@ -111,6 +111,11 @@ class DefaultUserAuthServiceTest {
         @Override
         public Optional<DefaultUserAccount> findAccountByUserId(Long userId) {
             return Optional.ofNullable(byUserId.get(userId));
+        }
+
+        @Override
+        public boolean hasAnyAccount() {
+            return !byUserId.isEmpty();
         }
 
         @Override

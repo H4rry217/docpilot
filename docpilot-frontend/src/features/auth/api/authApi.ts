@@ -6,12 +6,21 @@ export type AuthSession = {
   user: UserInformation
 }
 
+export type AuthLoginFlow = 'PASSWORD_FORM' | 'HOST_TOKEN' | 'REMOTE_USER'
+
+export type AuthAccountAction =
+  | 'REGISTER'
+  | 'CHANGE_PASSWORD'
+  | 'CHANGE_DISPLAY_NAME'
+
 export type AuthProviderCapabilities = {
-  supportsPasswordLogin: boolean
-  supportsRegistration: boolean
-  supportsPasswordChange: boolean
-  supportsDisplayNameChange: boolean
-  supportsHostToken: boolean
+  loginFlows?: AuthLoginFlow[]
+  accountActions?: AuthAccountAction[]
+  supportsPasswordLogin?: boolean
+  supportsRegistration?: boolean
+  supportsPasswordChange?: boolean
+  supportsDisplayNameChange?: boolean
+  supportsHostToken?: boolean
 }
 
 export type AuthConfig = {
@@ -21,6 +30,25 @@ export type AuthConfig = {
 
 export function getAuthConfig(): Promise<AuthConfig> {
   return postJson('/auth/config', {})
+}
+
+export function hasLoginFlow(capabilities: AuthProviderCapabilities, flow: AuthLoginFlow): boolean {
+  if (Array.isArray(capabilities.loginFlows)) {
+    return capabilities.loginFlows.includes(flow)
+  }
+  if (flow === 'PASSWORD_FORM') return capabilities.supportsPasswordLogin ?? true
+  if (flow === 'HOST_TOKEN') return capabilities.supportsHostToken ?? false
+  return false
+}
+
+export function hasAccountAction(capabilities: AuthProviderCapabilities, action: AuthAccountAction): boolean {
+  if (Array.isArray(capabilities.accountActions)) {
+    return capabilities.accountActions.includes(action)
+  }
+  if (action === 'REGISTER') return capabilities.supportsRegistration ?? true
+  if (action === 'CHANGE_PASSWORD') return capabilities.supportsPasswordChange ?? true
+  if (action === 'CHANGE_DISPLAY_NAME') return capabilities.supportsDisplayNameChange ?? true
+  return false
 }
 
 export function register(input: {

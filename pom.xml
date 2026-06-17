@@ -65,6 +65,12 @@
 
             <dependency>
                 <groupId>io.docpilot</groupId>
+                <artifactId>docpilot-auth-spi</artifactId>
+                <version>${docpilot.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.docpilot</groupId>
                 <artifactId>docpilot-workspace-service</artifactId>
                 <version>${docpilot.version}</version>
             </dependency>

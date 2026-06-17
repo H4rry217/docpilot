@@ -1,12 +1,15 @@
 package io.docpilot.infrastructure.auth.provider;
 
+import io.docpilot.auth.AuthPrincipal;
+import io.docpilot.auth.AuthProvider;
+import io.docpilot.auth.AuthRequest;
 import io.docpilot.common.auth.AuthSubject;
-import io.docpilot.common.context.RequestConstants;
 import io.docpilot.common.exception.UnauthorizedException;
 import io.docpilot.common.web.auth.AuthSubjectResolver;
 import io.docpilot.infrastructure.auth.AuthIdentityService;
 import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.util.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Optional;
 
@@ -15,29 +18,42 @@ import java.util.Optional;
  */
 public class ProviderAuthSubjectResolver implements AuthSubjectResolver {
 
+    private static final Logger log = LoggerFactory.getLogger(ProviderAuthSubjectResolver.class);
+
     private final AuthProviderRegistry providerRegistry;
     private final AuthIdentityService identityService;
+    private final ServletAuthRequestAdapter requestAdapter;
 
     public ProviderAuthSubjectResolver(AuthProviderRegistry providerRegistry,
                                        AuthIdentityService identityService) {
+        this(providerRegistry, identityService, new ServletAuthRequestAdapter());
+    }
+
+    public ProviderAuthSubjectResolver(AuthProviderRegistry providerRegistry,
+                                       AuthIdentityService identityService,
+                                       ServletAuthRequestAdapter requestAdapter) {
         this.providerRegistry = providerRegistry;
         this.identityService = identityService;
+        this.requestAdapter = requestAdapter;
     }
 
     @Override
     public Optional<AuthSubject> resolve(HttpServletRequest request) {
-        String token = bearerToken(request);
-        if (!StringUtils.hasText(token)) {
-            return Optional.empty();
-        }
-
         AuthProvider provider = providerRegistry.currentProvider();
-        AuthRequest authRequest = new AuthRequest(token, request);
+        AuthRequest authRequest = requestAdapter.adapt(request);
         // Providers authenticate their own token format; DocPilot normalizes the
         // returned principal and maps it to the AuthSubject used by business code.
-        return provider.authenticateRequest(authRequest)
-                .map(principal -> normalizePrincipal(provider, principal))
-                .map(principal -> identityService.resolve(provider, principal));
+        Optional<AuthPrincipal> principal = provider.authenticate(authRequest)
+                .map(authPrincipal -> normalizePrincipal(provider, authPrincipal));
+        if (principal.isEmpty()) {
+            log.debug("auth subject unresolved providerId={} method={} path={}",
+                    provider.providerId(), authRequest.method(), authRequest.path());
+            return Optional.empty();
+        }
+        AuthSubject subject = identityService.resolve(provider, principal.get());
+        log.debug("auth subject resolved providerId={} userId={} method={} path={}",
+                provider.providerId(), subject.getUserId(), authRequest.method(), authRequest.path());
+        return Optional.of(subject);
     }
 
     private AuthPrincipal normalizePrincipal(AuthProvider provider, AuthPrincipal principal) {
@@ -46,18 +62,6 @@ public class ProviderAuthSubjectResolver implements AuthSubjectResolver {
             throw new UnauthorizedException("Authentication provider mismatch");
         }
         return normalized;
-    }
-
-    private String bearerToken(HttpServletRequest request) {
-        String authorization = request.getHeader(RequestConstants.HEADER_AUTHORIZATION);
-        if (!StringUtils.hasText(authorization) || !authorization.startsWith(RequestConstants.BEARER_PREFIX)) {
-            return null;
-        }
-        String token = authorization.substring(RequestConstants.BEARER_PREFIX.length()).trim();
-        if (!StringUtils.hasText(token)) {
-            throw new UnauthorizedException("Bearer token is empty");
-        }
-        return token;
     }
 
 }

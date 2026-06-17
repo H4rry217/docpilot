@@ -8,6 +8,7 @@ import io.docpilot.common.domain.BaseEntityAuditor;
 import io.docpilot.common.web.auth.AuthSubjectResolver;
 import io.docpilot.common.web.auth.BearerJwtAuthSubjectResolver;
 import io.docpilot.common.web.auth.DocPilotJwtConfig;
+import io.docpilot.common.web.auth.JwtTokenVerifier;
 import io.docpilot.common.web.auth.RequireAuthInterceptor;
 import io.docpilot.common.web.filter.RequestLoggingFilter;
 import io.docpilot.common.web.filter.RequestLoggingConfig;
@@ -40,8 +41,14 @@ public class DocPilotWebCommonConfig {
 
     @Bean
     @ConditionalOnMissingBean
-    public AuthSubjectResolver authSubjectResolver(DocPilotJwtConfig config) {
-        return new BearerJwtAuthSubjectResolver(config);
+    public JwtTokenVerifier jwtTokenVerifier(DocPilotJwtConfig config) {
+        return new JwtTokenVerifier(config);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public AuthSubjectResolver authSubjectResolver(JwtTokenVerifier jwtTokenVerifier) {
+        return new BearerJwtAuthSubjectResolver(jwtTokenVerifier);
     }
 
     @Bean

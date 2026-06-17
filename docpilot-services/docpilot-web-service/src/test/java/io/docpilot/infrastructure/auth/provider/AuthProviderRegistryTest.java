@@ -1,9 +1,15 @@
 package io.docpilot.infrastructure.auth.provider;
 
+import io.docpilot.auth.AuthLoginFlow;
+import io.docpilot.auth.AuthPrincipal;
+import io.docpilot.auth.AuthProvider;
+import io.docpilot.auth.AuthProviderCapabilities;
+import io.docpilot.auth.AuthRequest;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -51,11 +57,11 @@ class AuthProviderRegistryTest {
 
             @Override
             public AuthProviderCapabilities capabilities() {
-                return AuthProviderCapabilities.hostToken();
+                return new AuthProviderCapabilities(Set.of(AuthLoginFlow.HOST_TOKEN), Set.of());
             }
 
             @Override
-            public Optional<AuthPrincipal> authenticateRequest(AuthRequest request) {
+            public Optional<AuthPrincipal> authenticate(AuthRequest request) {
                 return Optional.empty();
             }
         };

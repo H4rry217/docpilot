@@ -10,16 +10,16 @@ import org.springframework.util.StringUtils;
 import java.time.Clock;
 import java.time.Instant;
 
-public class DefaultJwtIssuer {
+public class DefaultUserJwtIssuer {
 
     private final DocPilotJwtConfig config;
     private final Clock clock;
 
-    public DefaultJwtIssuer(DocPilotJwtConfig config) {
+    public DefaultUserJwtIssuer(DocPilotJwtConfig config) {
         this(config, Clock.systemUTC());
     }
 
-    DefaultJwtIssuer(DocPilotJwtConfig config, Clock clock) {
+    DefaultUserJwtIssuer(DocPilotJwtConfig config, Clock clock) {
         this.config = config;
         this.clock = clock;
     }

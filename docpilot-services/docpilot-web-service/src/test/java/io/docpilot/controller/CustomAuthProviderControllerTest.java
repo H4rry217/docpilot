@@ -2,12 +2,13 @@ package io.docpilot.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.docpilot.auth.AuthLoginFlow;
+import io.docpilot.auth.AuthPrincipal;
+import io.docpilot.auth.AuthProvider;
+import io.docpilot.auth.AuthProviderCapabilities;
+import io.docpilot.auth.AuthRequest;
 import io.docpilot.common.exception.UnauthorizedException;
 import io.docpilot.common.result.StatusCode;
-import io.docpilot.infrastructure.auth.provider.AuthPrincipal;
-import io.docpilot.infrastructure.auth.provider.AuthProvider;
-import io.docpilot.infrastructure.auth.provider.AuthProviderCapabilities;
-import io.docpilot.infrastructure.auth.provider.AuthRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -53,6 +54,7 @@ class CustomAuthProviderControllerTest {
                         .content("{}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.providerId").value("miniapp"))
+                .andExpect(jsonPath("$.data.capabilities.loginFlows[0]").value("HOST_TOKEN"))
                 .andExpect(jsonPath("$.data.capabilities.supportsHostToken").value(true))
                 .andExpect(jsonPath("$.data.capabilities.supportsPasswordLogin").value(false));
     }
@@ -145,20 +147,21 @@ class CustomAuthProviderControllerTest {
 
         @Override
         public AuthProviderCapabilities capabilities() {
-            return AuthProviderCapabilities.hostToken();
+            return new AuthProviderCapabilities(Set.of(AuthLoginFlow.HOST_TOKEN), Set.of());
         }
 
         @Override
-        public Optional<AuthPrincipal> authenticateRequest(AuthRequest request) {
-            return switch (request.token()) {
-                case "host-alice" -> Optional.of(AuthPrincipal.of(
-                        providerId(), "openid-alice", "alice@example.com", "Alice", Set.of("user")));
-                case "host-conflict-a" -> Optional.of(AuthPrincipal.of(
-                        providerId(), "openid-conflict-a", "conflict@example.com", "Conflict A", Set.of()));
-                case "host-conflict-b" -> Optional.of(AuthPrincipal.of(
-                        providerId(), "openid-conflict-b", "conflict@example.com", "Conflict B", Set.of()));
-                default -> throw new UnauthorizedException("Invalid host token");
-            };
+        public Optional<AuthPrincipal> authenticate(AuthRequest request) {
+            return request.bearerToken()
+                    .map(token -> switch (token) {
+                        case "host-alice" -> AuthPrincipal.of(
+                                providerId(), "openid-alice", "alice@example.com", "Alice", Set.of("user"));
+                        case "host-conflict-a" -> AuthPrincipal.of(
+                                providerId(), "openid-conflict-a", "conflict@example.com", "Conflict A", Set.of());
+                        case "host-conflict-b" -> AuthPrincipal.of(
+                                providerId(), "openid-conflict-b", "conflict@example.com", "Conflict B", Set.of());
+                        default -> throw new UnauthorizedException("Invalid host token");
+                    });
         }
 
     }

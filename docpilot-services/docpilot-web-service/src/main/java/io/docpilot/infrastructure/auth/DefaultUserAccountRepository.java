@@ -10,6 +10,8 @@ public interface DefaultUserAccountRepository {
 
     Optional<DefaultUserAccount> findAccountByUserId(Long userId);
 
+    boolean hasAnyAccount();
+
     DefaultUserAccount updatePasswordHash(Long userId, String passwordHash);
 
     DefaultUserAccount updateDisplayName(Long userId, String displayName);

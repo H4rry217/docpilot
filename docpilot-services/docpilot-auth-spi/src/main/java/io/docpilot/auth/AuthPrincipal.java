@@ -1,6 +1,4 @@
-package io.docpilot.infrastructure.auth.provider;
-
-import org.springframework.util.StringUtils;
+package io.docpilot.auth;
 
 import java.util.Set;
 
@@ -28,10 +26,14 @@ public record AuthPrincipal(
     }
 
     public AuthPrincipal withProviderId(String fallbackProviderId) {
-        if (StringUtils.hasText(providerId)) {
+        if (hasText(providerId)) {
             return this;
         }
         return new AuthPrincipal(fallbackProviderId, subject, email, displayName, roles);
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
 }
