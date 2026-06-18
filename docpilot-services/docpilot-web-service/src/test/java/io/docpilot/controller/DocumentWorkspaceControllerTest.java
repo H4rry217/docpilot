@@ -51,6 +51,8 @@ class DocumentWorkspaceControllerTest {
 
         assertThat(first.get("workspaceId").isTextual()).isTrue();
         assertThat(first.get("rootNodeId").isTextual()).isTrue();
+        assertThat(first.get("createTime").isNumber()).isTrue();
+        assertThat(first.get("updateTime").isNumber()).isTrue();
         assertThat(first.get("type").isNumber()).isTrue();
         assertThat(first.get("type").asInt()).isEqualTo(1);
         assertThat(second.get("workspaceId").asText()).isEqualTo(first.get("workspaceId").asText());
@@ -141,6 +143,8 @@ class DocumentWorkspaceControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.document.documentId").value(seededDocument.documentId()))
                 .andExpect(jsonPath("$.data.document.currentVersion").value("1"))
+                .andExpect(jsonPath("$.data.document.createTime").isNumber())
+                .andExpect(jsonPath("$.data.document.updateTime").isNumber())
                 .andExpect(jsonPath("$.data.document.content.blockSchemaVersion").value("docpilot-block/2"))
                 .andExpect(jsonPath("$.data.prosemirror.type").value("doc"));
     }
@@ -328,7 +332,8 @@ class DocumentWorkspaceControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value(StatusCode.UNAUTHORIZED.code()));
+                .andExpect(jsonPath("$.code").value(StatusCode.UNAUTHORIZED.code()))
+                .andExpect(jsonPath("$.timestamp").isNumber());
     }
 
     @Test

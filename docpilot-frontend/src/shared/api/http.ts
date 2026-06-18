@@ -2,7 +2,7 @@ export type ApiErrorPayload = {
   code: number
   msg: string
   requestId?: string
-  timestamp?: string
+  timestamp?: number
 }
 
 type ResultPayload<T> = {
@@ -10,7 +10,7 @@ type ResultPayload<T> = {
   msg: string
   data?: T
   requestId?: string
-  timestamp?: string
+  timestamp?: number
 }
 
 type PostJsonOptions = {

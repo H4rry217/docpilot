@@ -31,8 +31,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
-import java.time.Clock;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -51,7 +49,6 @@ public class WorkspaceApplicationService {
     private final WorkspaceNodeName workspaceNodeName;
     private final WorkspaceTransactionRunner transactionRunner;
     private final ApplicationEventPublisher eventPublisher;
-    private final Clock clock = Clock.systemDefaultZone();
 
     public WorkspaceApplicationService(WorkspaceRepository workspaceRepository,
                                        WorkspaceNodeRepository nodeRepository,
@@ -402,8 +399,8 @@ public class WorkspaceApplicationService {
                 idCodec.format(workspace.getOwnerUserId()),
                 idCodec.format(workspace.getRootNodeId()),
                 workspace.getSettings(),
-                format(workspace.getCreateTime()),
-                format(workspace.getUpdateTime())
+                workspace.getCreateTime(),
+                workspace.getUpdateTime()
         );
     }
 
@@ -422,13 +419,9 @@ public class WorkspaceApplicationService {
                 idCodec.format(node.getSize()),
                 node.getChecksum(),
                 node.getMetadata(),
-                format(node.getCreateTime()),
-                format(node.getUpdateTime())
+                node.getCreateTime(),
+                node.getUpdateTime()
         );
-    }
-
-    private String format(LocalDateTime instant) {
-        return instant == null ? null : instant.toString();
     }
 
 }

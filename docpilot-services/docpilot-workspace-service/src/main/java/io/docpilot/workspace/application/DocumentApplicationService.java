@@ -40,7 +40,6 @@ import org.springframework.stereotype.Service;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
@@ -413,8 +412,8 @@ public class DocumentApplicationService {
                 idCodec.format(document.getCurrentRevisionId()),
                 document.getMetadata(),
                 toResponse(document.getContent(), blockDocument),
-                format(document.getCreateTime()),
-                format(document.getUpdateTime())
+                document.getCreateTime(),
+                document.getUpdateTime()
         );
     }
 
@@ -441,12 +440,8 @@ public class DocumentApplicationService {
                 revision.getSnapshot(),
                 revision.getMarkdownSnapshot(),
                 revision.getChecksum(),
-                format(revision.getCreateTime())
+                revision.getCreateTime()
         );
-    }
-
-    private String format(LocalDateTime instant) {
-        return instant == null ? null : instant.toString();
     }
 
 }

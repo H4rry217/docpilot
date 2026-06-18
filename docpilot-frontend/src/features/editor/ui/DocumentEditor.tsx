@@ -15,6 +15,7 @@ import {
 } from '../../../entities/block/outline'
 import type { BlockDocument } from '../../../entities/block/types'
 import type { Workspace, WorkspaceTreeNode } from '../../../entities/workspace/types'
+import { createClientMutationId } from '../../../shared/id/clientMutationId'
 import { useI18n, type Locale } from '../../../shared/i18n'
 import { getDocument, saveDocumentContent } from '../api/documentApi'
 import { useAiWorkspaceLayout } from '../model/aiWorkspaceLayout'
@@ -58,9 +59,9 @@ export type DocumentEditorProps = {
   onSelectOutlineItem: (item: DocumentOutlineItem) => void
 }
 
-function formatUpdatedAt(value: string | undefined, locale: Locale): string | null {
-  if (!value) return null
-  const date = new Date(value)
+export function formatUpdatedAt(value: number | undefined, locale: Locale): string | null {
+  if (value === undefined) return null
+  const date = new Date(value * 1000)
   if (Number.isNaN(date.getTime())) return null
   return new Intl.DateTimeFormat(locale, {
     month: '2-digit',
@@ -153,7 +154,7 @@ export function DocumentEditor({
         documentId: activeDocumentId,
         blockDocument: blockDocumentForSave(blockDocument),
         baseVersion,
-        clientMutationId: crypto.randomUUID()
+        clientMutationId: createClientMutationId()
       })
     },
     [saveMutation]

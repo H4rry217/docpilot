@@ -8,13 +8,14 @@ import io.docpilot.common.constant.DocPilotConstants;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 public class LocalDateTimeEpochSecondDeserializer extends JsonDeserializer<LocalDateTime> {
 
     @Override
     public LocalDateTime deserialize(JsonParser parser, DeserializationContext context) throws IOException {
         if (parser.getCurrentToken().isNumeric()) {
-            return LocalDateTime.ofInstant(Instant.ofEpochSecond(parser.getLongValue()), DocPilotConstants.DEFAULT_ZONE_ID);
+            return LocalDateTime.ofInstant(Instant.ofEpochSecond(parser.getLongValue()), ZoneId.systemDefault());
         }
         return LocalDateTime.parse(parser.getText(), DocPilotConstants.TIME_FORMATTER);
     }

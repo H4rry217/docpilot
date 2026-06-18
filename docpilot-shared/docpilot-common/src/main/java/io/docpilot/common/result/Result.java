@@ -21,11 +21,11 @@ public class Result<T> {
 
     private String requestId;
 
-    private Instant timestamp;
+    private long timestamp;
 
     public Result() {
         this.requestId = MDC.get(RequestConstants.KEY_REQUEST_ID);
-        this.timestamp = Instant.now();
+        this.timestamp = Instant.now().getEpochSecond();
     }
 
     public static <T> Result<T> success(T data) {

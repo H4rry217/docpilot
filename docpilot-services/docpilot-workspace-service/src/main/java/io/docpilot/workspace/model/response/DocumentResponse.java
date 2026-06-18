@@ -1,5 +1,6 @@
 package io.docpilot.workspace.model.response;
 
+import java.time.LocalDateTime;
 import java.util.Map;
 
 public record DocumentResponse(
@@ -11,6 +12,6 @@ public record DocumentResponse(
         String currentRevisionId,
         Map<String, Object> metadata,
         DocumentContentResponse content,
-        String createTime,
-        String updateTime) {
+        LocalDateTime createTime,
+        LocalDateTime updateTime) {
 }

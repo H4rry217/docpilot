@@ -3,6 +3,7 @@ package io.docpilot.workspace.model.response;
 import io.docpilot.workspace.enums.WorkspaceNodeType;
 import io.docpilot.workspace.enums.WorkspaceResourceType;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -20,6 +21,6 @@ public record WorkspaceNodeResponse(
         String size,
         String checksum,
         Map<String, Object> metadata,
-        String createTime,
-        String updateTime) {
+        LocalDateTime createTime,
+        LocalDateTime updateTime) {
 }

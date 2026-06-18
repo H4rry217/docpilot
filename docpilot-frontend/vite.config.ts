@@ -6,6 +6,7 @@ import { defineConfig } from 'vite'
 const backendTarget = 'http://127.0.0.1:11451'
 
 export default defineConfig({
+  base: './',
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {

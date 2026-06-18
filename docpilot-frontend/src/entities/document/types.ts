@@ -16,8 +16,8 @@ export type DocPilotDocument = {
   currentVersion: string
   currentRevisionId: string
   content: DocumentContent
-  createTime: string
-  updateTime: string
+  createTime: number
+  updateTime: number
   metadata: Record<string, unknown>
 }
 

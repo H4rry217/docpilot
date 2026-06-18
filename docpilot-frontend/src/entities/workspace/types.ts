@@ -26,8 +26,8 @@ export type Workspace = {
   type: WorkspaceType
   rootNodeId: string
   settings: Record<string, unknown>
-  createTime: string
-  updateTime: string
+  createTime: number
+  updateTime: number
 }
 
 export type WorkspaceNode = {
@@ -43,8 +43,8 @@ export type WorkspaceNode = {
   mimeType?: string
   size?: string
   checksum?: string
-  createTime: string
-  updateTime: string
+  createTime: number
+  updateTime: number
   metadata: Record<string, unknown>
 }
 

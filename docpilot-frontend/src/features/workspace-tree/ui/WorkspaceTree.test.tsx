@@ -6,7 +6,7 @@ import { WORKSPACE_NODE_TYPE, WORKSPACE_RESOURCE_TYPE, WORKSPACE_TYPE, type Work
 import { I18nProvider } from '../../../shared/i18n'
 import { WorkspaceTree } from './WorkspaceTree'
 
-const now = '2026-05-31T00:00:00Z'
+const now = 1780204800
 
 const nodes: WorkspaceTreeNode[] = [
   {

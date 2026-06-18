@@ -2,6 +2,8 @@ package io.docpilot.workspace.model.response;
 
 import io.docpilot.block.model.BlockDocument;
 
+import java.time.LocalDateTime;
+
 public record DocumentRevisionResponse(
         String revisionId,
         String documentId,
@@ -11,5 +13,5 @@ public record DocumentRevisionResponse(
         BlockDocument snapshot,
         String markdownSnapshot,
         String checksum,
-        String createTime) {
+        LocalDateTime createTime) {
 }
