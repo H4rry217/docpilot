@@ -9,15 +9,15 @@ import {
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import type { UserInformation } from '../../entities/user/types'
-import { hasAccountAction, type AuthProviderCapabilities } from '../../features/auth/api/authApi'
-import { ProfileControls } from '../../features/auth/ui/ProfileControls'
+import type { UserInformation } from '@/entities/user/types'
+import { hasAccountAction, type AuthProviderCapabilities } from '@/features/auth/api/authApi'
+import { ProfileControls } from '@/features/auth/ui/ProfileControls'
 import type {
   InlineCompletionCloudSettings,
   InlineCompletionTokenKey
 } from '../model/useCloudUserSettings'
-import { useI18n, type Locale } from '../../shared/i18n'
-import { SelectField } from '../../shared/ui/SelectField'
+import { useI18n, type Locale } from '@/shared/i18n'
+import { SelectField } from '@/shared/ui/SelectField'
 
 type SettingsSection = 'general' | 'completion' | 'login'
 
@@ -62,17 +62,12 @@ function SettingRow({
 }
 
 function SettingsSectionShell({
-  title,
   children
 }: {
-  title: string
   children: ReactNode
 }) {
   return (
     <section className="mx-auto w-full max-w-2xl">
-      <header className="pb-3">
-        <h3 className="text-sm font-medium tracking-normal text-foreground">{title}</h3>
-      </header>
       <div>{children}</div>
     </section>
   )
@@ -92,7 +87,7 @@ function GeneralSettings({
   const { t } = useI18n()
 
   return (
-    <SettingsSectionShell title={t('settings.general')}>
+    <SettingsSectionShell>
       <SettingRow label={t('sidebar.languageTitle')}>
         <SelectField
           label={t('sidebar.languageTitle')}
@@ -198,7 +193,7 @@ function CompletionSettings({
   ]
 
   return (
-    <SettingsSectionShell title={t('settings.completion')}>
+    <SettingsSectionShell>
       <SettingRow label={t('settings.completionEnabled')}>
         <Switch
           aria-label={t('settings.completionEnabled')}

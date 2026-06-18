@@ -1,6 +1,6 @@
 import { Editor } from '@tiptap/core'
 import { describe, expect, it, vi } from 'vitest'
-import type { InlineCompletionShape } from '../../inline-completion/api/inlineCompletionApi'
+import type { InlineCompletionShape } from '@/features/inline-completion/api/inlineCompletionApi'
 import { editorExtensions } from './extensions'
 import {
   applyCandidateMenuLayout,

@@ -1,7 +1,7 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { I18nProvider } from '../../shared/i18n'
+import { I18nProvider } from '@/shared/i18n'
 import { WorkbenchSidebar } from './WorkbenchSidebar'
 
 afterEach(() => {

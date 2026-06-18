@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { BlockDocument } from '../../../entities/block/types'
-import { I18nProvider } from '../../../shared/i18n'
+import type { BlockDocument } from '@/entities/block/types'
+import { I18nProvider } from '@/shared/i18n'
 import {
   DocumentOperationsConsole,
   useDocumentOperationsConsoleState,

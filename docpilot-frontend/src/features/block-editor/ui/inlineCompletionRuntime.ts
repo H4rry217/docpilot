@@ -1,10 +1,10 @@
 import type { Node as ProseMirrorNode, ResolvedPos } from '@tiptap/pm/model'
 import type { Editor } from '@tiptap/react'
-import type { BlockDocument, BlockNode, InlineNode } from '../../../entities/block/types'
+import type { BlockDocument, BlockNode, InlineNode } from '@/entities/block/types'
 import {
   type InlineCompletionBlockContext,
   type InlineCompletionShape
-} from '../../inline-completion/api/inlineCompletionApi'
+} from '@/features/inline-completion/api/inlineCompletionApi'
 import { blockIdentityId } from '../model/docpilotBlockIdentity'
 
 const INLINE_COMPLETION_DEFAULT_CANDIDATE_COUNT = 3

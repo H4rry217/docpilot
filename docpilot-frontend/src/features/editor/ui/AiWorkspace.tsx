@@ -19,7 +19,7 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { useI18n } from '../../../shared/i18n'
+import { useI18n } from '@/shared/i18n'
 import {
   AI_WORKSPACE_ORB_SIZE,
   type AiWorkspacePoint,

@@ -1,4 +1,4 @@
-import type { BlockType } from '../../../entities/block/types'
+import type { BlockType } from '@/entities/block/types'
 
 export type JsonAttrs = Record<string, unknown>
 

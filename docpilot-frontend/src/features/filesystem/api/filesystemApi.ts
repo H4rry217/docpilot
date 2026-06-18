@@ -1,4 +1,4 @@
-import { postJson } from '../../../shared/api/http'
+import { postJson } from '@/shared/api/http'
 
 export type FilesystemRetrieveFailureMode = 'BEST_EFFORT' | 'STRICT'
 

@@ -12,11 +12,18 @@ import {
   documentOutlineFromBlockDocument,
   type DocumentOutlineItem,
   type DocumentOutlineJumpRequest
-} from '../../../entities/block/outline'
-import type { BlockDocument } from '../../../entities/block/types'
-import type { Workspace, WorkspaceTreeNode } from '../../../entities/workspace/types'
-import { createClientMutationId } from '../../../shared/id/clientMutationId'
-import { useI18n, type Locale } from '../../../shared/i18n'
+} from '@/entities/block/outline'
+import type { BlockDocument } from '@/entities/block/types'
+import type { Workspace, WorkspaceTreeNode } from '@/entities/workspace/types'
+import {
+  BlockDocumentEditor,
+  type BlockDocumentEditorHandle,
+  type BlockDocumentEditorSnapshot,
+  type BlockDocumentEditorSnapshotSource
+} from '@/features/block-editor'
+import { blockDocumentForSave } from '@/features/block-editor/model/proseMirrorToBlockDocument'
+import { createClientMutationId } from '@/shared/id/clientMutationId'
+import { useI18n, type Locale } from '@/shared/i18n'
 import { getDocument, saveDocumentContent } from '../api/documentApi'
 import { useAiWorkspaceLayout } from '../model/aiWorkspaceLayout'
 import {
@@ -24,13 +31,6 @@ import {
   useToolPanelLayout
 } from '../model/toolPanelLayout'
 import { AiWorkspace } from './AiWorkspace'
-import {
-  BlockDocumentEditor,
-  type BlockDocumentEditorHandle,
-  type BlockDocumentEditorSnapshot,
-  type BlockDocumentEditorSnapshotSource
-} from '../../block-editor'
-import { blockDocumentForSave } from '../../block-editor/model/proseMirrorToBlockDocument'
 import { DocumentCanvas } from './DocumentCanvas'
 import { DocumentEditorToolbar } from './DocumentEditorToolbar'
 import { DocumentOutlineNav } from './DocumentOutlineNav'

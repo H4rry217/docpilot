@@ -1,6 +1,6 @@
-import type { BlockDocument } from '../../../entities/block/types'
-import type { DocumentResponse } from '../../../entities/document/types'
-import { postJson } from '../../../shared/api/http'
+import type { BlockDocument } from '@/entities/block/types'
+import type { DocumentResponse } from '@/entities/document/types'
+import { postJson } from '@/shared/api/http'
 
 export function getDocument(documentId: string): Promise<DocumentResponse> {
   return postJson('/document/get', { documentId })

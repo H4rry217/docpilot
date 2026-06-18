@@ -1,7 +1,7 @@
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react'
 import { Code2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useI18n } from '../../../shared/i18n'
+import { useI18n } from '@/shared/i18n'
 import {
   booleanAttr,
   createHtmlPreviewDocument,

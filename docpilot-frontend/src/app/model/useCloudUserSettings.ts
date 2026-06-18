@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { Locale } from '../../shared/i18n'
+import type { Locale } from '@/shared/i18n'
 import {
   getUserSettings,
   saveUserSettings,
@@ -8,7 +8,7 @@ import {
   type UserSettingKey,
   type UserSettingValue,
   type UserSettingsResponse
-} from '../../features/user-settings/api/userSettingsApi'
+} from '@/features/user-settings/api/userSettingsApi'
 
 export type InlineCompletionTokenKey =
   | 'short'

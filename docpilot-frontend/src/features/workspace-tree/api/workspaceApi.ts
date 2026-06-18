@@ -1,5 +1,5 @@
-import type { Workspace, WorkspaceNode } from '../../../entities/workspace/types'
-import { postJson } from '../../../shared/api/http'
+import type { Workspace, WorkspaceNode } from '@/entities/workspace/types'
+import { postJson } from '@/shared/api/http'
 
 export type WorkspaceListResponse = {
   workspaces: Workspace[]

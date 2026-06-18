@@ -5,8 +5,8 @@ import {
   ContextMenuItem,
   ContextMenuSeparator
 } from '@/components/ui/context-menu'
-import { WORKSPACE_NODE_TYPE, type WorkspaceTreeNode } from '../../../entities/workspace/types'
-import { useI18n } from '../../../shared/i18n'
+import { WORKSPACE_NODE_TYPE, type WorkspaceTreeNode } from '@/entities/workspace/types'
+import { useI18n } from '@/shared/i18n'
 
 export function WorkspaceContextMenu({
   node,

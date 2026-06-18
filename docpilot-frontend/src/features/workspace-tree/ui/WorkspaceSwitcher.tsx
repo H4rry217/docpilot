@@ -4,8 +4,8 @@ import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { WORKSPACE_TYPE, type Workspace } from '../../../entities/workspace/types'
-import { useI18n } from '../../../shared/i18n'
+import { WORKSPACE_TYPE, type Workspace } from '@/entities/workspace/types'
+import { useI18n } from '@/shared/i18n'
 
 export function WorkspaceSwitcher({
   currentWorkspaceName,

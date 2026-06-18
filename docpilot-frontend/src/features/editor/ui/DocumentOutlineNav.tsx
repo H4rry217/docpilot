@@ -1,7 +1,8 @@
 import { ChevronDown, ChevronRight, ChevronsLeft, Menu } from 'lucide-react'
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
-import type { DocumentOutlineItem } from '../../../entities/block/outline'
-import { useI18n } from '../../../shared/i18n'
+import type { DocumentOutlineItem } from '@/entities/block/outline'
+import { useI18n } from '@/shared/i18n'
+import { useTransientScrollbarVisibility } from './useTransientScrollbarVisibility'
 
 type OutlineTreeItem = DocumentOutlineItem & {
   children: OutlineTreeItem[]
@@ -60,6 +61,9 @@ export function DocumentOutlineNav({
   const { t } = useI18n()
   const [collapsedOutlineIds, setCollapsedOutlineIds] = useState<Set<string>>(() => new Set())
   const outlineTree = useMemo(() => buildOutlineTree(outline), [outline])
+  const { isScrollbarVisible, revealScrollbar } = useTransientScrollbarVisibility({
+    disabled: collapsed || !outlineTree.length
+  })
 
   useEffect(() => {
     const outlineIds = new Set(outline.map((item) => item.id))
@@ -137,7 +141,12 @@ export function DocumentOutlineNav({
       <div className="document-outline-body" aria-hidden={collapsed}>
         <strong className="document-outline-document-title" title={title}>{title}</strong>
         {outlineTree.length ? (
-          <div className="document-outline-list">
+          <div
+            className={`document-outline-list editor-transient-scrollbar ${isScrollbarVisible ? 'is-scrollbar-visible' : ''}`}
+            onPointerMove={revealScrollbar}
+            onScroll={revealScrollbar}
+            onWheel={revealScrollbar}
+          >
             {renderOutlineItems(outlineTree)}
           </div>
         ) : (

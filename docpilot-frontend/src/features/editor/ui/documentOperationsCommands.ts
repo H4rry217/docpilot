@@ -7,9 +7,9 @@ import {
   type DocumentOperationsDebugMode,
   type DocumentQuery,
   type DocumentQueryResult
-} from '../../../entities/block/operations'
-import type { BlockDocument, BlockNode } from '../../../entities/block/types'
-import type { TranslationKey, useI18n } from '../../../shared/i18n'
+} from '@/entities/block/operations'
+import type { BlockDocument, BlockNode } from '@/entities/block/types'
+import type { TranslationKey, useI18n } from '@/shared/i18n'
 
 export type CommandEntry = {
   id: number

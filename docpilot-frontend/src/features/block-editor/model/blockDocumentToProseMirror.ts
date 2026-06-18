@@ -1,6 +1,6 @@
 import type { JSONContent } from '@tiptap/core'
-import type { BlockDocument, BlockNode, InlineMark, InlineNode } from '../../../entities/block/types'
-import type { ProseMirrorMark, ProseMirrorNode } from '../../../entities/prosemirror/types'
+import type { BlockDocument, BlockNode, InlineMark, InlineNode } from '@/entities/block/types'
+import type { ProseMirrorMark, ProseMirrorNode } from '@/entities/prosemirror/types'
 import { normalizeBlockAttrsForProseMirror } from './blockAttrs'
 
 type JsonObject = Record<string, unknown>

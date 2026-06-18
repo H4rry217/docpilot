@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { I18nProvider } from '../shared/i18n'
+import { I18nProvider } from '@/shared/i18n'
 
 const queryClient = new QueryClient({
   defaultOptions: {

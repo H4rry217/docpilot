@@ -1,6 +1,6 @@
 import { Editor } from '@tiptap/core'
 import { describe, expect, it, vi } from 'vitest'
-import type { BlockDocument } from '../../../entities/block/types'
+import type { BlockDocument } from '@/entities/block/types'
 import { deleteBlocksByIds } from './blockSelection'
 import { blockDocumentToProseMirrorJson, isBlockDocument, isProseMirrorDoc } from './blockDocumentToProseMirror'
 import { deleteAdjacentCodeBlock } from './docpilotCodeBlock'

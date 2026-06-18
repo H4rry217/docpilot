@@ -1,7 +1,7 @@
 import { act, cleanup, render, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createRef } from 'react'
-import type { BlockDocument } from '../../../entities/block/types'
+import type { BlockDocument } from '@/entities/block/types'
 import {
   BlockDocumentEditor,
   type BlockDocumentEditorHandle,

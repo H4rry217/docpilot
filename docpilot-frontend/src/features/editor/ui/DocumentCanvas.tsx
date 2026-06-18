@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { useTransientScrollbarVisibility } from './useTransientScrollbarVisibility'
 
 export function DocumentCanvas({
   emptyMessage,
@@ -18,9 +19,15 @@ export function DocumentCanvas({
   children: ReactNode
 }) {
   const isEmpty = !hasDocument
+  const { isScrollbarVisible, revealScrollbar } = useTransientScrollbarVisibility({ disabled: isEmpty })
 
   return (
-    <section className={`document-canvas ${isEmpty ? 'is-empty' : ''}`}>
+    <section
+      className={`document-canvas editor-transient-scrollbar ${isEmpty ? 'is-empty' : ''} ${isScrollbarVisible ? 'is-scrollbar-visible' : ''}`}
+      onPointerMove={revealScrollbar}
+      onScroll={revealScrollbar}
+      onWheel={revealScrollbar}
+    >
       {isEmpty ? (
         <div className="document-empty">{emptyMessage}</div>
       ) : isLoading ? (

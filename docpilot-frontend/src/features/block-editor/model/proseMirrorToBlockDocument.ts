@@ -1,5 +1,5 @@
 import type { JSONContent } from '@tiptap/core'
-import type { BlockDocument, BlockNode, BlockType, InlineMark, InlineNode, MarkType } from '../../../entities/block/types'
+import type { BlockDocument, BlockNode, BlockType, InlineMark, InlineNode, MarkType } from '@/entities/block/types'
 import { normalizeBlockAttrsForCanonical, stripInternalAttrs, stringAttr, type JsonAttrs } from './blockAttrs'
 import { blockIdentityId, canonicalBlockId, isTransientBlockId } from './docpilotBlockIdentity'
 

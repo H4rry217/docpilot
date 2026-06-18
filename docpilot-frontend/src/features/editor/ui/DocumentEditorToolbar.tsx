@@ -1,7 +1,7 @@
 import { Braces, Save, Share2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { useI18n } from '../../../shared/i18n'
+import { useI18n } from '@/shared/i18n'
 
 export function DocumentEditorToolbar({
   blockDebugMode,

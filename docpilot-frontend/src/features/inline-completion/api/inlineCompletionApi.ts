@@ -1,4 +1,4 @@
-import { postJson } from '../../../shared/api/http'
+import { postJson } from '@/shared/api/http'
 import { recordInlineCompletionDebug } from '../model/inlineCompletionDebug'
 
 export type InlineCompletionShape =

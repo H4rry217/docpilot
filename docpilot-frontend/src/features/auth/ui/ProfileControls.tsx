@@ -5,8 +5,8 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import type { UserInformation } from '../../../entities/user/types'
-import { useI18n } from '../../../shared/i18n'
+import type { UserInformation } from '@/entities/user/types'
+import { useI18n } from '@/shared/i18n'
 import { changeDisplayName, changePassword } from '../api/authApi'
 
 export function ProfileControls({

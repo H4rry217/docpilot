@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef } from 'react'
 import type { Editor } from '@tiptap/react'
 import type { Transaction } from '@tiptap/pm/state'
-import { completeInlineCompletion } from '../../inline-completion/api/inlineCompletionApi'
-import { recordInlineCompletionDebug } from '../../inline-completion/model/inlineCompletionDebug'
+import { completeInlineCompletion } from '@/features/inline-completion/api/inlineCompletionApi'
+import { recordInlineCompletionDebug } from '@/features/inline-completion/model/inlineCompletionDebug'
 import {
   clearInlineCompletion,
   setInlineCompletionSuggestion

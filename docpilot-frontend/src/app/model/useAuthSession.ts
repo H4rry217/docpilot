@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { UserInformation } from '../../entities/user/types'
+import type { UserInformation } from '@/entities/user/types'
 import {
   getAuthConfig,
   getCurrentUser,
   hasLoginFlow,
   type AuthConfig,
   type AuthSession
-} from '../../features/auth/api/authApi'
+} from '@/features/auth/api/authApi'
 
 export type AuthStatus = 'checking' | 'anonymous' | 'authenticated'
 

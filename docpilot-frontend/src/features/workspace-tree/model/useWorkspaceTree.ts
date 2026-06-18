@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { WORKSPACE_NODE_TYPE, type Workspace, type WorkspaceNode, type WorkspaceTreeNode } from '../../../entities/workspace/types'
+import { WORKSPACE_NODE_TYPE, type Workspace, type WorkspaceNode, type WorkspaceTreeNode } from '@/entities/workspace/types'
 import { ensureDefaultWorkspace, getWorkspaceTree } from '../api/workspaceApi'
 
 export type WorkspaceTreeState = {

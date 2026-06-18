@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
-import { useI18n } from '../../../shared/i18n'
+import { useI18n } from '@/shared/i18n'
 
 type MockChatMessage = {
   id: string

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { DocumentOutlineItem, DocumentOutlineJumpRequest } from '../../entities/block/outline'
+import type { DocumentOutlineItem, DocumentOutlineJumpRequest } from '@/entities/block/outline'
 
 export function useDocumentOutlineState(documentId?: string) {
   const [documentOutline, setDocumentOutline] = useState<DocumentOutlineItem[]>([])

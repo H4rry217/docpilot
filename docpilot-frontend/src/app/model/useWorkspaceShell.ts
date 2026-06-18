@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { WORKSPACE_NODE_TYPE, WORKSPACE_RESOURCE_TYPE, WORKSPACE_TYPE, type Workspace, type WorkspaceTreeNode } from '../../entities/workspace/types'
-import { createDocument } from '../../features/editor/api/documentApi'
+import { WORKSPACE_NODE_TYPE, WORKSPACE_RESOURCE_TYPE, WORKSPACE_TYPE, type Workspace, type WorkspaceTreeNode } from '@/entities/workspace/types'
+import { createDocument } from '@/features/editor/api/documentApi'
 import {
   createFolder,
   createWorkspace,
@@ -11,15 +11,15 @@ import {
   listWorkspaces,
   renameNode,
   renameWorkspace
-} from '../../features/workspace-tree/api/workspaceApi'
+} from '@/features/workspace-tree/api/workspaceApi'
 import {
   documentTitleFromMarkdownFileName,
   isMarkdownFileName,
   uniqueMarkdownNodeName
-} from '../../features/workspace-tree/model/markdownUpload'
-import { useWorkspaceTree } from '../../features/workspace-tree/model/useWorkspaceTree'
-import { useI18n } from '../../shared/i18n'
-import { usePersistentNumberState } from '../../shared/ui/usePersistentNumberState'
+} from '@/features/workspace-tree/model/markdownUpload'
+import { useWorkspaceTree } from '@/features/workspace-tree/model/useWorkspaceTree'
+import { useI18n } from '@/shared/i18n'
+import { usePersistentNumberState } from '@/shared/ui/usePersistentNumberState'
 import {
   WORKSPACE_SIDEBAR_DEFAULT_WIDTH,
   WORKSPACE_SIDEBAR_MAX_WIDTH,

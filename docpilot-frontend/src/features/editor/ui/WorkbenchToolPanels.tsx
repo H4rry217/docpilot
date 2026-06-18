@@ -14,12 +14,12 @@ import {
 } from 'react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import type { BlockDocument } from '../../../entities/block/types'
+import type { BlockDocument } from '@/entities/block/types'
 import {
   type ToolPanelRect,
   type UseToolPanelLayoutResult
 } from '../model/toolPanelLayout'
-import { useI18n } from '../../../shared/i18n'
+import { useI18n } from '@/shared/i18n'
 import { DocumentOperationComposer } from './DocumentOperationComposer'
 import {
   DocumentOperationsConsole,

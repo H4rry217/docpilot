@@ -15,9 +15,9 @@ import {
   type DocumentOperation,
   type DocumentOperationResult,
   type DocumentOperationsDebugMode
-} from '../../../entities/block/operations'
-import type { BlockDocument, BlockNode, BlockType, InlineNode } from '../../../entities/block/types'
-import { useI18n } from '../../../shared/i18n'
+} from '@/entities/block/operations'
+import type { BlockDocument, BlockNode, BlockType, InlineNode } from '@/entities/block/types'
+import { useI18n } from '@/shared/i18n'
 import { BlockTemplateFields, JsonTextarea } from './DocumentOperationComposerFields'
 import {
   DEFAULT_TEMPLATE_FORM,

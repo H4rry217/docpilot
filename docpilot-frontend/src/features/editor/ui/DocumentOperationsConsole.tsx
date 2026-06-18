@@ -26,8 +26,8 @@ import {
   type CommandEntry,
   type CommandSuggestion
 } from './documentOperationsCommands'
-import type { BlockDocument } from '../../../entities/block/types'
-import { useI18n } from '../../../shared/i18n'
+import type { BlockDocument } from '@/entities/block/types'
+import { useI18n } from '@/shared/i18n'
 import './DocumentOperationsConsole.css'
 
 export type DocumentOperationsConsoleProps = {

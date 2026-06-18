@@ -8,7 +8,7 @@ import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { useI18n } from '../../../shared/i18n'
+import { useI18n } from '@/shared/i18n'
 import {
   hasAccountAction,
   hasLoginFlow,

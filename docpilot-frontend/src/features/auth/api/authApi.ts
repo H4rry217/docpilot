@@ -1,5 +1,5 @@
-import type { UserInformation } from '../../../entities/user/types'
-import { postJson } from '../../../shared/api/http'
+import type { UserInformation } from '@/entities/user/types'
+import { postJson } from '@/shared/api/http'
 
 export type AuthSession = {
   token: string

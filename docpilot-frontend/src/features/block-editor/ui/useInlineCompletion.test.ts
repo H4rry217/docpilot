@@ -2,7 +2,7 @@ import { act, cleanup, render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Editor } from '@tiptap/react'
 import { createElement } from 'react'
-import { completeInlineCompletion } from '../../inline-completion/api/inlineCompletionApi'
+import { completeInlineCompletion } from '@/features/inline-completion/api/inlineCompletionApi'
 import { clearInlineCompletion } from '../model/inlineCompletion'
 import {
   clampCandidateCount,

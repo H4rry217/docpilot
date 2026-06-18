@@ -3,7 +3,7 @@ import type { DragEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { cn } from '@/lib/utils'
-import { WORKSPACE_NODE_TYPE, type WorkspaceTreeNode } from '../../../entities/workspace/types'
+import { WORKSPACE_NODE_TYPE, type WorkspaceTreeNode } from '@/entities/workspace/types'
 import { WorkspaceContextMenu } from './WorkspaceContextMenu'
 
 export function WorkspaceTreeNodeRow({

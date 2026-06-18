@@ -1,7 +1,7 @@
 import { Extension, type Editor } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
-import type { InlineCompletionShape } from '../../inline-completion/api/inlineCompletionApi'
+import type { InlineCompletionShape } from '@/features/inline-completion/api/inlineCompletionApi'
 import { markdownToHtml, markdownToInlineHtml } from './markdown'
 
 type ProseMirrorDoc = Parameters<typeof DecorationSet.create>[0]

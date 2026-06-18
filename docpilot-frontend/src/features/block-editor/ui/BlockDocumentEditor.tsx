@@ -8,8 +8,8 @@ import {
   useRef,
   type PointerEvent as ReactPointerEvent
 } from 'react'
-import type { DocumentOutlineJumpRequest } from '../../../entities/block/outline'
-import type { BlockDocument } from '../../../entities/block/types'
+import type { DocumentOutlineJumpRequest } from '@/entities/block/outline'
+import type { BlockDocument } from '@/entities/block/types'
 import { blockDocumentToProseMirrorJson } from '../model/blockDocumentToProseMirror'
 import { editorExtensions } from '../model/extensions'
 import { proseMirrorJsonToBlockDocument } from '../model/proseMirrorToBlockDocument'

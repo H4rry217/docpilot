@@ -1,5 +1,5 @@
 import { useState, type DragEvent } from 'react'
-import type { WorkspaceTreeNode } from '../../../entities/workspace/types'
+import type { WorkspaceTreeNode } from '@/entities/workspace/types'
 import { isMarkdownFileName } from '../model/markdownUpload'
 
 export function hasFileDrag(dataTransfer: DataTransfer): boolean {

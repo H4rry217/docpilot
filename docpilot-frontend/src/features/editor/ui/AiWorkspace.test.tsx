@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { I18nProvider } from '../../../shared/i18n'
+import { I18nProvider } from '@/shared/i18n'
 import {
   defaultAiWorkspaceLayout,
   type AiWorkspaceLayoutState,

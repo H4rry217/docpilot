@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { DocumentOutlineItem } from '../../../entities/block/outline'
-import { I18nProvider } from '../../../shared/i18n'
+import type { DocumentOutlineItem } from '@/entities/block/outline'
+import { I18nProvider } from '@/shared/i18n'
 import { DocumentOutlineNav } from './DocumentOutlineNav'
 
 const outline: DocumentOutlineItem[] = [

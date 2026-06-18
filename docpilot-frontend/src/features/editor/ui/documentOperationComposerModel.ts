@@ -1,5 +1,5 @@
-import type { BlockDocument, BlockNode, BlockType, InlineNode } from '../../../entities/block/types'
-import type { TranslationKey, useI18n } from '../../../shared/i18n'
+import type { BlockDocument, BlockNode, BlockType, InlineNode } from '@/entities/block/types'
+import type { TranslationKey, useI18n } from '@/shared/i18n'
 
 export type ComposerOperationType =
   | 'insertBlock'

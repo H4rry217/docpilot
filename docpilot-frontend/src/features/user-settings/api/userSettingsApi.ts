@@ -1,4 +1,4 @@
-import { postJson } from '../../../shared/api/http'
+import { postJson } from '@/shared/api/http'
 
 export const USER_SETTING_KEYS = {
   appLocale: 'app.locale',

@@ -1,6 +1,6 @@
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { useI18n } from '../../../shared/i18n'
+import { useI18n } from '@/shared/i18n'
 import type { BlockTemplateForm, StructuredBlockTemplateType } from './documentOperationComposerModel'
 
 export function JsonTextarea({
