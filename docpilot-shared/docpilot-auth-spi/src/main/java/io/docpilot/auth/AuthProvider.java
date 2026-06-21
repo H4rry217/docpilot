@@ -33,6 +33,13 @@ public interface AuthProvider {
     }
 
     /**
+     * Supplies fields used when DocPilot creates a local provider-managed user.
+     */
+    default AuthUserProvisioning userProvisioning(AuthPrincipal principal) {
+        return AuthUserProvisioning.from(principal);
+    }
+
+    /**
      * Authenticates the current request.
      *
      * <p>Return {@link Optional#empty()} when the request has no authenticated

@@ -5,6 +5,7 @@ import io.docpilot.common.web.auth.DocPilotJwtConfig;
 import io.docpilot.common.web.auth.JwtTokenVerifier;
 import io.docpilot.infrastructure.auth.provider.DefaultUserAuthProvider;
 import io.docpilot.system.repository.SystemSettingRepository;
+import jakarta.persistence.EntityManager;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -35,8 +36,9 @@ public class DefaultUserAuthAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(DefaultUserAccountRepository.class)
-    public JpaDefaultUserAccountRepository defaultUserAccountRepository(DefaultUserAccountJpaStore accountStore) {
-        return new JpaDefaultUserAccountRepository(accountStore);
+    public JpaDefaultUserAccountRepository defaultUserAccountRepository(DefaultUserAccountJpaStore accountStore,
+                                                                       EntityManager entityManager) {
+        return new JpaDefaultUserAccountRepository(accountStore, entityManager);
     }
 
     @Bean

@@ -73,6 +73,23 @@ class JpaDefaultUserAccountRepositoryTest {
         assertThat(repository.findByUserId(userId).orElseThrow().getDisplayName()).isEqualTo("Alice Updated");
     }
 
+    @Test
+    void createPreservesPresetUserId() {
+        DefaultUserAccount newAccount = new DefaultUserAccount();
+        newAccount.setUserId(870001L);
+        newAccount.setEmail("preset@example.com");
+        newAccount.setDisplayName("Preset");
+        newAccount.setPasswordHash("hash");
+
+        DefaultUserAccount account = repository.create(newAccount);
+
+        assertThat(account.getUserId()).isEqualTo(870001L);
+        assertThat(repository.findByUserId(870001L)).hasValueSatisfying(user -> {
+            assertThat(user.getEmail()).isEqualTo("preset@example.com");
+            assertThat(user.getDisplayName()).isEqualTo("Preset");
+        });
+    }
+
     private AuthSubject subject(Long userId, String displayName) {
         AuthSubject subject = new AuthSubject();
         subject.setUserId(userId);

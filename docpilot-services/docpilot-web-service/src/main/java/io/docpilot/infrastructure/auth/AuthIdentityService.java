@@ -6,8 +6,10 @@ import io.docpilot.common.exception.ConflictException;
 import io.docpilot.common.exception.UnauthorizedException;
 import io.docpilot.auth.AuthPrincipal;
 import io.docpilot.auth.AuthProvider;
+import io.docpilot.auth.AuthUserProvisioning;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 
@@ -15,10 +17,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.Locale;
-import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 
 /**
  * Maps provider principals to the DocPilot user table.
@@ -34,7 +33,6 @@ public class AuthIdentityService {
     private final DefaultUserAccountRepository accountRepository;
     private final AuthUserIdentityJpaStore identityStore;
     private final TransactionTemplate transactionTemplate;
-    private final ConcurrentMap<String, Object> identityLocks = new ConcurrentHashMap<>();
 
     public AuthIdentityService(DefaultUserAccountRepository accountRepository,
                                AuthUserIdentityJpaStore identityStore,
@@ -46,6 +44,7 @@ public class AuthIdentityService {
 
     public AuthSubject resolve(AuthProvider provider, AuthPrincipal principal) {
         AuthPrincipal normalized = validatePrincipal(provider, principal);
+        AuthUserProvisioning provisioning = userProvisioning(provider, normalized);
         Optional<Long> resolvedUserId = provider.resolveUserId(normalized);
         if (resolvedUserId.isPresent()) {
             log.debug("auth principal resolved directly providerId={} userId={}",
@@ -54,53 +53,74 @@ public class AuthIdentityService {
         }
 
         try {
-            return resolveWithLock(normalized);
+            // Database unique constraints make first-login races safe across JVMs; conflicts are reread below.
+            return resolveInTransaction(normalized, provisioning);
         } catch (ConflictException e) {
-            Optional<AuthSubject> existingSubject = resolveExistingIdentity(normalized);
-            if (existingSubject.isPresent()) {
-                log.info("auth identity resolved after creation conflict providerId={} subjectHash={}",
-                        normalized.providerId(), subjectHash(normalized));
-                return existingSubject.get();
-            }
-            if (StringUtils.hasText(normalized.email())) {
-                throw e;
-            }
-            log.info("auth identity creation conflicted, retrying placeholder binding providerId={} subjectHash={}",
-                    normalized.providerId(), subjectHash(normalized));
-            return resolveWithLock(normalized);
+            return resolveAfterCreationConflict(normalized, provisioning, e);
+        } catch (DataIntegrityViolationException e) {
+            return resolveAfterCreationConflict(normalized, provisioning, new ConflictException("User is already registered"));
         }
     }
 
     private Optional<AuthSubject> resolveExistingIdentity(AuthPrincipal normalized) {
-        String lockKey = identityLockKey(normalized);
-        Object lock = identityLocks.computeIfAbsent(lockKey, ignored -> new Object());
-        synchronized (lock) {
-            AuthSubject subject = transactionTemplate.execute(status -> identityStore
-                    .findByProviderIdAndSubject(normalized.providerId(), normalized.subject())
-                    .map(identity -> toSubject(identity.getUserId(), displayName(identity, normalized), normalized.roles()))
-                    .orElse(null));
-            return Optional.ofNullable(subject);
+        AuthSubject subject = transactionTemplate.execute(status -> identityStore
+                .findByProviderIdAndSubject(normalized.providerId(), normalized.subject())
+                .map(identity -> toSubject(identity.getUserId(), displayName(identity, normalized), normalized.roles()))
+                .orElse(null));
+        return Optional.ofNullable(subject);
+    }
+
+    private AuthSubject resolveAfterCreationConflict(AuthPrincipal normalized,
+                                                     AuthUserProvisioning provisioning,
+                                                     ConflictException conflict) {
+        Optional<AuthSubject> existingSubject = resolveExistingIdentity(normalized);
+        if (existingSubject.isPresent()) {
+            log.info("auth identity resolved after creation conflict providerId={} subjectHash={}",
+                    normalized.providerId(), subjectHash(normalized));
+            return existingSubject.get();
+        }
+        if (StringUtils.hasText(provisioning.email()) || provisioning.userId() != null) {
+            throw conflict;
+        }
+        // Placeholder email creation can race before the identity row exists, so retry once then reread identity.
+        log.info("auth identity creation conflicted, retrying placeholder binding providerId={} subjectHash={}",
+                normalized.providerId(), subjectHash(normalized));
+        return retryResolveInTransaction(normalized, provisioning);
+    }
+
+    private AuthSubject resolveInTransaction(AuthPrincipal normalized, AuthUserProvisioning provisioning) {
+        AuthSubject subject = transactionTemplate.execute(status -> {
+            Optional<AuthUserIdentity> existingIdentity = identityStore
+                    .findByProviderIdAndSubject(normalized.providerId(), normalized.subject());
+            AuthUserIdentity identity = existingIdentity.orElseGet(() -> createIdentity(normalized, provisioning));
+            if (existingIdentity.isPresent()) {
+                log.debug("auth identity resolved providerId={} subjectHash={} userId={}",
+                        normalized.providerId(), subjectHash(normalized), identity.getUserId());
+            }
+            return toSubject(identity.getUserId(), displayName(identity, normalized), normalized.roles());
+        });
+        return Optional.ofNullable(subject)
+                .orElseThrow(() -> new IllegalStateException("Resolved auth subject is required"));
+    }
+
+    private AuthSubject retryResolveInTransaction(AuthPrincipal normalized, AuthUserProvisioning provisioning) {
+        try {
+            return resolveInTransaction(normalized, provisioning);
+        } catch (ConflictException e) {
+            return resolveExistingIdentityAfterRetry(normalized, e);
+        } catch (DataIntegrityViolationException e) {
+            return resolveExistingIdentityAfterRetry(normalized, new ConflictException("User is already registered"));
         }
     }
 
-    private AuthSubject resolveWithLock(AuthPrincipal normalized) {
-        String lockKey = identityLockKey(normalized);
-        Object lock = identityLocks.computeIfAbsent(lockKey, ignored -> new Object());
-        synchronized (lock) {
-            AuthSubject subject = transactionTemplate.execute(status -> resolveInTransaction(normalized));
-            return Objects.requireNonNull(subject, "Resolved auth subject is required");
+    private AuthSubject resolveExistingIdentityAfterRetry(AuthPrincipal normalized, ConflictException conflict) {
+        Optional<AuthSubject> existingSubject = resolveExistingIdentity(normalized);
+        if (existingSubject.isPresent()) {
+            log.info("auth identity resolved after retry conflict providerId={} subjectHash={}",
+                    normalized.providerId(), subjectHash(normalized));
+            return existingSubject.get();
         }
-    }
-
-    private AuthSubject resolveInTransaction(AuthPrincipal normalized) {
-        Optional<AuthUserIdentity> existingIdentity = identityStore
-                .findByProviderIdAndSubject(normalized.providerId(), normalized.subject());
-        AuthUserIdentity identity = existingIdentity.orElseGet(() -> createIdentity(normalized));
-        if (existingIdentity.isPresent()) {
-            log.debug("auth identity resolved providerId={} subjectHash={} userId={}",
-                    normalized.providerId(), subjectHash(normalized), identity.getUserId());
-        }
-        return toSubject(identity.getUserId(), displayName(identity, normalized), normalized.roles());
+        throw conflict;
     }
 
     private AuthPrincipal validatePrincipal(AuthProvider provider, AuthPrincipal principal) {
@@ -122,36 +142,44 @@ public class AuthIdentityService {
         return principal;
     }
 
-    private AuthUserIdentity createIdentity(AuthPrincipal principal) {
-        String email = email(principal);
-        boolean hasProviderEmail = StringUtils.hasText(principal.email());
+    private AuthUserIdentity createIdentity(AuthPrincipal principal, AuthUserProvisioning provisioning) {
+        String email = email(principal.providerId(), principal.subject(), provisioning.email());
+        String displayName = displayName(principal.subject(), provisioning.displayName(), email);
+        Long provisionedUserId = provisioning.userId();
+        boolean hasProviderEmail = StringUtils.hasText(provisioning.email());
         DefaultUserAccount savedAccount = hasProviderEmail
-                ? createAccountWithProviderEmail(principal, email)
-                : createOrReusePlaceholderAccount(principal, email);
+                ? createAccountWithProviderEmail(principal, provisionedUserId, email, displayName)
+                : createOrReusePlaceholderAccount(principal, provisionedUserId, email, displayName);
 
         AuthUserIdentity identity = new AuthUserIdentity();
         identity.setProviderId(principal.providerId());
         identity.setSubject(principal.subject());
         identity.setUserId(savedAccount.getUserId());
-        identity.setEmail(principal.email());
-        identity.setDisplayName(principal.displayName());
+        identity.setEmail(provisioning.email());
+        identity.setDisplayName(provisioning.displayName());
         AuthUserIdentity savedIdentity = identityStore.saveAndFlush(identity);
         log.info("auth identity created providerId={} subjectHash={} userId={} emailProvided={}",
-                principal.providerId(), subjectHash(principal), savedAccount.getUserId(), StringUtils.hasText(principal.email()));
+                principal.providerId(), subjectHash(principal), savedAccount.getUserId(), StringUtils.hasText(provisioning.email()));
         return savedIdentity;
     }
 
-    private DefaultUserAccount createAccountWithProviderEmail(AuthPrincipal principal, String email) {
+    private DefaultUserAccount createAccountWithProviderEmail(AuthPrincipal principal,
+                                                              Long provisionedUserId,
+                                                              String email,
+                                                              String displayName) {
         if (accountRepository.findByEmail(email).isPresent()) {
             // Avoid silently attaching a provider subject to an existing password account.
             log.warn("auth identity creation rejected reason=email-exists providerId={} subjectHash={}",
                     principal.providerId(), subjectHash(principal));
             throw new ConflictException("Email is already registered");
         }
-        return createProviderManagedAccount(email, displayName(principal));
+        return createProviderManagedAccount(principal, provisionedUserId, email, displayName);
     }
 
-    private DefaultUserAccount createOrReusePlaceholderAccount(AuthPrincipal principal, String email) {
+    private DefaultUserAccount createOrReusePlaceholderAccount(AuthPrincipal principal,
+                                                               Long provisionedUserId,
+                                                               String email,
+                                                               String displayName) {
         Optional<DefaultUserAccount> existingAccount = accountRepository.findByEmail(email);
         if (existingAccount.isPresent()) {
             DefaultUserAccount account = existingAccount.get();
@@ -160,15 +188,29 @@ public class AuthIdentityService {
                         principal.providerId(), subjectHash(principal));
                 throw new ConflictException("Email is already registered");
             }
+            if (provisionedUserId != null && !provisionedUserId.equals(account.getUserId())) {
+                log.warn("auth identity creation rejected reason=placeholder-user-id-mismatch providerId={} subjectHash={}",
+                        principal.providerId(), subjectHash(principal));
+                throw new ConflictException("User id is already registered");
+            }
             log.info("auth identity reused placeholder account providerId={} subjectHash={} userId={}",
                     principal.providerId(), subjectHash(principal), account.getUserId());
             return account;
         }
-        return createProviderManagedAccount(email, displayName(principal));
+        return createProviderManagedAccount(principal, provisionedUserId, email, displayName);
     }
 
-    private DefaultUserAccount createProviderManagedAccount(String email, String displayName) {
+    private DefaultUserAccount createProviderManagedAccount(AuthPrincipal principal,
+                                                            Long provisionedUserId,
+                                                            String email,
+                                                            String displayName) {
+        if (provisionedUserId != null && accountRepository.findAccountByUserId(provisionedUserId).isPresent()) {
+            log.warn("auth identity creation rejected reason=user-id-exists providerId={} subjectHash={} userId={}",
+                    principal.providerId(), subjectHash(principal), provisionedUserId);
+            throw new ConflictException("User id is already registered");
+        }
         DefaultUserAccount account = new DefaultUserAccount();
+        account.setUserId(provisionedUserId);
         account.setEmail(email);
         account.setDisplayName(displayName);
         account.setPasswordHash(PROVIDER_MANAGED_PASSWORD_PLACEHOLDER);
@@ -183,15 +225,20 @@ public class AuthIdentityService {
         return subject;
     }
 
-    private String email(AuthPrincipal principal) {
-        if (StringUtils.hasText(principal.email())) {
-            String normalized = principal.email().strip().toLowerCase(Locale.ROOT);
+    private AuthUserProvisioning userProvisioning(AuthProvider provider, AuthPrincipal principal) {
+        AuthUserProvisioning provisioning = provider.userProvisioning(principal);
+        return provisioning == null ? AuthUserProvisioning.from(principal) : provisioning;
+    }
+
+    private String email(String providerId, String subject, String provisionedEmail) {
+        if (StringUtils.hasText(provisionedEmail)) {
+            String normalized = provisionedEmail.strip().toLowerCase(Locale.ROOT);
             if (normalized.length() > MAX_EMAIL_LENGTH || !normalized.contains("@")) {
                 throw new BadRequestException("Provider user email is invalid");
             }
             return normalized;
         }
-        return placeholderEmail(principal.providerId(), principal.subject());
+        return placeholderEmail(providerId, subject);
     }
 
     private String placeholderEmail(String providerId, String subject) {
@@ -200,12 +247,12 @@ public class AuthIdentityService {
         return hash + "@provider.docpilot.invalid";
     }
 
-    private String displayName(AuthPrincipal principal) {
-        String displayName = StringUtils.hasText(principal.displayName())
-                ? principal.displayName().strip()
-                : email(principal).substring(0, email(principal).indexOf('@'));
+    private String displayName(String subject, String provisionedDisplayName, String email) {
+        String displayName = StringUtils.hasText(provisionedDisplayName)
+                ? provisionedDisplayName.strip()
+                : email.substring(0, email.indexOf('@'));
         if (!StringUtils.hasText(displayName)) {
-            displayName = principal.subject();
+            displayName = subject;
         }
         return truncate(displayName, MAX_DISPLAY_NAME_LENGTH);
     }
@@ -235,10 +282,6 @@ public class AuthIdentityService {
 
     private String subjectHash(AuthPrincipal principal) {
         return sha256(principal.providerId() + ":" + principal.subject()).substring(0, 16);
-    }
-
-    private String identityLockKey(AuthPrincipal principal) {
-        return principal.providerId() + ":" + principal.subject();
     }
 
 }

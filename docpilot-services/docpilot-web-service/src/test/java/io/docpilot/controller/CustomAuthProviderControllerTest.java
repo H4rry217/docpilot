@@ -7,6 +7,7 @@ import io.docpilot.auth.AuthPrincipal;
 import io.docpilot.auth.AuthProvider;
 import io.docpilot.auth.AuthProviderCapabilities;
 import io.docpilot.auth.AuthRequest;
+import io.docpilot.auth.AuthUserProvisioning;
 import io.docpilot.common.exception.UnauthorizedException;
 import io.docpilot.common.result.StatusCode;
 import io.docpilot.infrastructure.auth.DefaultUserAccount;
@@ -110,6 +111,45 @@ class CustomAuthProviderControllerTest {
     }
 
     @Test
+    void customProviderCanProvisionUserIdAndProfileFields() throws Exception {
+        JsonNode first = postJson("/auth/me", "host-provisioned");
+        JsonNode second = postJson("/auth/me", "host-provisioned");
+
+        assertThat(first.get("userId").asLong()).isEqualTo(880001L);
+        assertThat(second.get("userId").asLong()).isEqualTo(880001L);
+        assertThat(first.get("email").asText()).isEqualTo("provisioned@example.com");
+        assertThat(first.get("displayName").asText()).isEqualTo("Provisioned User");
+    }
+
+    @Test
+    void customProviderUsesProvisioningOnlyWhenCreatingIdentity() throws Exception {
+        JsonNode first = postJson("/auth/me", "host-changing-id-a");
+        JsonNode second = postJson("/auth/me", "host-changing-id-b");
+
+        assertThat(first.get("userId").asLong()).isEqualTo(880002L);
+        assertThat(second.get("userId").asLong()).isEqualTo(880002L);
+        assertThat(second.get("email").asText()).isEqualTo("change-a@example.com");
+        assertThat(second.get("displayName").asText()).isEqualTo("Change A");
+    }
+
+    @Test
+    void customProviderRejectsProvisionedUserIdAlreadyOwned() throws Exception {
+        DefaultUserAccount account = new DefaultUserAccount();
+        account.setUserId(880003L);
+        account.setEmail("owned-id@example.com");
+        account.setDisplayName("Owned Id");
+        account.setPasswordHash("hash");
+        accountRepository.create(account);
+
+        mockMvc.perform(post("/auth/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer host-owned-id")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value(StatusCode.CONFLICT.code()));
+    }
+
+    @Test
     void passwordEndpointsAreUnavailableForCustomProvider() throws Exception {
         mockMvc.perform(post("/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -197,8 +237,38 @@ class CustomAuthProviderControllerTest {
                                 providerId(), "openid-opaque", null, "Opaque User", Set.of());
                         case "host-orphan" -> AuthPrincipal.of(
                                 providerId(), "openid-orphan", null, "Orphan User", Set.of());
+                        case "host-provisioned" -> AuthPrincipal.of(
+                                providerId(), "openid-provisioned", "ignored@example.com", "Ignored", Set.of());
+                        case "host-changing-id-a" -> AuthPrincipal.of(
+                                providerId(), "openid-changing", "change-a@example.com", "Change A", Set.of());
+                        case "host-changing-id-b" -> AuthPrincipal.of(
+                                providerId(), "openid-changing", "change-b@example.com", "Change B", Set.of());
+                        case "host-owned-id" -> AuthPrincipal.of(
+                                providerId(), "openid-owned-id", "owned-id-provider@example.com", "Owned Id Provider", Set.of());
                         default -> throw new UnauthorizedException("Invalid host token");
                     });
+        }
+
+        @Override
+        public AuthUserProvisioning userProvisioning(AuthPrincipal principal) {
+            return switch (principal.subject()) {
+                case "openid-provisioned" -> new AuthUserProvisioning(
+                        880001L,
+                        "provisioned@example.com",
+                        "Provisioned User"
+                );
+                case "openid-changing" -> new AuthUserProvisioning(
+                        "change-a@example.com".equals(principal.email()) ? 880002L : 880004L,
+                        principal.email(),
+                        principal.displayName()
+                );
+                case "openid-owned-id" -> new AuthUserProvisioning(
+                        880003L,
+                        principal.email(),
+                        principal.displayName()
+                );
+                default -> AuthProvider.super.userProvisioning(principal);
+            };
         }
 
     }

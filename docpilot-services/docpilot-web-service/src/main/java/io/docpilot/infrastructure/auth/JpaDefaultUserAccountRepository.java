@@ -4,6 +4,8 @@ import io.docpilot.common.exception.ConflictException;
 import io.docpilot.common.exception.NotFoundException;
 import io.docpilot.user.model.UserInformation;
 import io.docpilot.user.repository.UserInformationRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -14,9 +16,12 @@ import java.util.Optional;
 public class JpaDefaultUserAccountRepository implements DefaultUserAccountRepository, UserInformationRepository {
 
     private final DefaultUserAccountJpaStore accountStore;
+    private final EntityManager entityManager;
 
-    public JpaDefaultUserAccountRepository(DefaultUserAccountJpaStore accountStore) {
+    public JpaDefaultUserAccountRepository(DefaultUserAccountJpaStore accountStore,
+                                           EntityManager entityManager) {
         this.accountStore = accountStore;
+        this.entityManager = entityManager;
     }
 
     @Override
@@ -24,9 +29,14 @@ public class JpaDefaultUserAccountRepository implements DefaultUserAccountReposi
     public DefaultUserAccount create(DefaultUserAccount account) {
         try {
             account.setEmail(normalizeEmail(account.getEmail()));
+            if (account.getUserId() != null) {
+                return insertWithPresetUserId(account);
+            }
             return accountStore.saveAndFlush(account);
         } catch (DataIntegrityViolationException e) {
             throw new ConflictException("Email is already registered");
+        } catch (PersistenceException e) {
+            throw new ConflictException("User is already registered");
         }
     }
 
@@ -105,6 +115,40 @@ public class JpaDefaultUserAccountRepository implements DefaultUserAccountReposi
         userInformation.setDisplayName(account.getDisplayName());
         userInformation.setEmail(account.getEmail());
         return userInformation;
+    }
+
+    private DefaultUserAccount insertWithPresetUserId(DefaultUserAccount account) {
+        account.markCreated();
+        entityManager.createNativeQuery("""
+                        INSERT INTO docpilot_user (
+                            id,
+                            email,
+                            display_name,
+                            password_hash,
+                            create_time,
+                            create_by,
+                            creator_id,
+                            update_time,
+                            update_by,
+                            updater_id,
+                            is_deleted
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """)
+                .setParameter(1, account.getUserId())
+                .setParameter(2, account.getEmail())
+                .setParameter(3, account.getDisplayName())
+                .setParameter(4, account.getPasswordHash())
+                .setParameter(5, account.getCreateTime())
+                .setParameter(6, account.getCreateBy())
+                .setParameter(7, account.getCreatorId())
+                .setParameter(8, account.getUpdateTime())
+                .setParameter(9, account.getUpdateBy())
+                .setParameter(10, account.getUpdaterId())
+                .setParameter(11, account.getIsDeleted())
+                .executeUpdate();
+        entityManager.flush();
+        return accountStore.findById(account.getUserId())
+                .orElseThrow(() -> new IllegalStateException("Created user was not found"));
     }
 
     private String normalizeEmail(String email) {

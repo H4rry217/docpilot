@@ -17,6 +17,7 @@
     <modules>
         <module>docpilot-common</module>
         <module>docpilot-web-common</module>
+        <module>docpilot-auth-spi</module>
     </modules>
 
 </project>
