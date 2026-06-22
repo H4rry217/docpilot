@@ -37,6 +37,13 @@ docpilot:
   id:
     datacenter-id: ${DOCPILOT_ID_DATACENTER_ID:1}
     machine-id: ${DOCPILOT_ID_MACHINE_ID:1}
+  web:
+    logging:
+      http:
+        enabled: ${DOCPILOT_WEB_LOGGING_HTTP_ENABLED:true}
+        request-payload-enabled: ${DOCPILOT_WEB_LOGGING_HTTP_REQUEST_PAYLOAD_ENABLED:true}
+        response-payload-enabled: ${DOCPILOT_WEB_LOGGING_HTTP_RESPONSE_PAYLOAD_ENABLED:true}
+        max-payload-length: ${DOCPILOT_WEB_LOGGING_HTTP_MAX_PAYLOAD_LENGTH:4096}
   auth:
     provider: ${DOCPILOT_AUTH_PROVIDER:local-password}
     jwt:

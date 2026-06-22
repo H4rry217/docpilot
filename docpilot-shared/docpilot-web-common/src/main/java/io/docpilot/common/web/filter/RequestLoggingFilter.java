@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
+import io.docpilot.common.auth.AuthSubjectContext;
 import io.docpilot.common.web.logging.LogMask;
 import io.docpilot.common.web.support.ClientIpUtils;
 import jakarta.servlet.FilterChain;
@@ -62,6 +63,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
     private static final String UNSUPPORTED_PAYLOAD = "<unsupported>";
     private static final String STREAMING_PAYLOAD = "<streaming>";
     private static final String INLINE_COMPLETION_CONTEXT_PAYLOAD = "<inline-completion-context>";
+    private static final String NO_USER = "-";
     private static final String DEFAULT_MASK_TEXT = "***";
 
     private final ObjectMapper objectMapper;
@@ -83,7 +85,9 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         }
 
         HttpServletRequest requestToUse = wrapRequestIfNeeded(request);
-        boolean responseCachingEnabled = !shouldBypassResponseCaching(requestToUse);
+        boolean responseCachingEnabled = config.isResponsePayloadEnabled()
+                && !isPayloadExcluded(requestToUse)
+                && !shouldBypassResponseCaching(requestToUse);
         ContentCachingResponseWrapper responseWrapper = responseCachingEnabled
                 ? new ContentCachingResponseWrapper(response)
                 : null;
@@ -117,12 +121,19 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
                              HttpServletResponse response,
                              long start,
                              MaskingRules maskingRules) {
-        log.info("logResponse method={} uri={} status={} costMs={} body={}",
+        log.info("logResponse method={} uri={} userId={} status={} costMs={} body={}",
                 request.getMethod(),
                 request.getRequestURI(),
+                currentUserIdToLog(),
                 response.getStatus(),
                 System.currentTimeMillis() - start,
                 responseBodyToLog(request, response, maskingRules));
+    }
+
+    private String currentUserIdToLog() {
+        return AuthSubjectContext.currentSubject()
+                .map(subject -> subject.getUserId() == null ? NO_USER : String.valueOf(subject.getUserId()))
+                .orElse(NO_USER);
     }
 
     private HttpServletRequest wrapRequestIfNeeded(HttpServletRequest request) throws IOException {
