@@ -5,7 +5,8 @@ WORKDIR /workspace/frontend
 COPY docpilot-frontend/package*.json ./
 RUN npm ci
 COPY docpilot-frontend/ ./
-RUN npm run build
+ARG FRONTEND_BUILD_MODE=production
+RUN npm run typecheck && npx vite build --mode "${FRONTEND_BUILD_MODE}"
 
 FROM maven:3.9.11-eclipse-temurin-25 AS backend-build
 WORKDIR /workspace

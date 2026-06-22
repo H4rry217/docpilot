@@ -4,12 +4,26 @@ import { apiPath, postJson } from './http'
 describe('postJson', () => {
   afterEach(() => {
     vi.restoreAllMocks()
+    vi.unstubAllEnvs()
   })
 
   it('prefixes backend controller paths with api', () => {
     expect(apiPath('/workspace/list')).toBe('/api/workspace/list')
     expect(apiPath('document/get')).toBe('/api/document/get')
     expect(apiPath('/api/user/settings/get')).toBe('/api/user/settings/get')
+  })
+
+  it('uses the configured api base url for environment builds', () => {
+    vi.stubEnv('VITE_API_BASE_URL', 'https://testapi.com')
+
+    expect(apiPath('/workspace/list')).toBe('https://testapi.com/workspace/list')
+    expect(apiPath('/api/user/settings/get')).toBe('https://testapi.com/user/settings/get')
+  })
+
+  it('allows the configured api base url to include a path prefix', () => {
+    vi.stubEnv('VITE_API_BASE_URL', 'https://testapi.com/api/')
+
+    expect(apiPath('/workspace/list')).toBe('https://testapi.com/api/workspace/list')
   })
 
   it('posts json and returns parsed response', async () => {

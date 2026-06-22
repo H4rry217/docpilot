@@ -18,6 +18,8 @@ type PostJsonOptions = {
 }
 
 const API_PREFIX = '/api'
+const DEFAULT_API_BASE_URL = API_PREFIX
+const ABSOLUTE_URL_PATTERN = /^https?:\/\//i
 
 export class ApiError extends Error {
   readonly status: number
@@ -41,13 +43,36 @@ function isResultPayload<T>(value: unknown): value is ResultPayload<T> {
   return isApiErrorPayload(value)
 }
 
+function trimTrailingSlash(value: string): string {
+  return value.length > 1 ? value.replace(/\/+$/, '') : value
+}
+
+function apiBaseUrl(): string {
+  const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim()
+  return trimTrailingSlash(configuredBaseUrl || DEFAULT_API_BASE_URL)
+}
+
+function controllerPath(path: string): string {
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`
+  if (normalizedPath === API_PREFIX) return ''
+  if (normalizedPath.startsWith(`${API_PREFIX}/`)) {
+    return normalizedPath.slice(API_PREFIX.length)
+  }
+  return normalizedPath
+}
+
+function joinApiPath(baseUrl: string, path: string): string {
+  if (!path) return baseUrl
+  if (baseUrl === '/') return path
+  return `${baseUrl}${path.startsWith('/') ? path : `/${path}`}`
+}
+
 /**
- * Frontend code uses backend controller paths; the dev server and deployment edge expose them under /api.
+ * Frontend code uses backend controller paths. VITE_API_BASE_URL replaces the logical /api prefix per environment.
  */
 export function apiPath(path: string): string {
-  if (/^https?:\/\//i.test(path)) return path
-  if (path === API_PREFIX || path.startsWith(`${API_PREFIX}/`)) return path
-  return `${API_PREFIX}${path.startsWith('/') ? path : `/${path}`}`
+  if (ABSOLUTE_URL_PATTERN.test(path)) return path
+  return joinApiPath(apiBaseUrl(), controllerPath(path))
 }
 
 export async function postJson<TResponse, TBody extends object = Record<string, never>>(
