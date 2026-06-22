@@ -1,11 +1,11 @@
 package io.docpilot.common.web.filter;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.TextNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.StringNode;
 import io.docpilot.common.auth.AuthSubjectContext;
 import io.docpilot.common.web.logging.LogMask;
 import io.docpilot.common.web.support.ClientIpUtils;
@@ -228,7 +228,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
             JsonNode node = objectMapper.readTree(payload);
             sanitizeJsonNode(node, maskingRules);
             return objectMapper.writeValueAsString(node);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             return payload;
         }
     }
@@ -244,7 +244,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
                     return;
                 }
                 if (rule != null) {
-                    objectNode.set(fieldName, TextNode.valueOf(rule.maskText()));
+                    objectNode.set(fieldName, StringNode.valueOf(rule.maskText()));
                     return;
                 }
                 sanitizeJsonNode(entry.getValue(), maskingRules);
@@ -503,7 +503,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
     private String writeJson(Object value) {
         try {
             return objectMapper.writeValueAsString(value);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             return String.valueOf(value);
         }
     }

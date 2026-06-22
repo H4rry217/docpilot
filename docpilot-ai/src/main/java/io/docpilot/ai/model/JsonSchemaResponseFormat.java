@@ -1,7 +1,7 @@
 package io.docpilot.ai.model;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -89,7 +89,7 @@ public class JsonSchemaResponseFormat implements ChatResponseFormat {
             payload.put("strict", strict);
             payload.put("schema", getSchema());
             return OBJECT_MAPPER.writeValueAsString(payload);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("Failed to serialize LLM JSON schema response format.", exception);
         }
     }

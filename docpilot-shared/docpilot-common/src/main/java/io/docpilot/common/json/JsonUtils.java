@@ -1,9 +1,9 @@
 package io.docpilot.common.json;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JavaType;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.JavaType;
+import tools.jackson.databind.ObjectMapper;
 
 public final class JsonUtils {
 
@@ -23,7 +23,7 @@ public final class JsonUtils {
     public static String toJson(Object object) {
         try {
             return objectMapper.writeValueAsString(object);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new JsonException("Failed to serialize object to JSON", e);
         }
     }
@@ -31,7 +31,7 @@ public final class JsonUtils {
     public static <T> T convert(String json, Class<T> type) {
         try {
             return objectMapper.readValue(json, type);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new JsonException("Failed to deserialize JSON", e);
         }
     }
@@ -39,7 +39,7 @@ public final class JsonUtils {
     public static <T> T convert(String json, TypeReference<T> typeReference) {
         try {
             return objectMapper.readValue(json, typeReference);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new JsonException("Failed to deserialize JSON", e);
         }
     }
@@ -47,7 +47,7 @@ public final class JsonUtils {
     public static <T> T convert(String json, JavaType javaType) {
         try {
             return objectMapper.readValue(json, javaType);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new JsonException("Failed to deserialize JSON", e);
         }
     }

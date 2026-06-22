@@ -1,8 +1,8 @@
 package io.docpilot.ai.provider.openai;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.docpilot.ai.model.ChatMessage;
 import io.docpilot.ai.model.ChatRequest;
 import io.docpilot.ai.model.ChatResponse;
@@ -67,7 +67,7 @@ class OpenAiCompatibleChatModelLiveTest {
     }
 
     @Test
-    void chatsWithRealLlmToolCall() throws JsonProcessingException {
+    void chatsWithRealLlmToolCall() throws JacksonException {
         assumeTrue(isConfigured(), "Fill BASE_URL, API_KEY, and MODEL before running this live test.");
         OpenAiCompatibleChatModel chatModel = createModel();
 
@@ -396,7 +396,7 @@ class OpenAiCompatibleChatModelLiveTest {
     private static String describeStreamEvent(ChatStreamEvent event) {
         try {
             return new ObjectMapper().writeValueAsString(event);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new RuntimeException(e);
         }
     }

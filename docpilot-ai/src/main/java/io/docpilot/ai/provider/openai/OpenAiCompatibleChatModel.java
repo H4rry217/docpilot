@@ -1,7 +1,8 @@
 package io.docpilot.ai.provider.openai;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.docpilot.ai.AiChatModel;
 import io.docpilot.ai.AiModelException;
 import io.docpilot.ai.AiModelMetadata;
@@ -122,7 +123,7 @@ public class OpenAiCompatibleChatModel implements AiChatModel {
             HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             ensureSuccess(response.statusCode(), response.body());
             return toChatResponse(readOpenAiResponse(response.body()));
-        } catch (IOException exception) {
+        } catch (IOException | JacksonException exception) {
             throw new AiModelException("Failed to call AI model: " + id, exception);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
@@ -176,7 +177,7 @@ public class OpenAiCompatibleChatModel implements AiChatModel {
                     .header("Accept", accept)
                     .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
                     .build();
-        } catch (IOException exception) {
+        } catch (JacksonException exception) {
             throw new AiModelException("Failed to serialize AI request for model: " + id, exception);
         }
     }
@@ -274,7 +275,7 @@ public class OpenAiCompatibleChatModel implements AiChatModel {
                             sink.next(readOpenAiResponse(data));
                             return false;
                         }
-                    } catch (IOException exception) {
+                    } catch (IOException | JacksonException exception) {
                         sink.error(new AiModelException("Failed to parse AI stream for model: " + id, exception));
                         return true;
                     }
@@ -291,7 +292,7 @@ public class OpenAiCompatibleChatModel implements AiChatModel {
     /**
      * Parses OpenAI-compatible JSON explicitly so DTOs do not need Jackson field annotations.
      */
-    private OpenAiChatCompletionResponse readOpenAiResponse(String json) throws IOException {
+    private OpenAiChatCompletionResponse readOpenAiResponse(String json) throws JacksonException {
         return toOpenAiResponse(objectMapper.readTree(json));
     }
 
@@ -584,9 +585,9 @@ public class OpenAiCompatibleChatModel implements AiChatModel {
     }
 
     private void copyAdditionalProperties(JsonNode node, Map<String, Object> target, String... knownFields) {
-        node.fieldNames().forEachRemaining(fieldName -> {
-            if (!isKnownField(fieldName, knownFields)) {
-                target.put(fieldName, objectMapper.convertValue(node.get(fieldName), Object.class));
+        node.properties().forEach(entry -> {
+            if (!isKnownField(entry.getKey(), knownFields)) {
+                target.put(entry.getKey(), objectMapper.convertValue(entry.getValue(), Object.class));
             }
         });
     }

@@ -3,11 +3,10 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: none
-  data:
-    mongodb:
-      host: 127.0.0.1
-      port: 27017
-      database: docpilot-test
+  mongodb:
+    host: 127.0.0.1
+    port: 27017
+    database: docpilot-test
 
 docpilot:
   id:

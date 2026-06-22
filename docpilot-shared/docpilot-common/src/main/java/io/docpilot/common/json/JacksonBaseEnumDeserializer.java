@@ -1,16 +1,13 @@
 package io.docpilot.common.json;
 
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.databind.BeanProperty;
-import com.fasterxml.jackson.databind.DeserializationContext;
-import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.JsonMappingException;
-import com.fasterxml.jackson.databind.deser.ContextualDeserializer;
 import io.docpilot.common.enums.BaseEnum;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.JsonParser;
+import tools.jackson.databind.BeanProperty;
+import tools.jackson.databind.DeserializationContext;
+import tools.jackson.databind.ValueDeserializer;
 
-import java.io.IOException;
-
-public class JacksonBaseEnumDeserializer extends JsonDeserializer<Enum<?>> implements ContextualDeserializer {
+public class JacksonBaseEnumDeserializer extends ValueDeserializer<Enum> {
 
     private final Class<? extends Enum<?>> enumType;
 
@@ -23,8 +20,7 @@ public class JacksonBaseEnumDeserializer extends JsonDeserializer<Enum<?>> imple
     }
 
     @Override
-    public JsonDeserializer<?> createContextual(DeserializationContext context,
-                                                BeanProperty property) throws JsonMappingException {
+    public ValueDeserializer<?> createContextual(DeserializationContext context, BeanProperty property) {
         Class<?> rawClass = context.getContextualType() == null ? null : context.getContextualType().getRawClass();
         if (rawClass == null && property != null) {
             rawClass = property.getType().getRawClass();
@@ -39,9 +35,9 @@ public class JacksonBaseEnumDeserializer extends JsonDeserializer<Enum<?>> imple
 
     @Override
     @SuppressWarnings({"unchecked", "rawtypes"})
-    public Enum<?> deserialize(JsonParser parser, DeserializationContext context) throws IOException {
+    public Enum deserialize(JsonParser parser, DeserializationContext context) throws JacksonException {
         if (enumType == null) {
-            return (Enum<?>) context.handleUnexpectedToken(Enum.class, parser);
+            return (Enum) context.handleUnexpectedToken(Enum.class, parser);
         }
 
         String value = parser.getText();
@@ -52,7 +48,7 @@ public class JacksonBaseEnumDeserializer extends JsonDeserializer<Enum<?>> imple
                     return candidate;
                 }
             }
-            return (Enum<?>) context.handleWeirdStringValue(enumType, value, "No matching BaseEnum value");
+            return (Enum) context.handleWeirdStringValue(enumType, value, "No matching BaseEnum value");
         }
 
         Class rawEnumType = enumType;

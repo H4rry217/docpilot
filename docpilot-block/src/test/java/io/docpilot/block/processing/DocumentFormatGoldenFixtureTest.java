@@ -1,7 +1,7 @@
 package io.docpilot.block.processing;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.docpilot.block.model.BlockDocument;
 import io.docpilot.block.model.BlockNode;
 import io.docpilot.block.model.BlockType;
@@ -96,17 +96,17 @@ class DocumentFormatGoldenFixtureTest {
         }
 
         List<String> emptyFields = new ArrayList<>();
-        node.fields().forEachRemaining(field -> {
+        node.properties().forEach(field -> {
             normalizeJsonInPlace(field.getValue());
             if (field.getValue().isNull() || isEmptyContainerField(field.getKey(), field.getValue())) {
                 emptyFields.add(field.getKey());
             }
         });
-        emptyFields.forEach(field -> ((com.fasterxml.jackson.databind.node.ObjectNode) node).remove(field));
+        emptyFields.forEach(field -> ((tools.jackson.databind.node.ObjectNode) node).remove(field));
     }
 
     private boolean isEmptyContainerField(String key, JsonNode value) {
-        return List.of("attrs", "content", "marks").contains(key) && value.isContainerNode() && value.isEmpty();
+        return List.of("attrs", "content", "marks").contains(key) && value.isContainer() && value.isEmpty();
     }
 
     private List<BlockType> blockTypes(BlockDocument document) {

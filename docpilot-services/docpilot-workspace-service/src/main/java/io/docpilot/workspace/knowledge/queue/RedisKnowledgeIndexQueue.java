@@ -13,7 +13,7 @@ import java.util.List;
  * Redis-backed debounced knowledge indexing queue and worker.
  *
  * <p>Flow: document saves enqueue the latest revision with a debounce window;
- * the scheduled worker polls due document ids, claims a short Redisson lock, then
+ * the scheduled worker polls due document ids, claims a short distributed lock, then
  * indexes the revision stored in the job hash. Completion and retry both check
  * the revision id again so a newer save that arrives during indexing remains
  * queued instead of being cleared by the older worker run.

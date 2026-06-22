@@ -1,7 +1,7 @@
 package io.docpilot.controller;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.docpilot.auth.AuthLoginFlow;
 import io.docpilot.auth.AuthPrincipal;
 import io.docpilot.auth.AuthProvider;
@@ -14,8 +14,8 @@ import io.docpilot.infrastructure.auth.DefaultUserAccount;
 import io.docpilot.infrastructure.auth.DefaultUserAccountRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;

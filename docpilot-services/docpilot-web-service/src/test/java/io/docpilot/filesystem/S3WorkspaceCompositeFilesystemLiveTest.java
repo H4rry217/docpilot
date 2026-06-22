@@ -25,7 +25,11 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-@SpringBootTest
+@SpringBootTest(properties = {
+        "docpilot.knowledge.index.mode=direct",
+        "docpilot.user-settings.cache.enabled=false",
+        "docpilot.workspace.mongo.init-indexes=false"
+})
 class S3WorkspaceCompositeFilesystemLiveTest {
 
     @Autowired

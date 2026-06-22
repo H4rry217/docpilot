@@ -14,19 +14,13 @@ import io.docpilot.workspace.knowledge.config.KnowledgeProperties;
 import io.docpilot.workspace.knowledge.queue.DirectKnowledgeIndexQueue;
 import io.docpilot.workspace.knowledge.queue.KnowledgeIndexJobLock;
 import io.docpilot.workspace.knowledge.queue.KnowledgeIndexQueue;
-import io.docpilot.workspace.knowledge.queue.RedissonKnowledgeIndexJobLock;
 import io.docpilot.workspace.knowledge.queue.RedisKnowledgeIndexJobStore;
 import io.docpilot.workspace.knowledge.queue.RedisKnowledgeIndexQueue;
 import io.docpilot.workspace.knowledge.store.KnowledgeChunkStore;
 import io.docpilot.workspace.knowledge.store.NoopKnowledgeChunkStore;
-import org.redisson.Redisson;
-import org.redisson.api.RedissonClient;
-import org.redisson.config.Config;
-import org.redisson.config.SingleServerConfig;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.autoconfigure.data.redis.RedisProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -34,7 +28,6 @@ import org.springframework.data.mongodb.MongoDatabaseFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
-import org.springframework.util.StringUtils;
 
 import java.time.Clock;
 import java.util.concurrent.Executor;
@@ -48,7 +41,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Configuration
 @EnableAsync
 @EnableScheduling
-@EnableConfigurationProperties({KnowledgeProperties.class, InlineCompletionProperties.class, RedisProperties.class})
+@EnableConfigurationProperties({KnowledgeProperties.class, InlineCompletionProperties.class})
 public class WorkspaceApplicationConfig {
 
     private static final AtomicInteger KNOWLEDGE_SUMMARY_THREAD_SEQUENCE = new AtomicInteger();
@@ -110,30 +103,6 @@ public class WorkspaceApplicationConfig {
         return new DirectKnowledgeIndexQueue(properties, handler);
     }
 
-    @Bean(destroyMethod = "shutdown")
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "docpilot.knowledge.index", name = "mode", havingValue = "redis", matchIfMissing = true)
-    public RedissonClient redissonClient(RedisProperties redisProperties) {
-        Config config = new Config();
-        SingleServerConfig server = config.useSingleServer()
-                .setAddress(redisAddress(redisProperties))
-                .setDatabase(redisProperties.getDatabase());
-        if (StringUtils.hasText(redisProperties.getUsername())) {
-            server.setUsername(redisProperties.getUsername());
-        }
-        if (StringUtils.hasText(redisProperties.getPassword())) {
-            server.setPassword(redisProperties.getPassword());
-        }
-        return Redisson.create(config);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "docpilot.knowledge.index", name = "mode", havingValue = "redis", matchIfMissing = true)
-    public KnowledgeIndexJobLock knowledgeIndexJobLock(RedissonClient redissonClient) {
-        return new RedissonKnowledgeIndexJobLock(redissonClient);
-    }
-
     @Bean
     @ConditionalOnMissingBean(KnowledgeIndexQueue.class)
     @ConditionalOnProperty(prefix = "docpilot.knowledge.index", name = "mode", havingValue = "redis", matchIfMissing = true)
@@ -148,10 +117,6 @@ public class WorkspaceApplicationConfig {
                 handler,
                 Clock.systemUTC()
         );
-    }
-
-    private String redisAddress(RedisProperties redisProperties) {
-        return "redis://" + redisProperties.getHost() + ":" + redisProperties.getPort();
     }
 
 }

@@ -1,7 +1,8 @@
 package io.docpilot.ai.provider.openai;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.docpilot.ai.AiEmbeddingModel;
 import io.docpilot.ai.AiModelException;
 import io.docpilot.ai.AiModelMetadata;
@@ -112,7 +113,7 @@ public class OpenAiCompatibleEmbeddingModel implements AiEmbeddingModel {
             HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             ensureSuccess(response.statusCode(), response.body());
             return toEmbeddingResponse(objectMapper.readTree(response.body()));
-        } catch (IOException exception) {
+        } catch (IOException | JacksonException exception) {
             throw new AiModelException("Failed to call embedding model: " + id, exception);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
@@ -200,9 +201,9 @@ public class OpenAiCompatibleEmbeddingModel implements AiEmbeddingModel {
     }
 
     private void copyAdditionalProperties(JsonNode node, Map<String, Object> target, String... knownFields) {
-        node.fieldNames().forEachRemaining(fieldName -> {
-            if (!isKnownField(fieldName, knownFields)) {
-                target.put(fieldName, objectMapper.convertValue(node.get(fieldName), Object.class));
+        node.properties().forEach(entry -> {
+            if (!isKnownField(entry.getKey(), knownFields)) {
+                target.put(entry.getKey(), objectMapper.convertValue(entry.getValue(), Object.class));
             }
         });
     }

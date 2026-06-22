@@ -1,5 +1,6 @@
-package io.docpilot.workspace.knowledge.queue;
+package io.docpilot.infrastructure.knowledge;
 
+import io.docpilot.workspace.knowledge.queue.KnowledgeIndexJobLock;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.slf4j.Logger;

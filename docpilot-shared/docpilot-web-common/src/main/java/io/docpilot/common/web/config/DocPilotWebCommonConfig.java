@@ -1,6 +1,6 @@
 package io.docpilot.common.web.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import io.docpilot.common.auth.AuthContextProvider;
 import io.docpilot.common.auth.AuthSubject;
 import io.docpilot.common.auth.AuthSubjectContext;

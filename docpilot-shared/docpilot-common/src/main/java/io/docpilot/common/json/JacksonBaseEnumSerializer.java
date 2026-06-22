@@ -1,19 +1,18 @@
 package io.docpilot.common.json;
 
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.databind.JsonSerializer;
-import com.fasterxml.jackson.databind.SerializerProvider;
 import io.docpilot.common.enums.BaseEnum;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.JsonGenerator;
+import tools.jackson.databind.SerializationContext;
+import tools.jackson.databind.ValueSerializer;
 
-import java.io.IOException;
-
-public class JacksonBaseEnumSerializer extends JsonSerializer<BaseEnum> {
+public class JacksonBaseEnumSerializer extends ValueSerializer<BaseEnum> {
 
     @Override
     public void serialize(BaseEnum baseEnum,
                           JsonGenerator jsonGenerator,
-                          SerializerProvider serializerProvider) throws IOException {
-        jsonGenerator.writeObject(baseEnum.getValue());
+                          SerializationContext serializationContext) throws JacksonException {
+        serializationContext.writeValue(jsonGenerator, baseEnum.getValue());
     }
 
 }

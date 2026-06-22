@@ -13,12 +13,12 @@ spring:
     url: ${SPRING_DATASOURCE_URL:jdbc:mysql://127.0.0.1:3306/docpilot?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC}
     username: ${SPRING_DATASOURCE_USERNAME:docpilot}
     password: ${SPRING_DATASOURCE_PASSWORD:}
+  mongodb:
+    host: ${SPRING_MONGODB_HOST:${SPRING_DATA_MONGODB_HOST:127.0.0.1}}
+    port: ${SPRING_MONGODB_PORT:${SPRING_DATA_MONGODB_PORT:27017}}
+    database: ${SPRING_MONGODB_DATABASE:${SPRING_DATA_MONGODB_DATABASE:docpilot}}
+    authentication-database: ${SPRING_MONGODB_AUTHENTICATION_DATABASE:${SPRING_DATA_MONGODB_AUTHENTICATION_DATABASE:admin}}
   data:
-    mongodb:
-      host: ${SPRING_DATA_MONGODB_HOST:127.0.0.1}
-      port: ${SPRING_DATA_MONGODB_PORT:27017}
-      database: ${SPRING_DATA_MONGODB_DATABASE:docpilot}
-      authentication-database: ${SPRING_DATA_MONGODB_AUTHENTICATION_DATABASE:admin}
     redis:
       host: ${SPRING_DATA_REDIS_HOST:127.0.0.1}
       port: ${SPRING_DATA_REDIS_PORT:6379}
