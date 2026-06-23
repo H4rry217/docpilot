@@ -62,7 +62,8 @@ public class AiApplicationConfig {
                 config.getBaseUrl(),
                 config.getApiKey(),
                 config.getModel(),
-                config.getTimeout()
+                config.getTimeout(),
+                config.getHeaders()
         );
     }
 
@@ -80,7 +81,8 @@ public class AiApplicationConfig {
                 config.getApiKey(),
                 config.getModel(),
                 requireEmbeddingDimensions(modelId, config.getDimensions()),
-                config.getTimeout()
+                config.getTimeout(),
+                config.getHeaders()
         );
     }
 

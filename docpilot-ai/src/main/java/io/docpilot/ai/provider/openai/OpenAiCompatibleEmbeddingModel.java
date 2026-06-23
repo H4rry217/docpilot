@@ -36,6 +36,7 @@ public class OpenAiCompatibleEmbeddingModel implements AiEmbeddingModel {
     private final String apiKey;
     private final String configuredModel;
     private final Integer configuredDimensions;
+    private final Map<String, String> customHeaders;
     private final Duration timeout;
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
@@ -52,10 +53,29 @@ public class OpenAiCompatibleEmbeddingModel implements AiEmbeddingModel {
                                           String baseUrl,
                                           String apiKey,
                                           String configuredModel,
+                                          Duration timeout,
+                                          Map<String, String> customHeaders) {
+        this(metadata, baseUrl, apiKey, configuredModel, null, timeout, customHeaders);
+    }
+
+    public OpenAiCompatibleEmbeddingModel(AiModelMetadata metadata,
+                                          String baseUrl,
+                                          String apiKey,
+                                          String configuredModel,
                                           Integer configuredDimensions,
                                           Duration timeout) {
+        this(metadata, baseUrl, apiKey, configuredModel, configuredDimensions, timeout, Map.of());
+    }
+
+    public OpenAiCompatibleEmbeddingModel(AiModelMetadata metadata,
+                                          String baseUrl,
+                                          String apiKey,
+                                          String configuredModel,
+                                          Integer configuredDimensions,
+                                          Duration timeout,
+                                          Map<String, String> customHeaders) {
         this(metadata, baseUrl, apiKey, configuredModel, configuredDimensions, timeout,
-                HttpClient.newHttpClient(), new ObjectMapper());
+                customHeaders, HttpClient.newHttpClient(), new ObjectMapper());
     }
 
     public OpenAiCompatibleEmbeddingModel(AiModelMetadata metadata,
@@ -76,6 +96,19 @@ public class OpenAiCompatibleEmbeddingModel implements AiEmbeddingModel {
                                           Duration timeout,
                                           HttpClient httpClient,
                                           ObjectMapper objectMapper) {
+        this(metadata, baseUrl, apiKey, configuredModel, configuredDimensions, timeout, Map.of(),
+                httpClient, objectMapper);
+    }
+
+    public OpenAiCompatibleEmbeddingModel(AiModelMetadata metadata,
+                                          String baseUrl,
+                                          String apiKey,
+                                          String configuredModel,
+                                          Integer configuredDimensions,
+                                          Duration timeout,
+                                          Map<String, String> customHeaders,
+                                          HttpClient httpClient,
+                                          ObjectMapper objectMapper) {
         this.metadata = Objects.requireNonNull(metadata, "AI embedding metadata must not be null");
         this.id = metadata.id();
         this.endpoint = URI.create(trimTrailingSlash(requireText(baseUrl, "OpenAI-compatible baseUrl is required"))
@@ -83,6 +116,7 @@ public class OpenAiCompatibleEmbeddingModel implements AiEmbeddingModel {
         this.apiKey = requireText(apiKey, "OpenAI-compatible apiKey is required for embedding model: " + id);
         this.configuredModel = requireText(configuredModel, "OpenAI-compatible model is required for embedding model: " + id);
         this.configuredDimensions = validateDimensions(configuredDimensions);
+        this.customHeaders = customHeaders == null ? Map.of() : Map.copyOf(customHeaders);
         this.timeout = timeout == null ? DEFAULT_TIMEOUT : timeout;
         this.httpClient = httpClient == null ? HttpClient.newHttpClient() : httpClient;
         this.objectMapper = objectMapper == null ? new ObjectMapper() : objectMapper;
@@ -103,13 +137,13 @@ public class OpenAiCompatibleEmbeddingModel implements AiEmbeddingModel {
         EmbeddingRequest preparedRequest = prepareRequest(request);
         try {
             String body = objectMapper.writeValueAsString(toOpenAiPayload(preparedRequest));
-            HttpRequest httpRequest = HttpRequest.newBuilder(endpoint)
+            HttpRequest.Builder builder = HttpRequest.newBuilder(endpoint)
                     .timeout(timeout)
                     .header("Authorization", "Bearer " + apiKey)
                     .header("Content-Type", "application/json")
-                    .header("Accept", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
-                    .build();
+                    .header("Accept", "application/json");
+            customHeaders.forEach(builder::setHeader);
+            HttpRequest httpRequest = builder.POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8)).build();
             HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             ensureSuccess(response.statusCode(), response.body());
             return toEmbeddingResponse(objectMapper.readTree(response.body()));

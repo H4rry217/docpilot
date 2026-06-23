@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         "docpilot.ai.models.test.context-window-tokens=128000",
         "docpilot.ai.models.test.max-output-tokens=8192",
         "docpilot.ai.models.test.metadata.tier=fast",
+        "docpilot.ai.models.test.headers[X-Provider-Tenant]=tenant-a",
         "docpilot.ai.models.disabled.enabled=false",
         "docpilot.ai.default-embedding-model-id=embedding",
         "docpilot.ai.embeddings.embedding.enabled=true",
@@ -29,9 +30,13 @@ import static org.assertj.core.api.Assertions.assertThat;
         "docpilot.ai.embeddings.embedding.base-url=http://127.0.0.1:1",
         "docpilot.ai.embeddings.embedding.api-key=test-key",
         "docpilot.ai.embeddings.embedding.model=embedding-model",
+        "docpilot.ai.embeddings.embedding.headers[X-Provider-Tenant]=tenant-a",
         "docpilot.ai.embeddings.embedding.dimensions=1024"
 })
 class AiApplicationConfigTest {
+
+    @Autowired
+    private AiConfig aiConfig;
 
     @Autowired
     private AiModelRegistry aiModelRegistry;
@@ -50,6 +55,8 @@ class AiApplicationConfigTest {
         assertThat(aiModelRegistry.resolveMetadata(null).contextWindowTokens()).isEqualTo(128000);
         assertThat(aiModelRegistry.resolveMetadata(null).maxOutputTokens()).isEqualTo(8192);
         assertThat(aiModelRegistry.resolveMetadata(null).additionalProperties()).containsEntry("tier", "fast");
+        assertThat(aiConfig.getModels().get("test").getHeaders())
+                .containsEntry("X-Provider-Tenant", "tenant-a");
     }
 
     @Test
@@ -59,6 +66,8 @@ class AiApplicationConfigTest {
         assertThat(aiEmbeddingRegistry.resolve(null).metadata().modelName()).isEqualTo("embedding-model");
         assertThat(aiEmbeddingRegistry.resolve(null).metadata().additionalProperties())
                 .containsEntry("dimensions", 1024);
+        assertThat(aiConfig.getEmbeddings().get("embedding").getHeaders())
+                .containsEntry("X-Provider-Tenant", "tenant-a");
     }
 
 }

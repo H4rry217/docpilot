@@ -146,6 +146,56 @@ class OpenAiCompatibleChatModelTest {
     }
 
     @Test
+    void sendsConfiguredCustomHeadersForChatRequest() throws IOException {
+        AtomicReference<String> tenantHeader = new AtomicReference<>();
+        AtomicReference<String> sourceHeader = new AtomicReference<>();
+        startServer(exchange -> {
+            tenantHeader.set(exchange.getRequestHeaders().getFirst("X-Provider-Tenant"));
+            sourceHeader.set(exchange.getRequestHeaders().getFirst("X-Request-Source"));
+            readRequestBody(exchange);
+            sendJson(exchange, 200, """
+                    {"id":"chatcmpl-1","object":"chat.completion","created":1,"model":"configured-model","choices":[]}
+                    """);
+        });
+        OpenAiCompatibleChatModel model = createModel(Map.of(
+                "X-Provider-Tenant", "tenant-a",
+                "X-Request-Source", "docpilot"
+        ));
+
+        model.chat(new ChatRequest());
+
+        assertThat(tenantHeader.get()).isEqualTo("tenant-a");
+        assertThat(sourceHeader.get()).isEqualTo("docpilot");
+    }
+
+    @Test
+    void configuredHeadersOverrideDefaultChatHeaders() throws IOException {
+        AtomicReference<String> authorization = new AtomicReference<>();
+        AtomicReference<String> contentType = new AtomicReference<>();
+        AtomicReference<String> accept = new AtomicReference<>();
+        startServer(exchange -> {
+            authorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
+            contentType.set(exchange.getRequestHeaders().getFirst("Content-Type"));
+            accept.set(exchange.getRequestHeaders().getFirst("Accept"));
+            readRequestBody(exchange);
+            sendJson(exchange, 200, """
+                    {"id":"chatcmpl-1","object":"chat.completion","created":1,"model":"configured-model","choices":[]}
+                    """);
+        });
+        OpenAiCompatibleChatModel model = createModel(Map.of(
+                "Authorization", "Bearer gateway-key",
+                "Content-Type", "application/x-ndjson",
+                "Accept", "application/vnd.gateway+json"
+        ));
+
+        model.chat(new ChatRequest());
+
+        assertThat(authorization.get()).isEqualTo("Bearer gateway-key");
+        assertThat(contentType.get()).isEqualTo("application/x-ndjson");
+        assertThat(accept.get()).isEqualTo("application/vnd.gateway+json");
+    }
+
+    @Test
     void sendsToolsAndParsesChatToolCalls() throws IOException {
         AtomicReference<String> requestBody = new AtomicReference<>();
         startServer(exchange -> {
@@ -210,7 +260,11 @@ class OpenAiCompatibleChatModelTest {
 
     @Test
     void parsesServerSentEventStream() throws IOException {
+        AtomicReference<String> accept = new AtomicReference<>();
+        AtomicReference<String> tenantHeader = new AtomicReference<>();
         startServer(exchange -> {
+            accept.set(exchange.getRequestHeaders().getFirst("Accept"));
+            tenantHeader.set(exchange.getRequestHeaders().getFirst("X-Provider-Tenant"));
             readRequestBody(exchange);
             byte[] response = """
                     data: {"id":"chunk-1","object":"chat.completion.chunk","created":1,"model":"configured-model","system_fingerprint":"fp-stream","choices":[{"index":0,"delta":{"reasoning_content":"Thinking first."},"finish_reason":null}]}
@@ -227,7 +281,7 @@ class OpenAiCompatibleChatModelTest {
             exchange.getResponseBody().write(response);
             exchange.close();
         });
-        OpenAiCompatibleChatModel model = createModel();
+        OpenAiCompatibleChatModel model = createModel(Map.of("X-Provider-Tenant", "tenant-a"));
         ChatRequest request = new ChatRequest();
         request.setMessages(List.of(new ChatMessage("user", "hello")));
 
@@ -235,6 +289,8 @@ class OpenAiCompatibleChatModelTest {
                 .collectList()
                 .block(Duration.ofSeconds(5));
 
+        assertThat(accept.get()).isEqualTo("text/event-stream");
+        assertThat(tenantHeader.get()).isEqualTo("tenant-a");
         assertThat(events).hasSize(3);
         assertThat(events.get(0).getType()).isEqualTo(ChatStreamEventType.REASONING_DELTA);
         assertThat(events.get(0).getSystemFingerprint()).isEqualTo("fp-stream");
@@ -306,12 +362,21 @@ class OpenAiCompatibleChatModelTest {
     }
 
     private OpenAiCompatibleChatModel createModel() {
+        return createModel(Map.of());
+    }
+
+    private OpenAiCompatibleChatModel createModel(Map<String, String> customHeaders) {
         return new OpenAiCompatibleChatModel(
-                "default",
+                AiModelMetadata.builder()
+                        .id("default")
+                        .provider("openai-compatible")
+                        .modelName("configured-model")
+                        .build(),
                 "http://127.0.0.1:" + server.getAddress().getPort(),
                 "test-key",
                 "configured-model",
-                Duration.ofSeconds(5)
+                Duration.ofSeconds(5),
+                customHeaders
         );
     }
 

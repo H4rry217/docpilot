@@ -14,6 +14,7 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -93,6 +94,62 @@ class OpenAiCompatibleEmbeddingModelTest {
         model.embed(request);
 
         assertThat(requestBody.get()).contains("\"dimensions\":2560");
+    }
+
+    @Test
+    void sendsConfiguredCustomHeadersForEmbeddingRequest() throws IOException {
+        AtomicReference<String> tenantHeader = new AtomicReference<>();
+        startServer(exchange -> {
+            tenantHeader.set(exchange.getRequestHeaders().getFirst("X-Provider-Tenant"));
+            readRequestBody(exchange);
+            sendJson(exchange, 200, """
+                    {"object":"list","model":"embedding-model","data":[]}
+                    """);
+        });
+        OpenAiCompatibleEmbeddingModel model = new OpenAiCompatibleEmbeddingModel(
+                AiModelMetadata.of("embedding"),
+                "http://127.0.0.1:" + server.getAddress().getPort(),
+                "test-key",
+                "embedding-model",
+                1024,
+                Duration.ofSeconds(5),
+                Map.of("X-Provider-Tenant", "tenant-a")
+        );
+
+        model.embed(new EmbeddingRequest());
+
+        assertThat(tenantHeader.get()).isEqualTo("tenant-a");
+    }
+
+    @Test
+    void configuredHeadersOverrideDefaultEmbeddingHeaders() throws IOException {
+        AtomicReference<String> authorization = new AtomicReference<>();
+        AtomicReference<String> accept = new AtomicReference<>();
+        startServer(exchange -> {
+            authorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
+            accept.set(exchange.getRequestHeaders().getFirst("Accept"));
+            readRequestBody(exchange);
+            sendJson(exchange, 200, """
+                    {"object":"list","model":"embedding-model","data":[]}
+                    """);
+        });
+        OpenAiCompatibleEmbeddingModel model = new OpenAiCompatibleEmbeddingModel(
+                AiModelMetadata.of("embedding"),
+                "http://127.0.0.1:" + server.getAddress().getPort(),
+                "test-key",
+                "embedding-model",
+                1024,
+                Duration.ofSeconds(5),
+                Map.of(
+                        "Authorization", "Bearer gateway-key",
+                        "Accept", "application/vnd.gateway+json"
+                )
+        );
+
+        model.embed(new EmbeddingRequest());
+
+        assertThat(authorization.get()).isEqualTo("Bearer gateway-key");
+        assertThat(accept.get()).isEqualTo("application/vnd.gateway+json");
     }
 
     private void startServer(HttpHandler handler) throws IOException {

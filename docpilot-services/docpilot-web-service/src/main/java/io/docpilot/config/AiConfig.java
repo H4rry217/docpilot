@@ -29,6 +29,7 @@ public class AiConfig {
         private String model;
         private String displayName;
         private Map<String, Object> metadata = new LinkedHashMap<>();
+        private Map<String, String> headers = new LinkedHashMap<>();
         private Duration timeout = Duration.ofSeconds(60);
 
     }

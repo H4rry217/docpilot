@@ -51,6 +51,7 @@ public class OpenAiCompatibleChatModel implements AiChatModel {
     private final URI endpoint;
     private final String apiKey;
     private final String configuredModel;
+    private final Map<String, String> customHeaders;
     private final Duration timeout;
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
@@ -66,12 +67,31 @@ public class OpenAiCompatibleChatModel implements AiChatModel {
         this(defaultMetadata(id, configuredModel), baseUrl, apiKey, configuredModel, timeout);
     }
 
+    public OpenAiCompatibleChatModel(String id,
+                                     String baseUrl,
+                                     String apiKey,
+                                     String configuredModel,
+                                     Duration timeout,
+                                     Map<String, String> customHeaders) {
+        this(defaultMetadata(id, configuredModel), baseUrl, apiKey, configuredModel, timeout, customHeaders);
+    }
+
     public OpenAiCompatibleChatModel(AiModelMetadata metadata,
                                      String baseUrl,
                                      String apiKey,
                                      String configuredModel,
                                      Duration timeout) {
-        this(metadata, baseUrl, apiKey, configuredModel, timeout, HttpClient.newHttpClient(), new ObjectMapper());
+        this(metadata, baseUrl, apiKey, configuredModel, timeout, Map.of());
+    }
+
+    public OpenAiCompatibleChatModel(AiModelMetadata metadata,
+                                     String baseUrl,
+                                     String apiKey,
+                                     String configuredModel,
+                                     Duration timeout,
+                                     Map<String, String> customHeaders) {
+        this(metadata, baseUrl, apiKey, configuredModel, timeout, customHeaders,
+                HttpClient.newHttpClient(), new ObjectMapper());
     }
 
     /**
@@ -87,11 +107,34 @@ public class OpenAiCompatibleChatModel implements AiChatModel {
         this(defaultMetadata(id, configuredModel), baseUrl, apiKey, configuredModel, timeout, httpClient, objectMapper);
     }
 
+    public OpenAiCompatibleChatModel(String id,
+                                     String baseUrl,
+                                     String apiKey,
+                                     String configuredModel,
+                                     Duration timeout,
+                                     Map<String, String> customHeaders,
+                                     HttpClient httpClient,
+                                     ObjectMapper objectMapper) {
+        this(defaultMetadata(id, configuredModel), baseUrl, apiKey, configuredModel, timeout,
+                customHeaders, httpClient, objectMapper);
+    }
+
     public OpenAiCompatibleChatModel(AiModelMetadata metadata,
                                      String baseUrl,
                                      String apiKey,
                                      String configuredModel,
                                      Duration timeout,
+                                     HttpClient httpClient,
+                                     ObjectMapper objectMapper) {
+        this(metadata, baseUrl, apiKey, configuredModel, timeout, Map.of(), httpClient, objectMapper);
+    }
+
+    public OpenAiCompatibleChatModel(AiModelMetadata metadata,
+                                     String baseUrl,
+                                     String apiKey,
+                                     String configuredModel,
+                                     Duration timeout,
+                                     Map<String, String> customHeaders,
                                      HttpClient httpClient,
                                      ObjectMapper objectMapper) {
         this.metadata = Objects.requireNonNull(metadata, "AI model metadata must not be null");
@@ -100,6 +143,7 @@ public class OpenAiCompatibleChatModel implements AiChatModel {
                 + CHAT_COMPLETIONS_PATH);
         this.apiKey = requireText(apiKey, "OpenAI-compatible apiKey is required for model: " + id);
         this.configuredModel = requireText(configuredModel, "OpenAI-compatible model is required for model: " + id);
+        this.customHeaders = customHeaders == null ? Map.of() : Map.copyOf(customHeaders);
         this.timeout = timeout == null ? DEFAULT_TIMEOUT : timeout;
         this.httpClient = httpClient == null ? HttpClient.newHttpClient() : httpClient;
         this.objectMapper = objectMapper == null ? new ObjectMapper() : objectMapper;
@@ -170,13 +214,13 @@ public class OpenAiCompatibleChatModel implements AiChatModel {
     private HttpRequest buildRequest(ChatRequest request, boolean stream, String accept) {
         try {
             String body = objectMapper.writeValueAsString(toOpenAiPayload(request, stream));
-            return HttpRequest.newBuilder(endpoint)
+            HttpRequest.Builder builder = HttpRequest.newBuilder(endpoint)
                     .timeout(timeout)
                     .header("Authorization", "Bearer " + apiKey)
                     .header("Content-Type", "application/json")
-                    .header("Accept", accept)
-                    .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
-                    .build();
+                    .header("Accept", accept);
+            customHeaders.forEach(builder::setHeader);
+            return builder.POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8)).build();
         } catch (JacksonException exception) {
             throw new AiModelException("Failed to serialize AI request for model: " + id, exception);
         }
