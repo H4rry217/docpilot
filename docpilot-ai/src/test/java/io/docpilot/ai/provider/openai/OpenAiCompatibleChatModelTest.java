@@ -149,9 +149,11 @@ class OpenAiCompatibleChatModelTest {
     void sendsConfiguredCustomHeadersForChatRequest() throws IOException {
         AtomicReference<String> tenantHeader = new AtomicReference<>();
         AtomicReference<String> sourceHeader = new AtomicReference<>();
+        AtomicReference<String> hostHeader = new AtomicReference<>();
         startServer(exchange -> {
             tenantHeader.set(exchange.getRequestHeaders().getFirst("X-Provider-Tenant"));
             sourceHeader.set(exchange.getRequestHeaders().getFirst("X-Request-Source"));
+            hostHeader.set(exchange.getRequestHeaders().getFirst("Host"));
             readRequestBody(exchange);
             sendJson(exchange, 200, """
                     {"id":"chatcmpl-1","object":"chat.completion","created":1,"model":"configured-model","choices":[]}
@@ -159,13 +161,15 @@ class OpenAiCompatibleChatModelTest {
         });
         OpenAiCompatibleChatModel model = createModel(Map.of(
                 "X-Provider-Tenant", "tenant-a",
-                "X-Request-Source", "docpilot"
+                "X-Request-Source", "docpilot",
+                "Host", "tenant.example.com"
         ));
 
         model.chat(new ChatRequest());
 
         assertThat(tenantHeader.get()).isEqualTo("tenant-a");
         assertThat(sourceHeader.get()).isEqualTo("docpilot");
+        assertThat(hostHeader.get()).isEqualTo("tenant.example.com");
     }
 
     @Test
@@ -262,9 +266,11 @@ class OpenAiCompatibleChatModelTest {
     void parsesServerSentEventStream() throws IOException {
         AtomicReference<String> accept = new AtomicReference<>();
         AtomicReference<String> tenantHeader = new AtomicReference<>();
+        AtomicReference<String> hostHeader = new AtomicReference<>();
         startServer(exchange -> {
             accept.set(exchange.getRequestHeaders().getFirst("Accept"));
             tenantHeader.set(exchange.getRequestHeaders().getFirst("X-Provider-Tenant"));
+            hostHeader.set(exchange.getRequestHeaders().getFirst("Host"));
             readRequestBody(exchange);
             byte[] response = """
                     data: {"id":"chunk-1","object":"chat.completion.chunk","created":1,"model":"configured-model","system_fingerprint":"fp-stream","choices":[{"index":0,"delta":{"reasoning_content":"Thinking first."},"finish_reason":null}]}
@@ -281,7 +287,10 @@ class OpenAiCompatibleChatModelTest {
             exchange.getResponseBody().write(response);
             exchange.close();
         });
-        OpenAiCompatibleChatModel model = createModel(Map.of("X-Provider-Tenant", "tenant-a"));
+        OpenAiCompatibleChatModel model = createModel(Map.of(
+                "X-Provider-Tenant", "tenant-a",
+                "Host", "stream-tenant.example.com"
+        ));
         ChatRequest request = new ChatRequest();
         request.setMessages(List.of(new ChatMessage("user", "hello")));
 
@@ -291,6 +300,7 @@ class OpenAiCompatibleChatModelTest {
 
         assertThat(accept.get()).isEqualTo("text/event-stream");
         assertThat(tenantHeader.get()).isEqualTo("tenant-a");
+        assertThat(hostHeader.get()).isEqualTo("stream-tenant.example.com");
         assertThat(events).hasSize(3);
         assertThat(events.get(0).getType()).isEqualTo(ChatStreamEventType.REASONING_DELTA);
         assertThat(events.get(0).getSystemFingerprint()).isEqualTo("fp-stream");

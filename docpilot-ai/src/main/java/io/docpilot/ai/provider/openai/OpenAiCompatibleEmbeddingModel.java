@@ -8,12 +8,19 @@ import io.docpilot.ai.AiModelException;
 import io.docpilot.ai.AiModelMetadata;
 import io.docpilot.ai.model.EmbeddingRequest;
 import io.docpilot.ai.model.EmbeddingResponse;
+import org.apache.hc.client5.http.classic.methods.HttpPost;
+import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.io.entity.StringEntity;
+import org.apache.hc.core5.util.Timeout;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -38,7 +45,7 @@ public class OpenAiCompatibleEmbeddingModel implements AiEmbeddingModel {
     private final Integer configuredDimensions;
     private final Map<String, String> customHeaders;
     private final Duration timeout;
-    private final HttpClient httpClient;
+    private final CloseableHttpClient httpClient;
     private final ObjectMapper objectMapper;
 
     public OpenAiCompatibleEmbeddingModel(AiModelMetadata metadata,
@@ -75,40 +82,18 @@ public class OpenAiCompatibleEmbeddingModel implements AiEmbeddingModel {
                                           Duration timeout,
                                           Map<String, String> customHeaders) {
         this(metadata, baseUrl, apiKey, configuredModel, configuredDimensions, timeout,
-                customHeaders, HttpClient.newHttpClient(), new ObjectMapper());
+                customHeaders, HttpClients.createDefault(), new ObjectMapper());
     }
 
-    public OpenAiCompatibleEmbeddingModel(AiModelMetadata metadata,
-                                          String baseUrl,
-                                          String apiKey,
-                                          String configuredModel,
-                                          Duration timeout,
-                                          HttpClient httpClient,
-                                          ObjectMapper objectMapper) {
-        this(metadata, baseUrl, apiKey, configuredModel, null, timeout, httpClient, objectMapper);
-    }
-
-    public OpenAiCompatibleEmbeddingModel(AiModelMetadata metadata,
-                                          String baseUrl,
-                                          String apiKey,
-                                          String configuredModel,
-                                          Integer configuredDimensions,
-                                          Duration timeout,
-                                          HttpClient httpClient,
-                                          ObjectMapper objectMapper) {
-        this(metadata, baseUrl, apiKey, configuredModel, configuredDimensions, timeout, Map.of(),
-                httpClient, objectMapper);
-    }
-
-    public OpenAiCompatibleEmbeddingModel(AiModelMetadata metadata,
-                                          String baseUrl,
-                                          String apiKey,
-                                          String configuredModel,
-                                          Integer configuredDimensions,
-                                          Duration timeout,
-                                          Map<String, String> customHeaders,
-                                          HttpClient httpClient,
-                                          ObjectMapper objectMapper) {
+    private OpenAiCompatibleEmbeddingModel(AiModelMetadata metadata,
+                                           String baseUrl,
+                                           String apiKey,
+                                           String configuredModel,
+                                           Integer configuredDimensions,
+                                           Duration timeout,
+                                           Map<String, String> customHeaders,
+                                           CloseableHttpClient httpClient,
+                                           ObjectMapper objectMapper) {
         this.metadata = Objects.requireNonNull(metadata, "AI embedding metadata must not be null");
         this.id = metadata.id();
         this.endpoint = URI.create(trimTrailingSlash(requireText(baseUrl, "OpenAI-compatible baseUrl is required"))
@@ -118,7 +103,7 @@ public class OpenAiCompatibleEmbeddingModel implements AiEmbeddingModel {
         this.configuredDimensions = validateDimensions(configuredDimensions);
         this.customHeaders = customHeaders == null ? Map.of() : Map.copyOf(customHeaders);
         this.timeout = timeout == null ? DEFAULT_TIMEOUT : timeout;
-        this.httpClient = httpClient == null ? HttpClient.newHttpClient() : httpClient;
+        this.httpClient = httpClient == null ? HttpClients.createDefault() : httpClient;
         this.objectMapper = objectMapper == null ? new ObjectMapper() : objectMapper;
     }
 
@@ -137,22 +122,32 @@ public class OpenAiCompatibleEmbeddingModel implements AiEmbeddingModel {
         EmbeddingRequest preparedRequest = prepareRequest(request);
         try {
             String body = objectMapper.writeValueAsString(toOpenAiPayload(preparedRequest));
-            HttpRequest.Builder builder = HttpRequest.newBuilder(endpoint)
-                    .timeout(timeout)
-                    .header("Authorization", "Bearer " + apiKey)
-                    .header("Content-Type", "application/json")
-                    .header("Accept", "application/json");
-            customHeaders.forEach(builder::setHeader);
-            HttpRequest httpRequest = builder.POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8)).build();
-            HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-            ensureSuccess(response.statusCode(), response.body());
-            return toEmbeddingResponse(objectMapper.readTree(response.body()));
+            HttpPost httpRequest = buildRequest(body);
+            return httpClient.execute(httpRequest, response -> {
+                String responseBody = readResponseBody(response);
+                ensureSuccess(response.getCode(), responseBody);
+                try {
+                    return toEmbeddingResponse(objectMapper.readTree(responseBody));
+                } catch (JacksonException exception) {
+                    throw new AiModelException("Failed to parse embedding response for model: " + id, exception);
+                }
+            });
         } catch (IOException | JacksonException exception) {
             throw new AiModelException("Failed to call embedding model: " + id, exception);
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            throw new AiModelException("Embedding model call was interrupted: " + id, exception);
         }
+    }
+
+    private HttpPost buildRequest(String body) {
+        HttpPost httpRequest = new HttpPost(endpoint);
+        httpRequest.setConfig(RequestConfig.custom()
+                .setResponseTimeout(Timeout.ofMilliseconds(timeout.toMillis()))
+                .build());
+        httpRequest.setHeader("Authorization", "Bearer " + apiKey);
+        httpRequest.setHeader("Content-Type", "application/json");
+        httpRequest.setHeader("Accept", "application/json");
+        customHeaders.forEach(httpRequest::setHeader);
+        httpRequest.setEntity(new StringEntity(body, ContentType.APPLICATION_JSON.withCharset(StandardCharsets.UTF_8)));
+        return httpRequest;
     }
 
     private EmbeddingRequest prepareRequest(EmbeddingRequest request) {
@@ -216,6 +211,17 @@ public class OpenAiCompatibleEmbeddingModel implements AiEmbeddingModel {
     private void ensureSuccess(int statusCode, String body) {
         if (statusCode < 200 || statusCode >= 300) {
             throw new AiModelException("Embedding model call failed with HTTP " + statusCode + ": " + body);
+        }
+    }
+
+    private String readResponseBody(ClassicHttpResponse response) throws IOException {
+        HttpEntity entity = response.getEntity();
+        return entity == null ? "" : readAll(entity.getContent());
+    }
+
+    private String readAll(InputStream inputStream) throws IOException {
+        try (inputStream) {
+            return new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
         }
     }
 

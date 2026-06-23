@@ -99,8 +99,10 @@ class OpenAiCompatibleEmbeddingModelTest {
     @Test
     void sendsConfiguredCustomHeadersForEmbeddingRequest() throws IOException {
         AtomicReference<String> tenantHeader = new AtomicReference<>();
+        AtomicReference<String> hostHeader = new AtomicReference<>();
         startServer(exchange -> {
             tenantHeader.set(exchange.getRequestHeaders().getFirst("X-Provider-Tenant"));
+            hostHeader.set(exchange.getRequestHeaders().getFirst("Host"));
             readRequestBody(exchange);
             sendJson(exchange, 200, """
                     {"object":"list","model":"embedding-model","data":[]}
@@ -113,12 +115,16 @@ class OpenAiCompatibleEmbeddingModelTest {
                 "embedding-model",
                 1024,
                 Duration.ofSeconds(5),
-                Map.of("X-Provider-Tenant", "tenant-a")
+                Map.of(
+                        "X-Provider-Tenant", "tenant-a",
+                        "Host", "embedding-tenant.example.com"
+                )
         );
 
         model.embed(new EmbeddingRequest());
 
         assertThat(tenantHeader.get()).isEqualTo("tenant-a");
+        assertThat(hostHeader.get()).isEqualTo("embedding-tenant.example.com");
     }
 
     @Test

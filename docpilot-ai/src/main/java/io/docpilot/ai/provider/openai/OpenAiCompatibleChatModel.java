@@ -16,6 +16,16 @@ import io.docpilot.ai.model.ChatStreamEvent;
 import io.docpilot.ai.model.ChatStreamEventType;
 import io.docpilot.ai.model.ChatUsage;
 import io.docpilot.ai.model.JsonSchemaResponseFormat;
+import org.apache.hc.client5.http.classic.methods.HttpPost;
+import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.client5.http.protocol.HttpClientContext;
+import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.io.entity.StringEntity;
+import org.apache.hc.core5.util.Timeout;
 import reactor.core.publisher.Flux;
 import reactor.core.scheduler.Schedulers;
 
@@ -24,9 +34,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -53,7 +60,7 @@ public class OpenAiCompatibleChatModel implements AiChatModel {
     private final String configuredModel;
     private final Map<String, String> customHeaders;
     private final Duration timeout;
-    private final HttpClient httpClient;
+    private final CloseableHttpClient httpClient;
     private final ObjectMapper objectMapper;
 
     /**
@@ -91,52 +98,17 @@ public class OpenAiCompatibleChatModel implements AiChatModel {
                                      Duration timeout,
                                      Map<String, String> customHeaders) {
         this(metadata, baseUrl, apiKey, configuredModel, timeout, customHeaders,
-                HttpClient.newHttpClient(), new ObjectMapper());
+                HttpClients.createDefault(), new ObjectMapper());
     }
 
-    /**
-     * Creates an adapter with injectable transport dependencies for tests and custom runtimes.
-     */
-    public OpenAiCompatibleChatModel(String id,
-                                     String baseUrl,
-                                     String apiKey,
-                                     String configuredModel,
-                                     Duration timeout,
-                                     HttpClient httpClient,
-                                     ObjectMapper objectMapper) {
-        this(defaultMetadata(id, configuredModel), baseUrl, apiKey, configuredModel, timeout, httpClient, objectMapper);
-    }
-
-    public OpenAiCompatibleChatModel(String id,
-                                     String baseUrl,
-                                     String apiKey,
-                                     String configuredModel,
-                                     Duration timeout,
-                                     Map<String, String> customHeaders,
-                                     HttpClient httpClient,
-                                     ObjectMapper objectMapper) {
-        this(defaultMetadata(id, configuredModel), baseUrl, apiKey, configuredModel, timeout,
-                customHeaders, httpClient, objectMapper);
-    }
-
-    public OpenAiCompatibleChatModel(AiModelMetadata metadata,
-                                     String baseUrl,
-                                     String apiKey,
-                                     String configuredModel,
-                                     Duration timeout,
-                                     HttpClient httpClient,
-                                     ObjectMapper objectMapper) {
-        this(metadata, baseUrl, apiKey, configuredModel, timeout, Map.of(), httpClient, objectMapper);
-    }
-
-    public OpenAiCompatibleChatModel(AiModelMetadata metadata,
-                                     String baseUrl,
-                                     String apiKey,
-                                     String configuredModel,
-                                     Duration timeout,
-                                     Map<String, String> customHeaders,
-                                     HttpClient httpClient,
-                                     ObjectMapper objectMapper) {
+    private OpenAiCompatibleChatModel(AiModelMetadata metadata,
+                                      String baseUrl,
+                                      String apiKey,
+                                      String configuredModel,
+                                      Duration timeout,
+                                      Map<String, String> customHeaders,
+                                      CloseableHttpClient httpClient,
+                                      ObjectMapper objectMapper) {
         this.metadata = Objects.requireNonNull(metadata, "AI model metadata must not be null");
         this.id = metadata.id();
         this.endpoint = URI.create(trimTrailingSlash(requireText(baseUrl, "OpenAI-compatible baseUrl is required"))
@@ -145,7 +117,7 @@ public class OpenAiCompatibleChatModel implements AiChatModel {
         this.configuredModel = requireText(configuredModel, "OpenAI-compatible model is required for model: " + id);
         this.customHeaders = customHeaders == null ? Map.of() : Map.copyOf(customHeaders);
         this.timeout = timeout == null ? DEFAULT_TIMEOUT : timeout;
-        this.httpClient = httpClient == null ? HttpClient.newHttpClient() : httpClient;
+        this.httpClient = httpClient == null ? HttpClients.createDefault() : httpClient;
         this.objectMapper = objectMapper == null ? new ObjectMapper() : objectMapper;
     }
 
@@ -162,16 +134,19 @@ public class OpenAiCompatibleChatModel implements AiChatModel {
     @Override
     public ChatResponse chat(ChatRequest request) {
         ChatRequest preparedRequest = prepareRequest(request);
-        HttpRequest httpRequest = buildRequest(preparedRequest, false, "application/json");
+        HttpPost httpRequest = buildRequest(preparedRequest, false, "application/json");
         try {
-            HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-            ensureSuccess(response.statusCode(), response.body());
-            return toChatResponse(readOpenAiResponse(response.body()));
-        } catch (IOException | JacksonException exception) {
+            return httpClient.execute(httpRequest, response -> {
+                String body = readResponseBody(response);
+                ensureSuccess(response.getCode(), body);
+                try {
+                    return toChatResponse(readOpenAiResponse(body));
+                } catch (JacksonException exception) {
+                    throw new AiModelException("Failed to parse AI response for model: " + id, exception);
+                }
+            });
+        } catch (IOException exception) {
             throw new AiModelException("Failed to call AI model: " + id, exception);
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            throw new AiModelException("AI model call was interrupted: " + id, exception);
         }
     }
 
@@ -179,20 +154,25 @@ public class OpenAiCompatibleChatModel implements AiChatModel {
     public Flux<ChatStreamEvent> stream(ChatRequest request) {
         return Flux.defer(() -> {
             ChatRequest preparedRequest = prepareRequest(request);
-            HttpRequest httpRequest = buildRequest(preparedRequest, true, "text/event-stream");
+            HttpPost httpRequest = buildRequest(preparedRequest, true, "text/event-stream");
             try {
-                HttpResponse<InputStream> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofInputStream());
-                if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                    String body = readAll(response.body());
+                ClassicHttpResponse response = httpClient.executeOpen(null, httpRequest, HttpClientContext.create());
+                if (response.getCode() < 200 || response.getCode() >= 300) {
+                    String body = readResponseBody(response);
+                    closeQuietly(response);
                     return Flux.error(new AiModelException("AI model stream failed with HTTP "
-                            + response.statusCode() + ": " + body));
+                            + response.getCode() + ": " + body));
                 }
-                return decodeServerSentEvents(response.body()).flatMapIterable(this::toStreamEvents);
+                HttpEntity entity = response.getEntity();
+                if (entity == null) {
+                    closeQuietly(response);
+                    return Flux.error(new AiModelException("AI model stream failed with empty response body: " + id));
+                }
+                return decodeServerSentEvents(entity.getContent())
+                        .flatMapIterable(this::toStreamEvents)
+                        .doFinally(signalType -> closeQuietly(response));
             } catch (IOException exception) {
                 return Flux.error(new AiModelException("Failed to stream AI model: " + id, exception));
-            } catch (InterruptedException exception) {
-                Thread.currentThread().interrupt();
-                return Flux.error(new AiModelException("AI model stream was interrupted: " + id, exception));
             }
         }).subscribeOn(Schedulers.boundedElastic());
     }
@@ -211,16 +191,19 @@ public class OpenAiCompatibleChatModel implements AiChatModel {
     /**
      * Builds the OpenAI-compatible HTTP request body and headers.
      */
-    private HttpRequest buildRequest(ChatRequest request, boolean stream, String accept) {
+    private HttpPost buildRequest(ChatRequest request, boolean stream, String accept) {
         try {
             String body = objectMapper.writeValueAsString(toOpenAiPayload(request, stream));
-            HttpRequest.Builder builder = HttpRequest.newBuilder(endpoint)
-                    .timeout(timeout)
-                    .header("Authorization", "Bearer " + apiKey)
-                    .header("Content-Type", "application/json")
-                    .header("Accept", accept);
-            customHeaders.forEach(builder::setHeader);
-            return builder.POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8)).build();
+            HttpPost httpRequest = new HttpPost(endpoint);
+            httpRequest.setConfig(RequestConfig.custom()
+                    .setResponseTimeout(Timeout.ofMilliseconds(timeout.toMillis()))
+                    .build());
+            httpRequest.setHeader("Authorization", "Bearer " + apiKey);
+            httpRequest.setHeader("Content-Type", "application/json");
+            httpRequest.setHeader("Accept", accept);
+            customHeaders.forEach(httpRequest::setHeader);
+            httpRequest.setEntity(new StringEntity(body, ContentType.APPLICATION_JSON.withCharset(StandardCharsets.UTF_8)));
+            return httpRequest;
         } catch (JacksonException exception) {
             throw new AiModelException("Failed to serialize AI request for model: " + id, exception);
         }
@@ -569,9 +552,21 @@ public class OpenAiCompatibleChatModel implements AiChatModel {
         }
     }
 
+    private String readResponseBody(ClassicHttpResponse response) throws IOException {
+        HttpEntity entity = response.getEntity();
+        return entity == null ? "" : readAll(entity.getContent());
+    }
+
     private String readAll(InputStream inputStream) throws IOException {
         try (inputStream) {
             return new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+        }
+    }
+
+    private void closeQuietly(ClassicHttpResponse response) {
+        try {
+            response.close();
+        } catch (IOException ignored) {
         }
     }
 
