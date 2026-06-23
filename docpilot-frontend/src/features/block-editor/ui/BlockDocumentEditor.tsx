@@ -14,7 +14,9 @@ import { blockDocumentToProseMirrorJson } from '../model/blockDocumentToProseMir
 import { editorExtensions } from '../model/extensions'
 import { proseMirrorJsonToBlockDocument } from '../model/proseMirrorToBlockDocument'
 import './BlockDocumentEditor.css'
+import { BlockAffordanceOverlay } from './BlockAffordanceOverlay'
 import { TableDividerControls, TableHoverIndicators } from './TableAffordanceOverlay'
+import { useBlockAffordances } from './useBlockAffordances'
 import { useBlockMarqueeSelection } from './useBlockMarqueeSelection'
 import {
   useInlineCompletion,
@@ -139,6 +141,11 @@ export const BlockDocumentEditor = forwardRef<BlockDocumentEditorHandle, BlockDo
       clearBlockSelection,
       isBlockSelectionDragging
     } = useBlockMarqueeSelection({ editor, marqueeRef, surfaceRef })
+    const {
+      affordance: blockAffordance,
+      menuOpen: blockAffordanceMenuOpen,
+      setMenuOpen: setBlockAffordanceMenuOpen
+    } = useBlockAffordances({ editor, surfaceRef })
 
     const surfaceClassName = [
       'block-editor-surface',
@@ -222,6 +229,14 @@ export const BlockDocumentEditor = forwardRef<BlockDocumentEditorHandle, BlockDo
         onWheelCapture={handleTableWheel}
       >
         <EditorContent editor={editor} className="editor-content" />
+        {editor ? (
+          <BlockAffordanceOverlay
+            affordance={blockAffordance}
+            editor={editor}
+            menuOpen={blockAffordanceMenuOpen}
+            onMenuOpenChange={setBlockAffordanceMenuOpen}
+          />
+        ) : null}
         {editor && tableHoverIndicator ? (
           <TableHoverIndicators
             editor={editor}

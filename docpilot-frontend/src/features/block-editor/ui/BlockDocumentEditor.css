@@ -39,6 +39,18 @@
   --docpilot-inline-completion-menu-width: 300px;
   --docpilot-block-marquee-border-color: #3b82f6;
   --docpilot-block-marquee-fill: rgb(59 130 246 / 8%);
+  --docpilot-block-affordance-border-color: #dce3ec;
+  --docpilot-block-affordance-bg: #fff;
+  --docpilot-block-affordance-color: #5f6f83;
+  --docpilot-block-affordance-hover-bg: #edf4ff;
+  --docpilot-block-affordance-hover-color: #245bdb;
+  --docpilot-block-affordance-active-bg: #e7efff;
+  --docpilot-block-affordance-active-color: #245bdb;
+  --docpilot-block-affordance-highlight-bg: var(--docpilot-selection-fill);
+  --docpilot-block-affordance-highlight-block-outset: 4px;
+  --docpilot-block-affordance-shadow: 0 6px 16px rgb(15 23 42 / 10%);
+  --docpilot-block-affordance-menu-title-color: #253044;
+  --docpilot-block-affordance-menu-subtle-color: #6b7b90;
 
   position: relative;
   width: 100%;
@@ -48,6 +60,7 @@
 }
 
 .editor-content {
+  position: relative;
   width: min(760px, 100%);
   min-height: calc(100vh - 188px);
   margin: 0 auto;
@@ -272,6 +285,156 @@
   color: inherit;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.block-affordance-layer {
+  position: absolute;
+  z-index: 34;
+  display: inline-flex;
+  pointer-events: auto;
+  user-select: none;
+}
+
+.block-affordance-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  border: 1px solid var(--docpilot-block-affordance-border-color);
+  border-radius: 6px;
+  background: var(--docpilot-block-affordance-bg);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 5%);
+  color: var(--docpilot-block-affordance-color);
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+  opacity: 0;
+  padding: 0;
+  transition:
+    background-color 100ms ease,
+    border-color 100ms ease,
+    color 100ms ease,
+    opacity 100ms ease,
+    box-shadow 100ms ease;
+  animation: block-affordance-reveal 100ms ease forwards;
+}
+
+.block-affordance-trigger.is-insert-trigger {
+  width: 28px;
+}
+
+.block-affordance-trigger.is-context-trigger {
+  width: 52px;
+  justify-content: stretch;
+  overflow: hidden;
+}
+
+.block-affordance-trigger:hover,
+.block-affordance-trigger:focus-visible,
+.block-affordance-trigger.is-open {
+  border-color: #c6d6ee;
+  background: var(--docpilot-block-affordance-hover-bg);
+  box-shadow: var(--docpilot-block-affordance-shadow);
+  color: var(--docpilot-block-affordance-hover-color);
+  outline: none;
+}
+
+.block-affordance-trigger > svg {
+  flex: 0 0 28px;
+}
+
+.block-affordance-grip {
+  display: inline-flex;
+  width: 22px;
+  height: 100%;
+  flex: 0 0 22px;
+  align-items: center;
+  justify-content: center;
+  border-left: 1px solid var(--docpilot-block-affordance-border-color);
+  color: color-mix(in srgb, var(--docpilot-block-affordance-color) 72%, transparent);
+}
+
+.block-affordance-trigger:hover .block-affordance-grip,
+.block-affordance-trigger:focus-visible .block-affordance-grip,
+.block-affordance-trigger.is-open .block-affordance-grip {
+  border-left-color: #c6d6ee;
+  color: inherit;
+}
+
+.block-affordance-menu {
+  width: 246px;
+  max-height: min(520px, calc(100vh - 24px));
+  border-radius: 8px;
+}
+
+.block-affordance-menu-title {
+  min-width: 0;
+  overflow: hidden;
+  padding: 6px 8px 5px;
+  color: var(--docpilot-block-affordance-menu-title-color);
+  font-size: 12px;
+  font-weight: 760;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.block-affordance-format-strip {
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  gap: 2px;
+  padding: 2px 4px 5px;
+}
+
+.block-affordance-format-button {
+  display: inline-flex;
+  height: 26px;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--docpilot-block-affordance-color);
+  cursor: pointer;
+  padding: 0;
+  transition:
+    background-color 80ms ease,
+    color 80ms ease;
+}
+
+.block-affordance-format-button:hover,
+.block-affordance-format-button:focus-visible,
+.block-affordance-format-button.is-active {
+  background: var(--docpilot-block-affordance-active-bg);
+  color: var(--docpilot-block-affordance-active-color);
+  outline: none;
+}
+
+.block-affordance-menu-item {
+  min-height: 30px;
+}
+
+.block-affordance-menu-item.is-active {
+  background: var(--docpilot-block-affordance-active-bg);
+  color: var(--docpilot-block-affordance-active-color);
+}
+
+.block-affordance-menu-item span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@keyframes block-affordance-reveal {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 .prose-editor h1,
@@ -901,6 +1064,46 @@
 
 .block-selection-marquee[hidden] {
   display: none;
+}
+
+.prose-editor [data-block-id].docpilot-block-affordance-highlighted {
+  position: relative;
+  z-index: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.prose-editor [data-block-id].docpilot-block-affordance-highlighted::before {
+  content: '';
+  position: absolute;
+  top: calc(var(--docpilot-affordance-highlight-top, 0px) - var(--docpilot-block-affordance-highlight-block-outset));
+  bottom: calc(0px - var(--docpilot-block-affordance-highlight-block-outset));
+  left: calc(var(--docpilot-affordance-highlight-left, 0px) - var(--docpilot-selection-inline-outset));
+  z-index: -1;
+  height: var(--docpilot-affordance-highlight-height, auto);
+  width: calc(
+    var(--docpilot-affordance-highlight-width, 100%)
+    + var(--docpilot-selection-inline-outset)
+    + var(--docpilot-selection-inline-outset)
+  );
+  border-radius: 7px;
+  animation: block-affordance-reveal 100ms ease forwards;
+  background: var(--docpilot-block-affordance-highlight-bg);
+  pointer-events: none;
+}
+
+.prose-editor [data-block-id].docpilot-block-affordance-highlighted-fixed-height::before {
+  bottom: auto;
+  height: calc(
+    var(--docpilot-affordance-highlight-height, 0px)
+    + var(--docpilot-block-affordance-highlight-block-outset)
+    + var(--docpilot-block-affordance-highlight-block-outset)
+  );
+}
+
+.prose-editor li[data-block-id].docpilot-block-affordance-highlighted::before {
+  top: calc(0px - var(--docpilot-block-affordance-highlight-block-outset));
+  bottom: calc(0px - var(--docpilot-block-affordance-highlight-block-outset));
 }
 
 .prose-editor [data-block-id].docpilot-block-selected {

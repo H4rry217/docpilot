@@ -4,6 +4,7 @@ import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
 import TableRow from '@tiptap/extension-table-row'
 import StarterKit from '@tiptap/starter-kit'
+import { DocpilotBlockAffordanceHighlight } from './blockAffordanceHighlight'
 import { DocpilotBlockSelection } from './blockSelection'
 import { DocpilotBlockIdentity } from './docpilotBlockIdentity'
 import { DocpilotCodeBlock } from './docpilotCodeBlock'
@@ -48,6 +49,7 @@ export const editorExtensions = [
   DocpilotTableCellSelection,
   DocpilotBlockIdentity,
   DocpilotBlockSelection,
+  DocpilotBlockAffordanceHighlight,
   DocpilotInlineCompletion,
   DocpilotFootnoteNavigation,
   DocpilotCodeBlock,
