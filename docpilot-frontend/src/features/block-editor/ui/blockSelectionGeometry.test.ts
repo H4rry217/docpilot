@@ -109,6 +109,72 @@ describe('block selection geometry', () => {
     })).toBe('ignore')
   })
 
+  it('starts marquee selection from a code block shell inside editor content', () => {
+    const boundary = document.createElement('div')
+    const editorContent = document.createElement('div')
+    const codeBlock = document.createElement('div')
+    const frame = document.createElement('div')
+    editorContent.className = 'editor-content'
+    codeBlock.className = 'code-block-node'
+    frame.className = 'code-block-frame'
+    codeBlock.append(frame)
+    editorContent.append(codeBlock)
+    boundary.append(editorContent)
+
+    expect(blockMarqueeStartModeForTarget({
+      boundaryElement: boundary,
+      button: 0,
+      target: frame
+    })).toBe('block-with-marquee')
+  })
+
+  it('keeps code editor and code block controls out of marquee starts', () => {
+    const boundary = document.createElement('div')
+    const editorContent = document.createElement('div')
+    const codeBlock = document.createElement('div')
+    const codeEditor = document.createElement('div')
+    const cmEditor = document.createElement('div')
+    const cmGutters = document.createElement('div')
+    const cmContent = document.createElement('div')
+    const cmLine = document.createElement('div')
+    const control = document.createElement('button')
+    editorContent.className = 'editor-content'
+    codeBlock.className = 'code-block-node'
+    codeEditor.className = 'code-block-editor'
+    cmEditor.className = 'cm-editor'
+    cmGutters.className = 'cm-gutters'
+    cmContent.className = 'cm-content'
+    cmLine.className = 'cm-line'
+    control.className = 'code-block-control'
+    cmContent.append(cmLine)
+    cmEditor.append(cmGutters, cmContent)
+    codeEditor.append(cmEditor)
+    codeBlock.append(codeEditor, control)
+    editorContent.append(codeBlock)
+    boundary.append(editorContent)
+
+    expect(blockMarqueeStartModeForTarget({
+      boundaryElement: boundary,
+      button: 0,
+      target: cmGutters
+    })).toBe('block-with-marquee')
+    expect(blockMarqueeStartModeForTarget({
+      boundaryElement: boundary,
+      button: 0,
+      target: cmEditor
+    })).toBe('ignore')
+    expect(blockMarqueeStartModeForTarget({
+      boundaryElement: boundary,
+      button: 0,
+      target: cmLine
+    })).toBe('ignore')
+    expect(blockMarqueeStartModeForTarget({
+      boundaryElement: boundary,
+      button: 0,
+      target: control
+    })).toBe('ignore')
+  })
+
   it('uses a visible marquee when dragging inside the selection boundary outside editor content', () => {
     const boundary = document.createElement('div')
     const gutter = document.createElement('div')

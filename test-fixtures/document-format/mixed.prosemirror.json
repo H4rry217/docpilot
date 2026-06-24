@@ -54,11 +54,12 @@
           "text": " with "
         },
         {
-          "type": "docpilotMathInline",
+          "type": "inlineMath",
           "attrs": {
             "text": "x+1",
             "notation": "latex",
-            "delimiter": "$"
+            "delimiter": "$",
+            "latex": "x+1"
           }
         },
         {
@@ -215,12 +216,13 @@
       ]
     },
     {
-      "type": "docpilotMathBlock",
+      "type": "blockMath",
       "attrs": {
         "notation": "latex",
         "text": "x^2",
         "delimiter": "$$",
-        "blockId": "math1"
+        "blockId": "math1",
+        "latex": "x^2"
       }
     },
     {

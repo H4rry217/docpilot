@@ -51,6 +51,7 @@
   --docpilot-block-affordance-shadow: 0 6px 16px rgb(15 23 42 / 10%);
   --docpilot-block-affordance-menu-title-color: #253044;
   --docpilot-block-affordance-menu-subtle-color: #6b7b90;
+  --docpilot-placeholder-color: #aeb8c5;
 
   position: relative;
   width: 100%;
@@ -81,6 +82,16 @@
 .prose-editor ::selection {
   background: var(--docpilot-selection-fill);
   color: inherit;
+}
+
+.prose-editor.ProseMirror-focused .docpilot-empty-textblock::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: var(--docpilot-placeholder-color);
+  font-weight: inherit;
+  pointer-events: none;
+  white-space: nowrap;
 }
 
 .block-editor-surface.is-debug-mode .prose-editor {
@@ -287,14 +298,31 @@
   white-space: nowrap;
 }
 
-.block-affordance-layer {
-  position: absolute;
+.block-affordance-drag-handle {
   z-index: 34;
+}
+
+.block-affordance-layer {
+  position: relative;
   display: inline-flex;
+  width: 100%;
+  height: 100%;
   pointer-events: auto;
   user-select: none;
 }
 
+.block-affordance-layer::after {
+  content: '';
+  position: absolute;
+  top: -8px;
+  right: -14px;
+  bottom: -8px;
+  width: 14px;
+  background: transparent;
+  pointer-events: auto;
+}
+
+.block-affordance-context-control,
 .block-affordance-trigger {
   display: inline-flex;
   align-items: center;
@@ -319,16 +347,29 @@
   animation: block-affordance-reveal 100ms ease forwards;
 }
 
-.block-affordance-trigger.is-insert-trigger {
-  width: 28px;
-}
-
-.block-affordance-trigger.is-context-trigger {
+.block-affordance-context-control {
   width: 52px;
   justify-content: stretch;
   overflow: hidden;
 }
 
+.block-affordance-trigger.is-insert-trigger {
+  width: 28px;
+}
+
+.block-affordance-trigger.is-context-trigger {
+  width: 29px;
+  flex: 0 0 29px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.block-affordance-context-control:hover,
+.block-affordance-context-control:focus-within,
+.block-affordance-context-control.is-open,
 .block-affordance-trigger:hover,
 .block-affordance-trigger:focus-visible,
 .block-affordance-trigger.is-open {
@@ -339,21 +380,38 @@
   outline: none;
 }
 
-.block-affordance-trigger > svg {
-  flex: 0 0 28px;
+.block-affordance-trigger.is-context-trigger:hover,
+.block-affordance-trigger.is-context-trigger:focus-visible,
+.block-affordance-trigger.is-context-trigger.is-open {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.block-affordance-trigger > svg,
+.block-affordance-trigger.is-context-trigger > svg {
+  flex: 0 0 auto;
 }
 
 .block-affordance-grip {
   display: inline-flex;
-  width: 22px;
+  width: 23px;
   height: 100%;
-  flex: 0 0 22px;
+  flex: 0 0 23px;
   align-items: center;
   justify-content: center;
   border-left: 1px solid var(--docpilot-block-affordance-border-color);
   color: color-mix(in srgb, var(--docpilot-block-affordance-color) 72%, transparent);
+  cursor: grab;
 }
 
+.block-affordance-drag-handle[data-dragging="true"] .block-affordance-grip {
+  cursor: grabbing;
+}
+
+.block-affordance-context-control:hover .block-affordance-grip,
+.block-affordance-context-control:focus-within .block-affordance-grip,
+.block-affordance-context-control.is-open .block-affordance-grip,
 .block-affordance-trigger:hover .block-affordance-grip,
 .block-affordance-trigger:focus-visible .block-affordance-grip,
 .block-affordance-trigger.is-open .block-affordance-grip {
@@ -365,6 +423,15 @@
   width: 246px;
   max-height: min(520px, calc(100vh - 24px));
   border-radius: 8px;
+  --tw-enter-scale: 1;
+  --tw-enter-translate-x: 0;
+  --tw-enter-translate-y: 0;
+  --tw-exit-scale: 1;
+  --tw-exit-translate-x: 0;
+  --tw-exit-translate-y: 0;
+  animation-duration: 120ms;
+  animation-timing-function: ease-out;
+  will-change: opacity;
 }
 
 .block-affordance-menu-title {
@@ -399,25 +466,56 @@
   cursor: pointer;
   padding: 0;
   transition:
-    background-color 80ms ease,
-    color 80ms ease;
+    background-color 100ms ease,
+    color 100ms ease,
+    box-shadow 100ms ease;
+}
+
+.block-affordance-format-button > svg {
+  color: currentColor;
+  transition: transform 100ms ease;
 }
 
 .block-affordance-format-button:hover,
-.block-affordance-format-button:focus-visible,
+.block-affordance-format-button:focus-visible {
+  background: var(--docpilot-block-affordance-hover-bg);
+  box-shadow: inset 0 0 0 1px rgb(36 91 219 / 18%);
+  color: var(--docpilot-block-affordance-hover-color);
+  outline: none;
+}
+
+.block-affordance-format-button:hover > svg,
+.block-affordance-format-button:focus-visible > svg {
+  transform: translateY(-0.5px);
+}
+
 .block-affordance-format-button.is-active {
-  background: var(--docpilot-block-affordance-active-bg);
+  background: #dce8ff;
+  box-shadow: inset 0 0 0 1px rgb(36 91 219 / 24%);
   color: var(--docpilot-block-affordance-active-color);
   outline: none;
 }
 
 .block-affordance-menu-item {
+  cursor: pointer;
   min-height: 30px;
 }
 
-.block-affordance-menu-item.is-active {
-  background: var(--docpilot-block-affordance-active-bg);
+.block-affordance-menu [data-slot="dropdown-menu-item"].block-affordance-menu-item:hover,
+.block-affordance-menu [data-slot="dropdown-menu-item"].block-affordance-menu-item:focus,
+.block-affordance-menu [data-slot="dropdown-menu-item"].block-affordance-menu-item:focus-visible,
+.block-affordance-menu [data-slot="dropdown-menu-item"].block-affordance-menu-item[data-highlighted] {
+  background-color: var(--docpilot-block-affordance-hover-bg);
+  box-shadow: inset 0 0 0 1px rgb(36 91 219 / 14%);
   color: var(--docpilot-block-affordance-active-color);
+  outline: none;
+}
+
+.block-affordance-menu [data-slot="dropdown-menu-item"].block-affordance-menu-item:hover svg,
+.block-affordance-menu [data-slot="dropdown-menu-item"].block-affordance-menu-item:focus svg,
+.block-affordance-menu [data-slot="dropdown-menu-item"].block-affordance-menu-item:focus-visible svg,
+.block-affordance-menu [data-slot="dropdown-menu-item"].block-affordance-menu-item[data-highlighted] svg {
+  color: currentColor;
 }
 
 .block-affordance-menu-item span {
@@ -1099,11 +1197,6 @@
     + var(--docpilot-block-affordance-highlight-block-outset)
     + var(--docpilot-block-affordance-highlight-block-outset)
   );
-}
-
-.prose-editor li[data-block-id].docpilot-block-affordance-highlighted::before {
-  top: calc(0px - var(--docpilot-block-affordance-highlight-block-outset));
-  bottom: calc(0px - var(--docpilot-block-affordance-highlight-block-outset));
 }
 
 .prose-editor [data-block-id].docpilot-block-selected {

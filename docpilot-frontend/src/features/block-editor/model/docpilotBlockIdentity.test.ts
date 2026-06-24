@@ -59,4 +59,31 @@ describe('DocpilotBlockIdentity', () => {
     expect(saveDocument.blocks[1].id).toBe('')
     editor.destroy()
   })
+
+  it('replaces duplicated canonical block ids with transient DOM identities', () => {
+    const editor = new Editor({
+      extensions: editorExtensions,
+      content: '<p data-block-id="existing">Existing</p>'
+    })
+
+    editor.commands.insertContentAt(editor.state.doc.content.size, '<p data-block-id="existing">Duplicate</p>')
+
+    const ids = identityIds(editor)
+    expect(ids).toHaveLength(2)
+    expect(ids[0]).toBe('existing')
+    expect(ids[1]).toMatch(new RegExp(`^${TRANSIENT_BLOCK_ID_PREFIX}`))
+    expect(new Set(ids).size).toBe(ids.length)
+
+    const domIds = Array.from(editor.view.dom.querySelectorAll<HTMLElement>('[data-block-id]'))
+      .map((element) => element.getAttribute('data-block-id') ?? '')
+      .filter(Boolean)
+    expect(new Set(domIds).size).toBe(domIds.length)
+    expect(domIds).toContain('existing')
+    expect(domIds.some((id) => id.startsWith(TRANSIENT_BLOCK_ID_PREFIX))).toBe(true)
+
+    const duplicateNode = editor.getJSON().content?.[1]
+    expect(duplicateNode?.attrs?.blockId).toBe('')
+    expect(duplicateNode?.attrs?.transientBlockId).toMatch(new RegExp(`^${TRANSIENT_BLOCK_ID_PREFIX}`))
+    editor.destroy()
+  })
 })

@@ -322,7 +322,7 @@ export function useBlockMarqueeSelection({
         pointerEvent.preventDefault()
         suppressNextClickRef.current = true
         applyDragSelection({ x: pointerEvent.clientX, y: pointerEvent.clientY })
-        dragEditor.commands.focus()
+        dragEditor.commands.focus(undefined, { scrollIntoView: false })
       }
       dragSelectionRef.current = null
       setMarqueeVisible(false)

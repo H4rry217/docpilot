@@ -31,11 +31,22 @@
   box-shadow: 0 14px 30px rgb(31 41 55 / 10%);
 }
 
+.node-codeBlock.docpilot-block-selected .code-block-frame,
 .code-block-node.docpilot-block-selected .code-block-frame {
-  border-color: #c4d2e4;
-  background: #fff;
-  outline-color: transparent;
-  box-shadow: none;
+  border-color: var(--docpilot-selection-outline-color, rgb(59 130 246 / 70%));
+  background: color-mix(in srgb, var(--docpilot-selection-fill, #d5e1fa) 34%, #fff);
+  outline-color: var(--docpilot-selection-ring-color, rgb(59 130 246 / 68%));
+  box-shadow: var(--docpilot-selection-shadow, 0 8px 22px rgb(59 130 246 / 12%));
+}
+
+.node-codeBlock.docpilot-block-selected .code-block-header,
+.code-block-node.docpilot-block-selected .code-block-header {
+  background: color-mix(in srgb, var(--docpilot-selection-fill, #d5e1fa) 42%, #fafbfc);
+}
+
+.node-codeBlock.docpilot-block-selected .code-block-editor,
+.code-block-node.docpilot-block-selected .code-block-editor {
+  background: color-mix(in srgb, var(--docpilot-selection-fill, #d5e1fa) 28%, #f6f7f9);
 }
 
 .code-block-header {

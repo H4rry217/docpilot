@@ -54,23 +54,29 @@ type BlockRange = {
   to: number
 }
 
-const EMPTY_PARAGRAPH: JSONContent = {
-  type: 'paragraph'
+function emptyParagraphContent(): JSONContent {
+  return {
+    type: 'paragraph'
+  }
 }
 
-const EMPTY_LIST_ITEM: JSONContent = {
-  type: 'listItem',
-  content: [EMPTY_PARAGRAPH]
+function emptyListItemContent(): JSONContent {
+  return {
+    type: 'listItem',
+    content: [emptyParagraphContent()]
+  }
 }
 
-const TASK_LIST_ITEM: JSONContent = {
-  type: 'listItem',
-  content: [
-    {
-      type: 'paragraph',
-      content: [{ type: 'text', text: '[ ] ' }]
-    }
-  ]
+function taskListItemContent(): JSONContent {
+  return {
+    type: 'listItem',
+    content: [
+      {
+        type: 'paragraph',
+        content: [{ type: 'text', text: '[ ] ' }]
+      }
+    ]
+  }
 }
 
 export const FORMAT_STRIP_ITEMS: BlockMenuItem[] = [
@@ -86,25 +92,25 @@ export const FORMAT_STRIP_ITEMS: BlockMenuItem[] = [
 ]
 
 export const INSERT_MENU_ITEMS: BlockMenuItem[] = [
-  transformItem('insert-paragraph', 'blockMenu.paragraph', Pilcrow, (context) => replaceCurrentBlock(context, EMPTY_PARAGRAPH)),
+  transformItem('insert-paragraph', 'blockMenu.paragraph', Pilcrow, (context) => replaceCurrentBlock(context, emptyParagraphContent())),
   transformItem('insert-heading-1', 'blockMenu.heading1', Heading1, (context) => replaceCurrentBlock(context, headingContent(1))),
   transformItem('insert-heading-2', 'blockMenu.heading2', Heading2, (context) => replaceCurrentBlock(context, headingContent(2))),
   transformItem('insert-heading-3', 'blockMenu.heading3', Heading3, (context) => replaceCurrentBlock(context, headingContent(3))),
   transformItem('insert-bullet-list', 'blockMenu.bulletList', List, (context) => replaceCurrentBlock(context, {
     type: 'bulletList',
-    content: [EMPTY_LIST_ITEM]
+    content: [emptyListItemContent()]
   })),
   transformItem('insert-ordered-list', 'blockMenu.orderedList', ListOrdered, (context) => replaceCurrentBlock(context, {
     type: 'orderedList',
-    content: [EMPTY_LIST_ITEM]
+    content: [emptyListItemContent()]
   })),
   transformItem('insert-task', 'blockMenu.task', CheckSquare, (context) => replaceCurrentBlock(context, {
     type: 'bulletList',
-    content: [TASK_LIST_ITEM]
+    content: [taskListItemContent()]
   })),
   transformItem('insert-quote', 'blockMenu.quote', Quote, (context) => replaceCurrentBlock(context, {
     type: 'blockquote',
-    content: [EMPTY_PARAGRAPH]
+    content: [emptyParagraphContent()]
   })),
   transformItem('insert-code', 'blockMenu.codeBlock', Code2, (context) => replaceCurrentBlock(context, {
     type: 'codeBlock',
@@ -116,9 +122,11 @@ export const INSERT_MENU_ITEMS: BlockMenuItem[] = [
   transformItem('insert-table', 'blockMenu.table', Table2, (context) => replaceCurrentBlock(context, tableContent())),
   transformItem('insert-image', 'blockMenu.image', Image, (context) => insertImage(context)),
   transformItem('insert-math', 'blockMenu.mathBlock', Sigma, (context) => replaceCurrentBlock(context, {
-    type: 'docpilotMathBlock',
+    type: 'blockMath',
     attrs: {
-      source: 'E = mc^2',
+      delimiter: '$$',
+      latex: 'E = mc^2',
+      notation: 'latex',
       text: 'E = mc^2'
     }
   }))
@@ -140,7 +148,7 @@ export const BLOCK_EDIT_MENU_ITEMS: BlockMenuItem[] = [
     deleteBlocksByIds(context.editor, [context.block.blockId])
   }),
   transformItem('add-below', 'blockMenu.addBelow', Pilcrow, (context) => {
-    insertBlockAfter(context, EMPTY_PARAGRAPH)
+    insertBlockAfter(context, emptyParagraphContent())
   })
 ]
 
@@ -169,7 +177,7 @@ export function iconForBlockInfo(block: BlockMenuBlockInfo): LucideIcon {
   if (block.typeName === 'codeBlock') return Code2
   if (block.typeName === 'horizontalRule') return Minus
   if (block.typeName === 'table') return Table2
-  if (block.typeName === 'docpilotMathBlock') return Sigma
+  if (block.typeName === 'blockMath') return Sigma
   return Pilcrow
 }
 
@@ -185,7 +193,7 @@ export function labelForBlockInfo(block: BlockMenuBlockInfo, t: BlockMenuTransla
   if (block.typeName === 'codeBlock') return t('blockMenu.codeBlock')
   if (block.typeName === 'horizontalRule') return t('blockMenu.divider')
   if (block.typeName === 'table') return t('blockMenu.table')
-  if (block.typeName === 'docpilotMathBlock') return t('blockMenu.mathBlock')
+  if (block.typeName === 'blockMath') return t('blockMenu.mathBlock')
   return t('blockMenu.paragraph')
 }
 
@@ -252,7 +260,7 @@ function tableContent(): JSONContent {
       type: 'tableRow',
       content: Array.from({ length: 3 }, () => ({
         type: rowIndex === 0 ? 'tableHeader' : 'tableCell',
-        content: [EMPTY_PARAGRAPH]
+        content: [emptyParagraphContent()]
       }))
     }))
   }
@@ -344,7 +352,7 @@ function setCodeBlock(context: BlockMenuActionContext): void {
 function insertTaskList(context: BlockMenuActionContext): void {
   replaceCurrentBlock(context, {
     type: 'bulletList',
-    content: [TASK_LIST_ITEM]
+    content: [taskListItemContent()]
   })
 }
 

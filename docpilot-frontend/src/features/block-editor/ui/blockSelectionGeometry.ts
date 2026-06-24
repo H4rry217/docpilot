@@ -111,9 +111,24 @@ export function blockMarqueeStartModeForTarget({
   if (button !== 0) return 'ignore'
   const targetElement = eventTargetElement(target)
   if (!targetElement || !boundaryElement.contains(targetElement)) return 'ignore'
-  if (isInteractiveSelectionTarget(targetElement)) return 'ignore'
-  if (targetElement.closest('.editor-content')) return 'ignore'
+  const canStartFromCodeBlockShell = isCodeBlockMarqueeStartTarget(targetElement)
+  if (!canStartFromCodeBlockShell && isInteractiveSelectionTarget(targetElement)) return 'ignore'
+  if (!canStartFromCodeBlockShell && targetElement.closest('.editor-content')) return 'ignore'
   return 'block-with-marquee'
+}
+
+function isCodeBlockMarqueeStartTarget(target: Element): boolean {
+  if (!target.closest('.code-block-node')) return false
+  if (target.closest([
+    '.cm-content',
+    '.cm-line',
+    '.code-block-editor',
+    '.code-block-control',
+    '.code-block-resize-handle'
+  ].join(','))) {
+    return Boolean(target.closest('.cm-gutters'))
+  }
+  return true
 }
 
 export function isSelectableBlockElement(element: HTMLElement, editorDom: HTMLElement, blockId = element.dataset.blockId): boolean {

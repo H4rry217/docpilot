@@ -1,9 +1,11 @@
-import Link from '@tiptap/extension-link'
-import Table from '@tiptap/extension-table'
-import TableCell from '@tiptap/extension-table-cell'
-import TableHeader from '@tiptap/extension-table-header'
-import TableRow from '@tiptap/extension-table-row'
+import Emoji from '@tiptap/extension-emoji'
+import Highlight from '@tiptap/extension-highlight'
+import Subscript from '@tiptap/extension-subscript'
+import Superscript from '@tiptap/extension-superscript'
+import { TableKit } from '@tiptap/extension-table'
+import { Markdown } from '@tiptap/markdown'
 import StarterKit from '@tiptap/starter-kit'
+import 'katex/dist/katex.min.css'
 import { DocpilotBlockAffordanceHighlight } from './blockAffordanceHighlight'
 import { DocpilotBlockSelection } from './blockSelection'
 import { DocpilotBlockIdentity } from './docpilotBlockIdentity'
@@ -11,6 +13,7 @@ import { DocpilotCodeBlock } from './docpilotCodeBlock'
 import { DocpilotFootnoteNavigation } from './docpilotFootnoteNavigation'
 import { DocpilotHtmlBlock } from './docpilotHtmlBlock'
 import { DocpilotInlineCompletion } from './inlineCompletion'
+import { DocpilotPlaceholder } from './docpilotPlaceholder'
 import { DocpilotTableCellSelection } from './docpilotTableCellSelection'
 import {
   DocpilotCallout,
@@ -24,17 +27,13 @@ import {
   DocpilotFootnoteDefinition,
   DocpilotFootnoteRef,
   DocpilotFrontMatter,
-  DocpilotHighlight,
   DocpilotHtmlInline,
   DocpilotImage,
   DocpilotInsert,
   DocpilotLinkReferenceDefinition,
   DocpilotMathBlock,
   DocpilotMathInline,
-  DocpilotSubscript,
-  DocpilotSuperscript,
   DocpilotToc,
-  DocpilotUnderline
 } from './docpilotMarkdownExtensions'
 import { DocpilotUnsupportedBlock } from './docpilotUnsupportedBlock'
 import { TABLE_DEFAULT_COLUMN_WIDTH_PX } from './tableConstants'
@@ -42,28 +41,29 @@ import { TABLE_DEFAULT_COLUMN_WIDTH_PX } from './tableConstants'
 export const editorExtensions = [
   StarterKit.configure({
     codeBlock: false,
+    link: {
+      autolink: true,
+      openOnClick: true
+    },
     heading: {
       levels: [1, 2, 3, 4, 5, 6]
-    }
+    },
+    trailingNode: false
   }),
   DocpilotTableCellSelection,
   DocpilotBlockIdentity,
   DocpilotBlockSelection,
   DocpilotBlockAffordanceHighlight,
+  DocpilotPlaceholder,
   DocpilotInlineCompletion,
   DocpilotFootnoteNavigation,
   DocpilotCodeBlock,
-  Link.configure({
-    autolink: true,
-    openOnClick: true
+  TableKit.configure({
+    table: {
+      cellMinWidth: TABLE_DEFAULT_COLUMN_WIDTH_PX,
+      resizable: true
+    }
   }),
-  Table.configure({
-    cellMinWidth: TABLE_DEFAULT_COLUMN_WIDTH_PX,
-    resizable: true
-  }),
-  TableRow,
-  TableHeader,
-  TableCell,
   DocpilotHtmlBlock,
   DocpilotImage,
   DocpilotFrontMatter,
@@ -81,11 +81,14 @@ export const editorExtensions = [
   DocpilotFootnoteRef,
   DocpilotHtmlInline,
   DocpilotEmoji,
+  Emoji,
   DocpilotExtensionInline,
-  DocpilotUnderline,
   DocpilotInsert,
-  DocpilotSubscript,
-  DocpilotSuperscript,
-  DocpilotHighlight,
+  Subscript,
+  Superscript,
+  Highlight.configure({
+    multicolor: true
+  }),
+  Markdown,
   DocpilotUnsupportedBlock
 ]

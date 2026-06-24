@@ -30,7 +30,7 @@ describe('proseMirrorJsonToBlockDocument', () => {
     ])
   })
 
-  it('keeps v2 custom inline nodes in the block model preview', () => {
+  it('keeps editor inline nodes in the block model preview', () => {
     const blockDocument = proseMirrorJsonToBlockDocument({
       type: 'doc',
       attrs: { schemaVersion: 'docpilot-block/2' },
@@ -50,8 +50,8 @@ describe('proseMirrorJsonToBlockDocument', () => {
               marks: [{ type: 'link', attrs: { href: 'https://example.com' } }]
             },
             {
-              type: 'docpilotMathInline',
-              attrs: { text: 'x^2', notation: 'latex', delimiter: '$' }
+              type: 'inlineMath',
+              attrs: { latex: 'x^2', text: 'x^2', notation: 'latex', delimiter: '$' }
             },
             {
               type: 'docpilotFootnoteRef',

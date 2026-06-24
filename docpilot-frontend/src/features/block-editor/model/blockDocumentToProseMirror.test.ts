@@ -59,8 +59,8 @@ describe('blockDocumentToProseMirrorJson', () => {
           }
         },
         {
-          type: 'docpilotMathBlock',
-          attrs: { notation: 'latex', text: 'x^2', delimiter: '$$', blockId: 'math1' }
+          type: 'blockMath',
+          attrs: { notation: 'latex', text: 'x^2', delimiter: '$$', blockId: 'math1', latex: 'x^2' }
         }
       ]
     })
@@ -372,19 +372,26 @@ describe('blockDocumentToProseMirrorJson', () => {
       extensions: editorExtensions,
       content: blockDocumentToProseMirrorJson(blockDocument)
     })
-    const html = editor.getHTML()
+    const html = editor.view.dom.innerHTML
 
-    expect(html).toContain('docpilot-math-inline')
-    expect(html).toContain('docpilot-math-block')
-    expect(html).toContain('<sup>2</sup>')
-    expect(html).toContain('∫')
-    expect(html).toContain('docpilot-math-limit-top')
+    expect(editor.getJSON().content?.[0].content?.[1]).toMatchObject({
+      type: 'inlineMath',
+      attrs: { latex: 'E=mc^2', text: 'E=mc^2', notation: 'latex', delimiter: '$' }
+    })
+    expect(editor.getJSON().content?.[1]).toMatchObject({
+      type: 'blockMath',
+      attrs: { latex: '\\int_a^b f(x)dx', text: '\\int_a^b f(x)dx', notation: 'latex', delimiter: '$$' }
+    })
+    expect(html).toContain('tiptap-mathematics-render')
+    expect(html).toContain('data-type="inline-math"')
+    expect(html).toContain('data-type="block-math"')
+    expect(html).toContain('katex')
     expect(html).not.toContain('docpilot-inline-token')
     expect(html).not.toContain('docpilot-leaf-block')
     editor.destroy()
   })
 
-  it('renders double-escaped latex commands in math blocks', () => {
+  it('preserves latex commands in official math blocks', () => {
     const blockDocument: BlockDocument = {
       schemaVersion: 'docpilot-block/2',
       metadata: {},
@@ -392,7 +399,7 @@ describe('blockDocumentToProseMirrorJson', () => {
         {
           id: 'math1',
           type: 'MATH_BLOCK',
-          attrs: { notation: 'latex', text: '\\\\int_a^b f(x)dx', delimiter: '$$' },
+          attrs: { notation: 'latex', text: '\\int_a^b f(x)dx', delimiter: '$$' },
           inlines: [],
           children: []
         }
@@ -403,11 +410,16 @@ describe('blockDocumentToProseMirrorJson', () => {
       extensions: editorExtensions,
       content: blockDocumentToProseMirrorJson(blockDocument)
     })
-    const html = editor.getHTML()
+    const json = editor.getJSON().content?.[0]
+    const html = editor.view.dom.innerHTML
 
-    expect(html).toContain('∫')
-    expect(html).toContain('docpilot-math-limit-top')
-    expect(html).not.toContain('\\\\int')
+    expect(json).toMatchObject({
+      type: 'blockMath',
+      attrs: { latex: '\\int_a^b f(x)dx', text: '\\int_a^b f(x)dx' }
+    })
+    expect(html).toContain('tiptap-mathematics-render')
+    expect(html).toContain('katex')
+    expect(html).not.toContain('docpilot-leaf-block')
     editor.destroy()
   })
 
@@ -880,13 +892,18 @@ describe('blockDocumentToProseMirrorJson', () => {
   })
 
   it('handles footnote clicks before the generic link click opener', () => {
-    const footnoteExtension = editorExtensions.find((extension) => extension.name === 'docpilotFootnoteNavigation')
-    const linkExtension = editorExtensions.find((extension) => extension.name === 'link')
+    const editor = new Editor({
+      extensions: editorExtensions,
+      content: '<p></p>'
+    })
+    const footnoteExtension = editor.extensionManager.extensions.find((extension) => extension.name === 'docpilotFootnoteNavigation')
+    const linkExtension = editor.extensionManager.extensions.find((extension) => extension.name === 'link')
     const footnotePriority = (footnoteExtension as { config?: { priority?: number } } | undefined)?.config?.priority ?? 100
     const linkPriority = (linkExtension as { config?: { priority?: number } } | undefined)?.config?.priority ?? 100
 
     expect(footnoteExtension).toBeDefined()
     expect(linkExtension).toBeDefined()
     expect(footnotePriority).toBeGreaterThan(linkPriority)
+    editor.destroy()
   })
 })

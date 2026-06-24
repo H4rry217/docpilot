@@ -60,7 +60,7 @@ function blockToProseMirrorJson(block: BlockNode): JSONContent {
     case 'FRONT_MATTER':
       return { type: 'docpilotFrontMatter', attrs }
     case 'MATH_BLOCK':
-      return { type: 'docpilotMathBlock', attrs }
+      return { type: 'blockMath', attrs: mathAttrs(attrs, textAttr(block, 'text'), '$$') }
     case 'DIAGRAM_BLOCK':
       return diagramBlockToCodeBlock(block, attrs)
     case 'CALLOUT':
@@ -103,7 +103,7 @@ function inlineToProseMirrorJson(inline: InlineNode): JSONContent {
     case 'IMAGE':
       return { type: 'image', attrs: withInlineSource(inline, inline.attrs) }
     case 'MATH_INLINE':
-      return { type: 'docpilotMathInline', attrs: withInlineText(inline, inline.attrs) }
+      return { type: 'inlineMath', attrs: mathAttrs(withInlineText(inline, inline.attrs), inline.text ?? '', '$') }
     case 'FOOTNOTE_REF':
       return { type: 'docpilotFootnoteRef', attrs: withInlineSource(inline, inline.attrs) }
     case 'EMOJI':
@@ -205,6 +205,20 @@ function withInlineSourceAttr(inline: InlineNode, attrs: JsonObject): JsonObject
 function textAttr(block: BlockNode, name: string): string {
   const value = block.attrs[name]
   return typeof value === 'string' ? value : ''
+}
+
+function mathAttrs(attrs: JsonObject, fallbackText: string, fallbackDelimiter: '$' | '$$'): JsonObject {
+  const latex = stringAttr(attrs.latex, '')
+    || stringAttr(attrs.text, '')
+    || stringAttr(attrs.source, '')
+    || stringAttr(attrs.raw, '')
+    || fallbackText
+  return {
+    ...attrs,
+    notation: stringAttr(attrs.notation, 'latex') || 'latex',
+    delimiter: stringAttr(attrs.delimiter, fallbackDelimiter) || fallbackDelimiter,
+    latex
+  }
 }
 
 function stringAttr(value: unknown, fallback: string): string {

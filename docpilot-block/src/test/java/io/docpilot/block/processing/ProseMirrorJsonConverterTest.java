@@ -122,7 +122,7 @@ class ProseMirrorJsonConverterTest {
         ProseMirrorNode doc = converter.toProseMirror(BlockDocument.of(List.of(paragraph, math, diagram)));
 
         assertThat(doc.getContent()).extracting(ProseMirrorNode::getType)
-                .containsExactly("paragraph", "docpilotMathBlock", "codeBlock");
+                .containsExactly("paragraph", "blockMath", "codeBlock");
         assertThat(doc.getContent().get(2).getAttrs()).containsEntry("language", "mermaid");
         assertThat(doc.getContent().get(2).getAttrs())
                 .containsEntry("caption", "Request flow")
@@ -133,7 +133,7 @@ class ProseMirrorJsonConverterTest {
                     assertThat(child.getType()).isEqualTo("text");
                     assertThat(child.getMarks()).extracting(mark -> mark.getType()).contains("bold", "link");
                 })
-                .anySatisfy(child -> assertThat(child.getType()).isEqualTo("docpilotMathInline"))
+                .anySatisfy(child -> assertThat(child.getType()).isEqualTo("inlineMath"))
                 .anySatisfy(child -> assertThat(child.getType()).isEqualTo("docpilotFootnoteRef"));
     }
 
@@ -176,8 +176,10 @@ class ProseMirrorJsonConverterTest {
 
         ProseMirrorNode node = converter.toProseMirror(BlockDocument.of(List.of(math))).getContent().getFirst();
 
-        assertThat(node.getType()).isEqualTo("docpilotMathBlock");
-        assertThat(node.getAttrs()).containsEntry("text", "\\int_a^b f(x)dx");
+        assertThat(node.getType()).isEqualTo("blockMath");
+        assertThat(node.getAttrs())
+                .containsEntry("text", "\\int_a^b f(x)dx")
+                .containsEntry("latex", "\\int_a^b f(x)dx");
     }
 
 }

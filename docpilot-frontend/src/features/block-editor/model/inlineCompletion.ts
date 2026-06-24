@@ -1,8 +1,7 @@
-import { Extension, type Editor } from '@tiptap/core'
+import { Extension, type Editor, type JSONContent } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import type { InlineCompletionShape } from '@/features/inline-completion/api/inlineCompletionApi'
-import { markdownToHtml, markdownToInlineHtml } from './markdown'
 
 type ProseMirrorDoc = Parameters<typeof DecorationSet.create>[0]
 type InlineCompletionMenuPlacement = 'above' | 'below'
@@ -187,18 +186,15 @@ export function acceptInlineCompletion(editor: Editor): boolean {
 
   const blockCandidate = isBlockCompletionCandidate(suggestion.shape, candidate)
   const markdown = normalizeCompletionMarkdown(candidate.markdown, suggestion.shape, blockCandidate)
-  const html = blockCandidate
-    ? markdownToHtml(markdown)
-    : markdownToInlineHtml(markdown)
 
   if (blockCandidate) {
     return editor.chain()
       .focus()
-      .insertContentAt(blockInsertionPosition(editor.state.doc, suggestion.to), html)
+      .insertContentAt(blockInsertionPosition(editor.state.doc, suggestion.to), markdown, { contentType: 'markdown' })
       .run()
   }
 
-  return editor.chain().focus().insertContent(html).run()
+  return editor.chain().focus().insertContent(inlineMarkdownContent(editor, markdown)).run()
 }
 
 function stateFromSuggestion(doc: ProseMirrorDoc, suggestion: InlineCompletionSuggestion) {
@@ -510,6 +506,16 @@ function normalizeCompletionMarkdown(
     .replace(/^#{1,6}\s+/gm, '')
     .replace(/^\s*[-*+]\s+/gm, '')
     .replace(/^\s*\d+[.)]\s+/gm, '')
+}
+
+function inlineMarkdownContent(editor: Editor, markdown: string): JSONContent[] | string {
+  const parsed = editor.markdown?.parse(markdown)
+  const blocks = parsed?.content
+  if (!blocks?.length) return markdown
+  if (blocks.length === 1 && blocks[0].type === 'paragraph') {
+    return blocks[0].content?.length ? blocks[0].content : markdown
+  }
+  return blocks
 }
 
 function decodeHtmlEntities(text: string): string {

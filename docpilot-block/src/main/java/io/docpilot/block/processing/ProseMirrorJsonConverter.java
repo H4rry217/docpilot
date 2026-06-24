@@ -53,8 +53,8 @@ public class ProseMirrorJsonConverter {
     private static final String NODE_HARD_BREAK = "hardBreak";
     private static final String NODE_IMAGE = "image";
     private static final String NODE_DOCPILOT_FRONT_MATTER = "docpilotFrontMatter";
-    private static final String NODE_DOCPILOT_MATH_BLOCK = "docpilotMathBlock";
-    private static final String NODE_DOCPILOT_MATH_INLINE = "docpilotMathInline";
+    private static final String NODE_BLOCK_MATH = "blockMath";
+    private static final String NODE_INLINE_MATH = "inlineMath";
     private static final String NODE_DOCPILOT_CALLOUT = "docpilotCallout";
     private static final String NODE_DOCPILOT_FOOTNOTE_DEFINITION = "docpilotFootnoteDefinition";
     private static final String NODE_DOCPILOT_FOOTNOTE_REF = "docpilotFootnoteRef";
@@ -124,7 +124,7 @@ public class ProseMirrorJsonConverter {
             case FrontMatterBlock frontMatter ->
                     ProseMirrorNode.leaf(NODE_DOCPILOT_FRONT_MATTER, withSource(frontMatter, attrsForFrontMatter(frontMatter)));
             case MathBlock mathBlock ->
-                    ProseMirrorNode.leaf(NODE_DOCPILOT_MATH_BLOCK, withSource(mathBlock, attrsForMath(mathBlock)));
+                    ProseMirrorNode.leaf(NODE_BLOCK_MATH, withSource(mathBlock, attrsForMath(mathBlock)));
             case DiagramBlock diagramBlock ->
                     ProseMirrorNode.node(NODE_CODE_BLOCK, withSource(diagramBlock, attrsForDiagramBlock(diagramBlock)),
                             textContent(diagramBlock.text()));
@@ -182,7 +182,7 @@ public class ProseMirrorJsonConverter {
             case SOFT_BREAK -> ProseMirrorNode.text("\n", marks(inline.getMarks()));
             case HARD_BREAK -> ProseMirrorNode.leaf(NODE_HARD_BREAK, sourceAttrs(inline));
             case IMAGE -> ProseMirrorNode.leaf(NODE_IMAGE, withSource(inline, normalizeAttrs(inline.getAttrs())));
-            case MATH_INLINE -> ProseMirrorNode.leaf(NODE_DOCPILOT_MATH_INLINE, withSource(inline, normalizeAttrs(inline.getAttrs())));
+            case MATH_INLINE -> ProseMirrorNode.leaf(NODE_INLINE_MATH, withSource(inline, attrsForInlineMath(inline)));
             case FOOTNOTE_REF -> ProseMirrorNode.leaf(NODE_DOCPILOT_FOOTNOTE_REF, withSource(inline, normalizeAttrs(inline.getAttrs())));
             case EMOJI -> ProseMirrorNode.leaf(NODE_DOCPILOT_EMOJI, withSource(inline, normalizeAttrs(inline.getAttrs())));
             case HTML_INLINE -> ProseMirrorNode.leaf(NODE_DOCPILOT_HTML_INLINE, withSource(inline, normalizeAttrs(inline.getAttrs())));
@@ -270,7 +270,30 @@ public class ProseMirrorJsonConverter {
         Map<String, Object> attrs = normalizeAttrs(block.extraAttrs());
         attrs.put(BlockAttrs.NOTATION.key(), block.notation());
         attrs.put(BlockAttrs.TEXT.key(), block.text());
+        attrs.put("latex", block.text());
         attrs.put(BlockAttrs.DELIMITER.key(), block.delimiter());
+        return attrs;
+    }
+
+    private Map<String, Object> attrsForInlineMath(InlineNode inline) {
+        Map<String, Object> attrs = normalizeAttrs(inline.getAttrs());
+        String latex = stringAttr(attrs.get("latex"));
+        if (latex.isBlank()) {
+            latex = stringAttr(attrs.get(BlockAttrs.TEXT.key()));
+        }
+        if (latex.isBlank()) {
+            latex = stringAttr(attrs.get(BlockAttrs.SOURCE.key()));
+        }
+        if (latex.isBlank()) {
+            latex = stringAttr(attrs.get(BlockAttrs.RAW.key()));
+        }
+        if (latex.isBlank()) {
+            latex = inline.getText() == null ? "" : inline.getText();
+        }
+        attrs.put(BlockAttrs.NOTATION.key(), stringAttrOrDefault(attrs.get(BlockAttrs.NOTATION.key()), "latex"));
+        attrs.put(BlockAttrs.TEXT.key(), latex);
+        attrs.put("latex", latex);
+        attrs.put(BlockAttrs.DELIMITER.key(), stringAttrOrDefault(attrs.get(BlockAttrs.DELIMITER.key()), "$"));
         return attrs;
     }
 
@@ -365,6 +388,15 @@ public class ProseMirrorJsonConverter {
         if (value != null && !value.isBlank()) {
             attrs.put(key, value);
         }
+    }
+
+    private String stringAttr(Object value) {
+        return value instanceof String text ? text : "";
+    }
+
+    private String stringAttrOrDefault(Object value, String fallback) {
+        String text = stringAttr(value);
+        return text.isBlank() ? fallback : text;
     }
 
 }

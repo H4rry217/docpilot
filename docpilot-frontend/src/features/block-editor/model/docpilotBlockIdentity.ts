@@ -12,6 +12,7 @@ const BLOCK_IDENTITY_TYPES = [
   'orderedList',
   'listItem',
   'codeBlock',
+  'blockMath',
   'horizontalRule',
   'table',
   'tableRow',
@@ -85,6 +86,7 @@ export const DocpilotBlockIdentity = Extension.create({
               undefined,
               {
                 ...node.attrs,
+                blockId: '',
                 transientBlockId: nextBlockId
               },
               node.marks

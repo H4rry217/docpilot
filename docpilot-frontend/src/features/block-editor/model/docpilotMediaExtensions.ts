@@ -1,4 +1,5 @@
-import { Node, mergeAttributes } from '@tiptap/core'
+import Image from '@tiptap/extension-image'
+import { mergeAttributes } from '@tiptap/core'
 import { ReactNodeViewRenderer } from '@tiptap/react'
 import { ImageNodeView } from '../ui/ImageNodeView'
 import { stringAttr, type HtmlAttrs } from './docpilotMarkdownExtensionUtils'
@@ -34,16 +35,13 @@ export function renderedImageAttrs(attributes: HtmlAttrs): HtmlAttrs {
   )
 }
 
-export const DocpilotImage = Node.create({
-  name: 'image',
-  group: 'inline',
-  inline: true,
+export const DocpilotImage = Image.extend({
   atom: true,
   selectable: true,
-  draggable: true,
 
   addAttributes() {
     return {
+      ...this.parent?.(),
       src: {
         default: '',
         parseHTML: (element) => element.getAttribute('src') ?? ''
@@ -83,4 +81,8 @@ export const DocpilotImage = Node.create({
   addNodeView() {
     return ReactNodeViewRenderer(ImageNodeView, { as: 'span' })
   }
+}).configure({
+  allowBase64: true,
+  inline: true,
+  resize: false
 })

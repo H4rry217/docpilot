@@ -1,57 +1,105 @@
-import { Node } from '@tiptap/core'
+import { mergeAttributes, Node } from '@tiptap/core'
+import { BlockMath, InlineMath } from '@tiptap/extension-mathematics'
 import type { DOMOutputSpec } from '@tiptap/pm/model'
-import { normalizeLatexSource, renderLatexMath } from './docpilotMathRendering'
+import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
+import katex, { type KatexOptions } from 'katex'
 import {
   blockAttributes,
-  inlineAttributes,
   isPlainRecord,
-  renderedAttrs,
   renderedSourceAttrs,
   renderLeafBlock,
+  setDomAttributes,
   stringAttr,
   type HtmlAttrs
 } from './docpilotMarkdownExtensionUtils'
 
-function mathText(attributes: HtmlAttrs): string {
-  return stringAttr(attributes, 'text') || stringAttr(attributes, 'source') || stringAttr(attributes, 'raw')
+const sharedKatexOptions: KatexOptions = {
+  throwOnError: false
 }
 
-function renderedMathAttrs(attributes: HtmlAttrs, extra: HtmlAttrs = {}) {
-  const attrs = { ...attributes }
-  delete attrs.text
-  delete attrs.source
-  delete attrs.raw
-  delete attrs.delimiter
-  delete attrs.notation
-  return renderedAttrs(attrs, extra)
+const blockKatexOptions: KatexOptions = {
+  ...sharedKatexOptions,
+  displayMode: true
 }
 
-export function renderMathBlock(attributes: HtmlAttrs): DOMOutputSpec {
-  const text = mathText(attributes)
-  const label = normalizeLatexSource(text)
-  return [
-    'div',
-    renderedMathAttrs(attributes, {
-      class: 'docpilot-block docpilot-math-block',
+const inlineKatexOptions: KatexOptions = {
+  ...sharedKatexOptions,
+  displayMode: false
+}
+
+function mathAttributes(defaultDelimiter: '$' | '$$') {
+  return {
+    notation: {
+      default: 'latex',
+      parseHTML: (element: HTMLElement) => element.getAttribute('data-notation') ?? 'latex',
+      renderHTML: (attributes: HtmlAttrs) => {
+        const notation = stringAttr(attributes, 'notation', 'latex')
+        return notation ? { 'data-notation': notation } : {}
+      }
+    },
+    delimiter: {
+      default: defaultDelimiter,
+      parseHTML: (element: HTMLElement) => element.getAttribute('data-delimiter') ?? defaultDelimiter,
+      renderHTML: (attributes: HtmlAttrs) => {
+        const delimiter = stringAttr(attributes, 'delimiter', defaultDelimiter)
+        return delimiter ? { 'data-delimiter': delimiter } : {}
+      }
+    },
+    sourceRange: {
+      default: null,
+      parseHTML: () => null,
+      renderHTML: () => ({})
+    },
+    text: {
+      default: '',
+      parseHTML: () => '',
+      renderHTML: () => ({})
+    },
+    source: {
+      default: '',
+      parseHTML: () => '',
+      renderHTML: () => ({})
+    },
+    raw: {
+      default: '',
+      parseHTML: () => '',
+      renderHTML: () => ({})
+    }
+  }
+}
+
+function latexAttr(attributes: HtmlAttrs): string {
+  return stringAttr(attributes, 'latex')
+}
+
+function mathDomAttrs(node: ProseMirrorNode, dataType: 'block-math' | 'inline-math', className: string): HtmlAttrs {
+  const latex = latexAttr(node.attrs)
+  const blockId = stringAttr(node.attrs, 'blockId')
+  const notation = stringAttr(node.attrs, 'notation', 'latex')
+  const delimiter = stringAttr(node.attrs, 'delimiter', dataType === 'block-math' ? '$$' : '$')
+
+  return mergeAttributes(
+    {
+      class: className,
+      'data-type': dataType,
+      'data-latex': latex,
       role: 'math',
-      ...(label ? { 'aria-label': label } : {})
-    }),
-    ['span', { class: 'docpilot-math-rendered' }, ...renderLatexMath(text)]
-  ]
+      ...(latex ? { 'aria-label': latex } : {})
+    },
+    blockId ? { 'data-block-id': blockId } : {},
+    notation ? { 'data-notation': notation } : {},
+    delimiter ? { 'data-delimiter': delimiter } : {}
+  )
 }
 
-export function renderMathInline(attributes: HtmlAttrs): DOMOutputSpec {
-  const text = mathText(attributes)
-  const label = normalizeLatexSource(text)
-  return [
-    'span',
-    renderedMathAttrs(attributes, {
-      class: 'docpilot-math-inline',
-      role: 'math',
-      ...(label ? { 'aria-label': label } : {})
-    }),
-    ...renderLatexMath(text)
-  ]
+function renderKatex(target: HTMLElement, latex: string, options: KatexOptions, errorClassName: string) {
+  try {
+    katex.render(latex, target, options)
+    target.classList.remove(errorClassName)
+  } catch {
+    target.textContent = latex
+    target.classList.add(errorClassName)
+  }
 }
 
 export function frontMatterEntries(attributes: HtmlAttrs): Array<[string, unknown]> {
@@ -117,18 +165,30 @@ export const DocpilotFrontMatter = Node.create({
   }
 })
 
-export const DocpilotMathBlock = Node.create({
-  name: 'docpilotMathBlock',
-  group: 'block',
-  atom: true,
-
+export const DocpilotMathBlock = BlockMath.extend({
   addAttributes() {
-    return blockAttributes
+    return {
+      ...this.parent?.(),
+      ...mathAttributes('$$')
+    }
   },
 
-  renderHTML({ HTMLAttributes }) {
-    return renderMathBlock(HTMLAttributes)
+  addNodeView() {
+    return ({ node }) => {
+      const wrapper = document.createElement('div')
+      const innerWrapper = document.createElement('div')
+      const editableClass = this.editor.isEditable ? ' tiptap-mathematics-render--editable' : ''
+
+      setDomAttributes(wrapper, mathDomAttrs(node, 'block-math', `tiptap-mathematics-render docpilot-block${editableClass}`))
+      innerWrapper.className = 'block-math-inner'
+      wrapper.appendChild(innerWrapper)
+      renderKatex(innerWrapper, latexAttr(node.attrs), blockKatexOptions, 'block-math-error')
+
+      return { dom: wrapper }
+    }
   }
+}).configure({
+  katexOptions: blockKatexOptions
 })
 
 export const DocpilotDiagramBlock = Node.create({
@@ -145,17 +205,25 @@ export const DocpilotDiagramBlock = Node.create({
   }
 })
 
-export const DocpilotMathInline = Node.create({
-  name: 'docpilotMathInline',
-  group: 'inline',
-  inline: true,
-  atom: true,
-
+export const DocpilotMathInline = InlineMath.extend({
   addAttributes() {
-    return inlineAttributes
+    return {
+      ...this.parent?.(),
+      ...mathAttributes('$')
+    }
   },
 
-  renderHTML({ HTMLAttributes }) {
-    return renderMathInline(HTMLAttributes)
+  addNodeView() {
+    return ({ node }) => {
+      const wrapper = document.createElement('span')
+      const editableClass = this.editor.isEditable ? ' tiptap-mathematics-render--editable' : ''
+
+      setDomAttributes(wrapper, mathDomAttrs(node, 'inline-math', `tiptap-mathematics-render${editableClass}`))
+      renderKatex(wrapper, latexAttr(node.attrs), inlineKatexOptions, 'inline-math-error')
+
+      return { dom: wrapper }
+    }
   }
+}).configure({
+  katexOptions: inlineKatexOptions
 })

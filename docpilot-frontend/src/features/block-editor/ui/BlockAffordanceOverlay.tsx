@@ -11,7 +11,14 @@ import { cn } from '@/lib/utils'
 import { useI18n } from '@/shared/i18n'
 import type { Editor } from '@tiptap/react'
 import { GripVertical, List, Plus } from 'lucide-react'
-import { useCallback, useEffect, useRef } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent
+} from 'react'
+import { createPortal } from 'react-dom'
 import {
   BLOCK_EDIT_MENU_ITEMS,
   FORMAT_STRIP_ITEMS,
@@ -23,21 +30,36 @@ import {
 } from './blockMenuItems'
 import type { BlockAffordanceState } from './useBlockAffordances'
 
-const HOVER_CLOSE_DELAY_MS = 180
+const HOVER_OPEN_DELAY_MS = 180
+const HOVER_CLOSE_DELAY_MS = 220
 
 export function BlockAffordanceOverlay({
   affordance,
   editor,
+  onHandleHoverEnd,
+  onHandleHoverStart,
   menuOpen,
-  onMenuOpenChange
+  onMenuOpenChange,
+  portalElement
 }: {
   affordance: BlockAffordanceState | null
   editor: Editor
+  onHandleHoverEnd: () => void
+  onHandleHoverStart: () => void
   menuOpen: boolean
   onMenuOpenChange: (open: boolean) => void
+  portalElement: HTMLElement | null
 }) {
   const { t } = useI18n()
+  const openTimerRef = useRef<number | null>(null)
   const closeTimerRef = useRef<number | null>(null)
+
+  const clearHoverOpenTimer = useCallback(() => {
+    if (openTimerRef.current === null) return
+
+    window.clearTimeout(openTimerRef.current)
+    openTimerRef.current = null
+  }, [])
 
   const clearHoverCloseTimer = useCallback(() => {
     if (closeTimerRef.current === null) return
@@ -48,25 +70,63 @@ export function BlockAffordanceOverlay({
 
   const openMenuFromHover = useCallback(() => {
     clearHoverCloseTimer()
-    onMenuOpenChange(true)
-  }, [clearHoverCloseTimer, onMenuOpenChange])
+    if (menuOpen || openTimerRef.current !== null) return
 
-  const scheduleHoverClose = useCallback(() => {
+    openTimerRef.current = window.setTimeout(() => {
+      openTimerRef.current = null
+      onMenuOpenChange(true)
+    }, HOVER_OPEN_DELAY_MS)
+  }, [clearHoverCloseTimer, menuOpen, onMenuOpenChange])
+
+  const keepHoverStateFromHandle = useCallback(() => {
+    clearHoverCloseTimer()
+    onHandleHoverStart()
+  }, [clearHoverCloseTimer, onHandleHoverStart])
+
+  const keepMenuOpenFromGrip = useCallback(() => {
+    clearHoverCloseTimer()
+  }, [clearHoverCloseTimer])
+
+  const scheduleHoverClose = useCallback((
+    event?: ReactMouseEvent<HTMLElement> | ReactPointerEvent<HTMLElement>
+  ) => {
+    if (isAffordanceHoverTarget(event?.relatedTarget ?? null)) {
+      if (!menuOpen) {
+        clearHoverOpenTimer()
+      }
+      return
+    }
+
+    clearHoverOpenTimer()
     clearHoverCloseTimer()
     closeTimerRef.current = window.setTimeout(() => {
       closeTimerRef.current = null
       onMenuOpenChange(false)
     }, HOVER_CLOSE_DELAY_MS)
-  }, [clearHoverCloseTimer, onMenuOpenChange])
+  }, [clearHoverCloseTimer, clearHoverOpenTimer, menuOpen, onMenuOpenChange])
 
   const handleMenuOpenChange = useCallback((open: boolean) => {
+    clearHoverOpenTimer()
     clearHoverCloseTimer()
     onMenuOpenChange(open)
-  }, [clearHoverCloseTimer, onMenuOpenChange])
+  }, [clearHoverCloseTimer, clearHoverOpenTimer, onMenuOpenChange])
 
-  useEffect(() => clearHoverCloseTimer, [clearHoverCloseTimer])
+  const closeMenuAfterAction = useCallback(() => {
+    onHandleHoverEnd()
+    handleMenuOpenChange(false)
+  }, [handleMenuOpenChange, onHandleHoverEnd])
 
-  if (!affordance) return null
+  const openMenuFromClick = useCallback((event: ReactMouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation()
+    handleMenuOpenChange(true)
+  }, [handleMenuOpenChange])
+
+  useEffect(() => () => {
+    clearHoverOpenTimer()
+    clearHoverCloseTimer()
+  }, [clearHoverCloseTimer, clearHoverOpenTimer])
+
+  if (!affordance || !portalElement) return null
 
   const context: BlockMenuActionContext = {
     block: affordance.block,
@@ -80,46 +140,91 @@ export function BlockAffordanceOverlay({
     ? t('blockMenu.insertBlockAria')
     : t('blockMenu.blockMenuAria', { block: blockLabel })
 
-  return (
-    <>
+  const content = (
       <div
         className="block-affordance-layer"
         contentEditable={false}
-        style={{
-          left: `${affordance.left}px`,
-          top: `${affordance.top}px`
-        }}
+        onMouseEnter={keepHoverStateFromHandle}
+        onMouseLeave={onHandleHoverEnd}
+        onPointerEnter={keepHoverStateFromHandle}
+        onPointerLeave={onHandleHoverEnd}
       >
         <DropdownMenu open={menuOpen} onOpenChange={handleMenuOpenChange}>
-          <DropdownMenuTrigger asChild>
-            <button
-              className={cn(
-                'block-affordance-trigger',
-                isInsertMenu ? 'is-insert-trigger' : 'is-context-trigger',
-                menuOpen ? 'is-open' : ''
-              )}
-              type="button"
-              aria-label={label}
-              title={label}
-              onMouseEnter={openMenuFromHover}
-              onMouseLeave={scheduleHoverClose}
-              onPointerEnter={openMenuFromHover}
-              onPointerLeave={scheduleHoverClose}
-              onClick={(event) => event.stopPropagation()}
-              onPointerDown={(event) => {
-                if (event.button > 0) return
-                event.preventDefault()
-                event.stopPropagation()
-              }}
-            >
-              <BlockIcon size={15} strokeWidth={2.2} />
-              {isInsertMenu ? null : (
-                <span className="block-affordance-grip" aria-hidden="true">
-                  <GripVertical size={14} strokeWidth={2.1} />
-                </span>
-              )}
-            </button>
-          </DropdownMenuTrigger>
+          {isInsertMenu ? (
+            <DropdownMenuTrigger asChild>
+              <button
+                className={cn(
+                  'block-affordance-trigger',
+                  'is-insert-trigger',
+                  menuOpen ? 'is-open' : ''
+                )}
+                type="button"
+                aria-label={label}
+                title={label}
+                draggable={false}
+                onMouseEnter={openMenuFromHover}
+                onMouseLeave={scheduleHoverClose}
+                onPointerEnter={openMenuFromHover}
+                onPointerLeave={scheduleHoverClose}
+                onClick={openMenuFromClick}
+                onDragStart={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                }}
+                onPointerDown={(event) => {
+                  if (event.button > 0) return
+                  event.preventDefault()
+                  event.stopPropagation()
+                }}
+              >
+                <BlockIcon size={15} strokeWidth={2.2} />
+              </button>
+            </DropdownMenuTrigger>
+          ) : (
+            <div className={cn('block-affordance-context-control', menuOpen ? 'is-open' : '')}>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className={cn(
+                    'block-affordance-trigger',
+                    'is-context-trigger',
+                    menuOpen ? 'is-open' : ''
+                  )}
+                  type="button"
+                  aria-label={label}
+                  title={label}
+                  draggable={false}
+                  onMouseEnter={openMenuFromHover}
+                  onMouseLeave={scheduleHoverClose}
+                  onPointerEnter={openMenuFromHover}
+                  onPointerLeave={scheduleHoverClose}
+                  onClick={openMenuFromClick}
+                  onDragStart={(event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                  }}
+                  onPointerDown={(event) => {
+                    if (event.button > 0) return
+                    event.preventDefault()
+                    event.stopPropagation()
+                  }}
+                >
+                  <BlockIcon size={15} strokeWidth={2.2} />
+                </button>
+              </DropdownMenuTrigger>
+              <span
+                className="block-affordance-grip"
+                aria-hidden="true"
+                onMouseEnter={keepMenuOpenFromGrip}
+                onPointerEnter={keepMenuOpenFromGrip}
+                onClick={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                }}
+              >
+                <GripVertical size={14} strokeWidth={2.1} />
+              </span>
+            </div>
+          )}
           <DropdownMenuContent
             align="start"
             className="block-affordance-menu"
@@ -131,25 +236,39 @@ export function BlockAffordanceOverlay({
             onPointerLeave={scheduleHoverClose}
             onCloseAutoFocus={(event) => {
               event.preventDefault()
-              editor.commands.focus()
+              if (!editor.isDestroyed) {
+                editor.commands.focus(undefined, { scrollIntoView: false })
+              }
             }}
           >
             {isInsertMenu ? (
-              <InsertMenu context={context} />
+              <InsertMenu context={context} onClose={closeMenuAfterAction} />
             ) : (
               <ContextMenu
                 context={context}
-                onClose={() => onMenuOpenChange(false)}
+                onClose={closeMenuAfterAction}
               />
             )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-    </>
   )
+
+  return createPortal(content, portalElement)
 }
 
-function InsertMenu({ context }: { context: BlockMenuActionContext }) {
+function isAffordanceHoverTarget(target: EventTarget | null): boolean {
+  return target instanceof Element
+    && Boolean(target.closest('.block-affordance-layer, .block-affordance-menu'))
+}
+
+function InsertMenu({
+  context,
+  onClose
+}: {
+  context: BlockMenuActionContext
+  onClose: () => void
+}) {
   return (
     <>
       <DropdownMenuLabel>{context.t('blockMenu.insert')}</DropdownMenuLabel>
@@ -159,6 +278,7 @@ function InsertMenu({ context }: { context: BlockMenuActionContext }) {
             key={item.id}
             context={context}
             item={item}
+            onClose={onClose}
           />
         ))}
       </DropdownMenuGroup>
@@ -187,6 +307,7 @@ function ContextMenu({
             key={item.id}
             context={context}
             item={item}
+            onClose={onClose}
           />
         ))}
       </DropdownMenuGroup>
@@ -198,6 +319,7 @@ function ContextMenu({
             context={context}
             item={item}
             danger={item.id === 'delete'}
+            onClose={onClose}
           />
         ))}
       </DropdownMenuGroup>
@@ -249,21 +371,25 @@ function FormatStrip({
 function BlockDropdownItem({
   context,
   danger = false,
-  item
+  item,
+  onClose
 }: {
   context: BlockMenuActionContext
   danger?: boolean
   item: BlockMenuItem
+  onClose: () => void
 }) {
   const Icon = item.icon
-  const active = item.active?.(context) ?? false
   const label = context.t(item.labelKey)
 
   return (
     <DropdownMenuItem
-      className={cn('block-affordance-menu-item', active ? 'is-active' : '')}
+      className="block-affordance-menu-item"
       variant={danger ? 'destructive' : 'default'}
-      onSelect={() => item.run(context)}
+      onSelect={() => {
+        item.run(context)
+        onClose()
+      }}
     >
       <Icon />
       <span>{label}</span>

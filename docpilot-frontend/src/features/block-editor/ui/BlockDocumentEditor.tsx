@@ -143,9 +143,21 @@ export const BlockDocumentEditor = forwardRef<BlockDocumentEditorHandle, BlockDo
     } = useBlockMarqueeSelection({ editor, marqueeRef, surfaceRef })
     const {
       affordance: blockAffordance,
+      hideBlockHighlightFromHandle,
       menuOpen: blockAffordanceMenuOpen,
+      portalElement: blockAffordancePortalElement,
+      scheduleBlockHighlightReveal,
       setMenuOpen: setBlockAffordanceMenuOpen
-    } = useBlockAffordances({ editor, surfaceRef })
+    } = useBlockAffordances({
+      editor,
+      onBlockInteractionStart: clearBlockSelection,
+      surfaceRef
+    })
+
+    const handleBlockAffordanceMenuOpenChange = useCallback((open: boolean) => {
+      setBlockAffordanceMenuOpen(open)
+      if (open) clearBlockSelection()
+    }, [clearBlockSelection, setBlockAffordanceMenuOpen])
 
     const surfaceClassName = [
       'block-editor-surface',
@@ -157,7 +169,7 @@ export const BlockDocumentEditor = forwardRef<BlockDocumentEditorHandle, BlockDo
     const applyProseMirrorJson = useCallback(
       (activeEditor: Editor, proseMirrorJson: JSONContent, source: BlockDocumentEditorSnapshotSource) => {
         applyingContentRef.current = true
-        activeEditor.commands.setContent(proseMirrorJson, false)
+        activeEditor.commands.setContent(proseMirrorJson, { emitUpdate: false })
         applyingContentRef.current = false
         return emitSnapshot(activeEditor, source)
       },
@@ -233,8 +245,11 @@ export const BlockDocumentEditor = forwardRef<BlockDocumentEditorHandle, BlockDo
           <BlockAffordanceOverlay
             affordance={blockAffordance}
             editor={editor}
+            onHandleHoverEnd={hideBlockHighlightFromHandle}
+            onHandleHoverStart={scheduleBlockHighlightReveal}
             menuOpen={blockAffordanceMenuOpen}
-            onMenuOpenChange={setBlockAffordanceMenuOpen}
+            onMenuOpenChange={handleBlockAffordanceMenuOpenChange}
+            portalElement={blockAffordancePortalElement}
           />
         ) : null}
         {editor && tableHoverIndicator ? (

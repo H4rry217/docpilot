@@ -32,8 +32,8 @@ function blockFromNode(node: JSONContent, path: string): BlockNode {
     return block(path, 'HTML_BLOCK', attrs)
   }
 
-  if (node.type === 'docpilotMathBlock') {
-    return block(path, 'MATH_BLOCK', attrs)
+  if (node.type === 'blockMath') {
+    return block(path, 'MATH_BLOCK', canonicalMathAttrs(attrs, '$$'))
   }
 
   if (node.type === 'docpilotDiagramBlock') {
@@ -101,8 +101,9 @@ function inlineFromNode(node: JSONContent): InlineNode {
     }
   }
 
-  if (node.type === 'docpilotMathInline') {
-    return { type: 'MATH_INLINE', text: stringAttr(node.attrs, 'text', ''), attrs: node.attrs ?? {}, marks: [] }
+  if (node.type === 'inlineMath') {
+    const attrs = canonicalMathAttrs(node.attrs ?? {}, '$')
+    return { type: 'MATH_INLINE', text: stringAttr(attrs, 'text', ''), attrs, marks: [] }
   }
 
   if (node.type === 'docpilotFootnoteRef') {
@@ -115,6 +116,12 @@ function inlineFromNode(node: JSONContent): InlineNode {
 
   if (node.type === 'docpilotEmoji') {
     return { type: 'EMOJI', text: stringAttr(node.attrs, 'shortcut', ''), attrs: node.attrs ?? {}, marks: [] }
+  }
+
+  if (node.type === 'emoji') {
+    const name = stringAttr(node.attrs, 'name', '')
+    const shortcut = name ? `:${name}:` : ''
+    return { type: 'EMOJI', text: shortcut, attrs: { ...(node.attrs ?? {}), shortcut }, marks: [] }
   }
 
   if (node.type === 'docpilotExtensionInline') {
@@ -219,7 +226,7 @@ function blockType(type?: string): BlockType {
       return 'HTML_BLOCK'
     case 'docpilotFrontMatter':
       return 'FRONT_MATTER'
-    case 'docpilotMathBlock':
+    case 'blockMath':
       return 'MATH_BLOCK'
     case 'docpilotDiagramBlock':
       return 'CODE_BLOCK'
@@ -249,9 +256,10 @@ function isInlineNode(node: JSONContent): boolean {
     'text',
     'hardBreak',
     'image',
-    'docpilotMathInline',
+    'inlineMath',
     'docpilotFootnoteRef',
     'docpilotHtmlInline',
+    'emoji',
     'docpilotEmoji',
     'docpilotExtensionInline'
   ].includes(node.type ?? '')
@@ -259,4 +267,19 @@ function isInlineNode(node: JSONContent): boolean {
 
 function textFromNode(node: JSONContent): string {
   return (node.content ?? []).map((child) => child.text ?? '').join('')
+}
+
+function canonicalMathAttrs(attrs: JsonAttrs, fallbackDelimiter: '$' | '$$'): JsonAttrs {
+  const text = stringAttr(attrs, 'latex', '')
+    || stringAttr(attrs, 'text', '')
+    || stringAttr(attrs, 'source', '')
+    || stringAttr(attrs, 'raw', '')
+  const next = {
+    ...attrs,
+    notation: stringAttr(attrs, 'notation', 'latex') || 'latex',
+    delimiter: stringAttr(attrs, 'delimiter', fallbackDelimiter) || fallbackDelimiter,
+    text
+  }
+  delete (next as JsonAttrs).latex
+  return next
 }
