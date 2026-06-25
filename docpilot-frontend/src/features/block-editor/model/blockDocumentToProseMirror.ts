@@ -42,7 +42,9 @@ function blockToProseMirrorJson(block: BlockNode): JSONContent {
     case 'BLOCK_QUOTE':
       return node('blockquote', attrs, childContent(block))
     case 'BULLET_LIST':
-      return node('bulletList', attrs, childContent(block))
+      return taskListBlock(block)
+        ? node('taskList', attrs, taskListContent(block))
+        : node('bulletList', attrs, childContent(block))
     case 'ORDERED_LIST':
       return node('orderedList', attrs, childContent(block))
     case 'LIST_ITEM':
@@ -86,7 +88,7 @@ function blockToProseMirrorJson(block: BlockNode): JSONContent {
     case 'DOCUMENT':
       return node('doc', attrs, childContent(block))
     case 'TASK_LIST_ITEM':
-      return node('listItem', attrs, childContent(block))
+      return node('taskItem', attrs, taskItemContent(block))
     default:
       return { type: 'docpilotUnsupportedBlock', attrs }
   }
@@ -141,6 +143,24 @@ function tableCellContent(block: BlockNode): JSONContent[] {
 
 function childContent(block: BlockNode): JSONContent[] {
   return normalizeLegacyDetailsBlocks(block.children).map(blockToProseMirrorJson)
+}
+
+function taskListBlock(block: BlockNode): boolean {
+  return block.children.some((child) => child.type === 'TASK_LIST_ITEM')
+}
+
+function taskListContent(block: BlockNode): JSONContent[] {
+  return normalizeLegacyDetailsBlocks(block.children)
+    .filter((child) => child.type === 'TASK_LIST_ITEM' || child.type === 'LIST_ITEM')
+    .map((child) => {
+      if (child.type === 'TASK_LIST_ITEM') return blockToProseMirrorJson(child)
+      return node('taskItem', withBlockSource(child, normalizeBlockAttrsForProseMirror('TASK_LIST_ITEM', {}, child.id)), taskItemContent(child))
+    })
+}
+
+function taskItemContent(block: BlockNode): JSONContent[] {
+  const children = childContent(block)
+  return children.length ? children : [node('paragraph', {}, inlineContent(block))]
 }
 
 function textContent(text: string): JSONContent[] {

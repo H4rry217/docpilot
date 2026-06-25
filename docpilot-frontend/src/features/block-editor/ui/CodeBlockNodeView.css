@@ -53,11 +53,11 @@
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  min-height: 36px;
-  border-bottom: 1px solid #e1e5eb;
+  min-height: 28px;
+  border-bottom: 1px solid #e6ebf1;
   border-radius: 8px 8px 0 0;
-  background: #fafbfc;
-  padding: 0 8px;
+  background: #fbfcfd;
+  padding: 0 6px;
   user-select: none;
 }
 
@@ -77,9 +77,9 @@
 }
 
 .code-block-collapse {
-  width: 24px;
-  height: 24px;
-  border-radius: 6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
 }
 
 .code-block-collapse:hover,
@@ -101,7 +101,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
   opacity: 0;
   pointer-events: none;
@@ -125,18 +125,18 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  min-width: 72px;
-  height: 26px;
+  gap: 4px;
+  min-width: 64px;
+  height: 22px;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: 5px;
   background: transparent;
   color: #475569;
   font: inherit;
-  font-size: 0.8rem;
-  font-weight: 720;
+  font-size: 0.76rem;
+  font-weight: 680;
   outline: none;
-  padding: 0 8px;
+  padding: 0 6px;
 }
 
 .code-block-language-trigger {
@@ -217,9 +217,9 @@
 }
 
 .code-block-action {
-  width: 26px;
-  height: 26px;
-  border-radius: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
   cursor: pointer;
   padding: 0;
 }
@@ -259,7 +259,7 @@
   overflow: auto;
   font-family: inherit;
   line-height: 1.62;
-  padding: 10px 0 11px;
+  padding: 7px 0 8px;
 }
 
 .code-block-editor .cm-content {
@@ -363,7 +363,7 @@
 }
 
 .code-block-node.is-special-code-block .code-block-header {
-  min-height: 30px;
+  min-height: 26px;
   border-bottom: 0;
   border-radius: 0;
   background: transparent;
@@ -418,11 +418,11 @@
 }
 
 .code-block-node.is-special-code-block .code-block-mermaid-frame .code-block-header {
-  min-height: 34px;
+  min-height: 28px;
   border-bottom: 1px solid #e1e5eb;
   border-radius: 5px 5px 0 0;
   background: #fafbfc;
-  padding: 0 8px;
+  padding: 0 6px;
 }
 
 .code-block-node.is-special-code-block .code-block-mermaid-frame .code-block-editor {
@@ -431,7 +431,7 @@
 }
 
 .code-block-node.is-special-code-block .code-block-mermaid-frame .code-block-editor .cm-scroller {
-  padding: 10px 0 11px;
+  padding: 7px 0 8px;
 }
 
 .code-block-node.is-special-code-block .code-block-mermaid-frame .code-block-editor .cm-gutters {
@@ -621,7 +621,8 @@
   .code-block-header {
     grid-template-columns: auto minmax(0, 1fr);
     gap: 6px;
-    padding: 5px 8px;
+    min-height: 30px;
+    padding: 2px 6px;
   }
 
   .code-block-actions {

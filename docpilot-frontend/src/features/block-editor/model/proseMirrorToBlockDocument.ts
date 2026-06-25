@@ -56,6 +56,10 @@ function blockFromNode(node: JSONContent, path: string): BlockNode {
     return block(path, type, { ...attrs, header: node.type === 'tableHeader' }, inlineContent(node))
   }
 
+  if (node.type === 'taskItem') {
+    return block(path, 'TASK_LIST_ITEM', attrs, inlineContent(node), childBlocks(node, path))
+  }
+
   if (type === 'PARAGRAPH' || type === 'HEADING' || type === 'DEFINITION_TERM') {
     return block(path, type, attrs, inlineContent(node), childBlocks(node, path))
   }
@@ -209,8 +213,12 @@ function blockType(type?: string): BlockType {
       return 'BULLET_LIST'
     case 'orderedList':
       return 'ORDERED_LIST'
+    case 'taskList':
+      return 'BULLET_LIST'
     case 'listItem':
       return 'LIST_ITEM'
+    case 'taskItem':
+      return 'TASK_LIST_ITEM'
     case 'codeBlock':
       return 'CODE_BLOCK'
     case 'horizontalRule':

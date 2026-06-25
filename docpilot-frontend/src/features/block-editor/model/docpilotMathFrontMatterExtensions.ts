@@ -179,7 +179,7 @@ export const DocpilotMathBlock = BlockMath.extend({
       const innerWrapper = document.createElement('div')
       const editableClass = this.editor.isEditable ? ' tiptap-mathematics-render--editable' : ''
 
-      setDomAttributes(wrapper, mathDomAttrs(node, 'block-math', `tiptap-mathematics-render docpilot-block${editableClass}`))
+      setDomAttributes(wrapper, mathDomAttrs(node, 'block-math', `tiptap-mathematics-render docpilot-block docpilot-math-block${editableClass}`))
       innerWrapper.className = 'block-math-inner'
       wrapper.appendChild(innerWrapper)
       renderKatex(innerWrapper, latexAttr(node.attrs), blockKatexOptions, 'block-math-error')
@@ -218,7 +218,7 @@ export const DocpilotMathInline = InlineMath.extend({
       const wrapper = document.createElement('span')
       const editableClass = this.editor.isEditable ? ' tiptap-mathematics-render--editable' : ''
 
-      setDomAttributes(wrapper, mathDomAttrs(node, 'inline-math', `tiptap-mathematics-render${editableClass}`))
+      setDomAttributes(wrapper, mathDomAttrs(node, 'inline-math', `tiptap-mathematics-render docpilot-math-inline${editableClass}`))
       renderKatex(wrapper, latexAttr(node.attrs), inlineKatexOptions, 'inline-math-error')
 
       return { dom: wrapper }

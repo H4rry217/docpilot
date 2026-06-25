@@ -13,6 +13,7 @@ function escapeRegExp(value: string): string {
 
 function syntaxPattern(language: CodeLanguage): RegExp {
   const keywords = language.keywords.length ? language.keywords.map(escapeRegExp).join('|') : '$.'
+  const flags = language.caseInsensitive ? 'gi' : 'g'
 
   if (language.value === 'yaml') {
     return new RegExp(
@@ -25,7 +26,23 @@ function syntaxPattern(language: CodeLanguage): RegExp {
         '\\b(?:' + keywords + ')\\b',
         '\\b\\d+(?:\\.\\d+)?\\b'
       ].join('|'),
-      'g'
+      flags
+    )
+  }
+
+  if (language.value === 'sql') {
+    return new RegExp(
+      [
+        '--[^\\n]*',
+        '#[^\\n]*',
+        '/\\*[^]*?\\*/',
+        '"(?:\\\\.|[^"\\\\])*"',
+        "'(?:\\\\.|[^'\\\\])*'",
+        '`(?:\\\\.|[^`\\\\])*`',
+        '\\b(?:' + keywords + ')\\b',
+        '\\b\\d+(?:\\.\\d+)?\\b'
+      ].join('|'),
+      flags
     )
   }
 
@@ -41,7 +58,7 @@ function syntaxPattern(language: CodeLanguage): RegExp {
       '\\b(?:' + keywords + ')\\b',
       '\\b\\d+(?:\\.\\d+)?\\b'
     ].join('|'),
-    'g'
+    flags
   )
 }
 
@@ -65,7 +82,7 @@ export function syntaxExtension(languageValue: string) {
         return
       }
 
-      if (token.startsWith('//') || token.startsWith('#') || token.startsWith('/*')) {
+      if (token.startsWith('//') || token.startsWith('--') || token.startsWith('#') || token.startsWith('/*')) {
         className = 'cm-dp-token-comment'
       } else if (token.startsWith('"') || token.startsWith("'") || token.startsWith('`')) {
         className = 'cm-dp-token-string'

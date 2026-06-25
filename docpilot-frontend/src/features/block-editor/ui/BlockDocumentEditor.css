@@ -647,24 +647,151 @@
 
 .prose-editor ul,
 .prose-editor ol {
+  --docpilot-list-marker-color: #4f7cff;
+
   margin: 0.8em 0;
-  padding-left: 1.55em;
+  padding-left: 1.4em;
+}
+
+.prose-editor ul {
+  list-style: disc;
+}
+
+.prose-editor ol {
+  list-style: decimal;
+}
+
+.prose-editor ul > li::marker {
+  color: var(--docpilot-list-marker-color);
+  font-size: 1.02em;
+}
+
+.prose-editor ol > li::marker {
+  color: var(--docpilot-list-marker-color);
+  font-weight: 650;
+}
+
+.prose-editor :is(ul, ol) :is(ul, ol) {
+  --docpilot-list-marker-color: #8b9bad;
+
+  margin-block: 0.28em;
+}
+
+.prose-editor :is(ul, ol) :is(ul, ol) :is(ul, ol) {
+  --docpilot-list-marker-color: #4f7cff;
+}
+
+.prose-editor :is(ul, ol) :is(ul, ol) :is(ul, ol) :is(ul, ol) {
+  --docpilot-list-marker-color: #8b9bad;
+}
+
+.prose-editor :is(ul, ol) :is(ul, ol) :is(ul, ol) :is(ul, ol) :is(ul, ol) {
+  --docpilot-list-marker-color: #4f7cff;
+}
+
+.prose-editor :is(ul, ol) :is(ul, ol) :is(ul, ol) :is(ul, ol) :is(ul, ol) :is(ul, ol) {
+  --docpilot-list-marker-color: #8b9bad;
+}
+
+.prose-editor ol ol {
+  list-style: lower-alpha;
+}
+
+.prose-editor ol ol ol {
+  list-style: lower-roman;
+}
+
+.prose-editor ul.docpilot-task-list {
+  margin: 0.8em 0;
+  padding-left: 0;
+  list-style: none;
+}
+
+.prose-editor ul.docpilot-task-list ul.docpilot-task-list {
+  margin-block: 0.28em;
+}
+
+.prose-editor li.docpilot-task-item {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: start;
+  gap: 6px;
+  padding-left: 0;
+}
+
+.prose-editor li.docpilot-task-item::marker {
+  content: "";
+}
+
+.prose-editor li.docpilot-task-item > label {
+  display: inline-grid;
+  width: 22px;
+  height: 1.75em;
+  place-items: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+.prose-editor li.docpilot-task-item > label input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: #4f7cff;
+  cursor: pointer;
+}
+
+.prose-editor li.docpilot-task-item > div {
+  min-width: 0;
+}
+
+.prose-editor li.docpilot-task-item[data-checked="true"] > div {
+  color: #7a8797;
+}
+
+.prose-editor li.docpilot-task-item[data-checked="true"] > div p {
+  text-decoration: line-through;
+  text-decoration-color: rgb(122 135 151 / 55%);
 }
 
 .prose-editor li {
   margin: 0.2em 0;
+  padding-left: 0.12em;
+  line-height: 1.75;
+}
+
+.prose-editor li > p {
+  margin: 0;
 }
 
 .prose-editor blockquote {
-  margin: 18px 0;
-  padding: 14px 18px;
+  margin: 12px 0;
+  padding: 6px 14px;
   border-left: 3px solid #51a6ee;
   background: #f0f6fd;
   color: #3d4d5f;
+  line-height: 1.75;
 }
 
 .prose-editor blockquote p {
   margin: 0;
+}
+
+.prose-editor blockquote > :first-child {
+  margin-top: 0;
+}
+
+.prose-editor blockquote > :last-child {
+  margin-bottom: 0;
+}
+
+.prose-editor blockquote blockquote {
+  margin: 8px 0;
+  padding-block: 4px;
+}
+
+.prose-editor blockquote ul,
+.prose-editor blockquote ol {
+  margin-block: 0.35em;
 }
 
 .prose-editor hr {
@@ -748,7 +875,6 @@
   box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
   padding: 0;
   scrollbar-color: var(--table-scrollbar-thumb-color) var(--table-scrollbar-track-color);
-  scrollbar-gutter: stable;
   scrollbar-width: thin;
 }
 

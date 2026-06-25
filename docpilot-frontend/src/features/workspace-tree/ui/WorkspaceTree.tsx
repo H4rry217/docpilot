@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { FileUp } from 'lucide-react'
 import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import type { Workspace, WorkspaceTreeNode } from '@/entities/workspace/types'
@@ -28,6 +28,23 @@ export type WorkspaceTreeProps = {
   onRenameNode?: (node: WorkspaceTreeNode) => void
   onDeleteNode?: (node: WorkspaceTreeNode) => void
   uploadMessage?: string
+}
+
+function WorkspaceUploadToast({ message }: { message: string }) {
+  return (
+    <div className="px-3 pb-1 pt-2">
+      <div
+        className="flex min-h-9 items-center gap-2 rounded-md border border-[#d7e5ff] bg-[#f3f7ff] px-2.5 py-2 text-[12px] leading-5 text-[#40516a] shadow-[0_8px_22px_rgb(37_99_235/0.08)]"
+        role="status"
+        aria-live="polite"
+      >
+        <span className="grid size-5 shrink-0 place-items-center rounded bg-white text-[#4f7cff] shadow-[inset_0_0_0_1px_rgb(79_124_255/0.16)]">
+          <FileUp className="size-3.5" aria-hidden="true" />
+        </span>
+        <span className="min-w-0 flex-1 text-pretty break-words">{message}</span>
+      </div>
+    </div>
+  )
 }
 
 export function WorkspaceTree({
@@ -131,9 +148,7 @@ export function WorkspaceTree({
                 </div>
               </ScrollArea>
               {uploadMessage ? (
-                <Alert className="mx-2 mt-2">
-                  <AlertDescription>{uploadMessage}</AlertDescription>
-                </Alert>
+                <WorkspaceUploadToast message={uploadMessage} />
               ) : null}
             </>
           ) : null}

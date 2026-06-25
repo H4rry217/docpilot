@@ -76,7 +76,7 @@ export function CodeBlockToolbar({
         onMouseDown={(event) => event.preventDefault()}
         onClick={onToggleCollapsed}
       >
-        <ChevronDown size={15} />
+        <ChevronDown size={13} />
       </button>
       <div className="code-block-actions">
         {isMermaid ? (
@@ -99,7 +99,7 @@ export function CodeBlockToolbar({
               onClick={toggleLanguageMenu}
             >
               <span>{activeLanguage.label}</span>
-              <ChevronDown size={14} />
+              <ChevronDown size={12} />
             </button>
             {isLanguageMenuOpen ? (
               <div className="code-block-language-list" role="listbox" aria-label="Code language">
@@ -116,7 +116,7 @@ export function CodeBlockToolbar({
                       onClick={() => selectLanguage(option.value)}
                     >
                       <span>{option.label}</span>
-                      {selected ? <Check size={13} /> : null}
+                      {selected ? <Check size={12} /> : null}
                     </button>
                   )
                 })}
@@ -133,7 +133,7 @@ export function CodeBlockToolbar({
             onMouseDown={(event) => event.preventDefault()}
             onClick={onEditCaption}
           >
-            <Captions size={15} />
+            <Captions size={13} />
           </button>
         ) : null}
         {isMermaid ? (
@@ -145,7 +145,7 @@ export function CodeBlockToolbar({
             onMouseDown={(event) => event.preventDefault()}
             onClick={onToggleMermaidSource}
           >
-            {isMermaidSourceVisible ? <Eye size={15} /> : <Code2 size={15} />}
+            {isMermaidSourceVisible ? <Eye size={13} /> : <Code2 size={13} />}
           </button>
         ) : null}
         {shouldShowFormatAction ? (
@@ -157,7 +157,7 @@ export function CodeBlockToolbar({
             onMouseDown={(event) => event.preventDefault()}
             onClick={onFormatCode}
           >
-            <WandSparkles size={15} />
+            <WandSparkles size={13} />
           </button>
         ) : null}
         <button
@@ -168,7 +168,7 @@ export function CodeBlockToolbar({
           onMouseDown={(event) => event.preventDefault()}
           onClick={onCopyBlockContent}
         >
-          {copied ? <Check size={15} /> : <Copy size={15} />}
+          {copied ? <Check size={13} /> : <Copy size={13} />}
         </button>
       </div>
     </div>

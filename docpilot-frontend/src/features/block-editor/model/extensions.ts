@@ -1,5 +1,6 @@
 import Emoji from '@tiptap/extension-emoji'
 import Highlight from '@tiptap/extension-highlight'
+import { TaskItem, TaskList } from '@tiptap/extension-list'
 import Subscript from '@tiptap/extension-subscript'
 import Superscript from '@tiptap/extension-superscript'
 import { TableKit } from '@tiptap/extension-table'
@@ -58,6 +59,21 @@ export const editorExtensions = [
   DocpilotInlineCompletion,
   DocpilotFootnoteNavigation,
   DocpilotCodeBlock,
+  TaskList.configure({
+    itemTypeName: 'taskItem',
+    HTMLAttributes: {
+      class: 'docpilot-task-list'
+    }
+  }),
+  TaskItem.configure({
+    nested: true,
+    HTMLAttributes: {
+      class: 'docpilot-task-item'
+    },
+    a11y: {
+      checkboxLabel: (node, checked) => `${checked ? 'Completed' : 'Incomplete'} task: ${node.textContent || 'empty task'}`
+    }
+  }),
   TableKit.configure({
     table: {
       cellMinWidth: TABLE_DEFAULT_COLUMN_WIDTH_PX,

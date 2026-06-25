@@ -46,6 +46,11 @@ type InlineCompletionRuntimeSettings = {
   idleDelayMs: number
   candidateCount: number
 }
+type PendingAutosave = {
+  baseVersion: string
+  blockDocument: BlockDocument
+  documentId: string
+}
 
 export type DocumentEditorProps = {
   developerMode?: boolean
@@ -114,6 +119,7 @@ export function DocumentEditor({
   const latestSnapshotRef = useRef<BlockDocumentEditorSnapshot | null>(null)
   const documentIdRef = useRef<string | undefined>(undefined)
   const versionRef = useRef<string | null>(null)
+  const pendingAutosaveRef = useRef<PendingAutosave | null>(null)
   const autosaveTimerRef = useRef<number | undefined>(undefined)
 
   const documentId = documentNode?.documentId
@@ -128,21 +134,35 @@ export function DocumentEditor({
 
   const saveMutation = useMutation({
     mutationFn: saveDocumentContent,
-    onMutate: () => {
+    onMutate: (input) => {
+      if (input.documentId !== documentIdRef.current) return
       setSaveError(null)
       setSaveState('saving')
     },
     onSuccess: (response) => {
-      versionRef.current = response.document.currentVersion
       queryClient.setQueryData(['document', response.document.documentId], response)
+      if (response.document.documentId !== documentIdRef.current) return
+      versionRef.current = response.document.currentVersion
       setSaveError(null)
       setSaveState('saved')
     },
-    onError: (error) => {
+    onError: (error, input) => {
+      if (input.documentId !== documentIdRef.current) return
       setSaveState('error')
       setSaveError(error instanceof Error ? error.message : t('editor.saveFailed'))
     }
   })
+  const saveMutationRef = useRef(saveMutation)
+  saveMutationRef.current = saveMutation
+
+  const submitSavePayload = useCallback((payload: PendingAutosave) => {
+    saveMutationRef.current.mutate({
+      documentId: payload.documentId,
+      blockDocument: blockDocumentForSave(payload.blockDocument),
+      baseVersion: payload.baseVersion,
+      clientMutationId: createClientMutationId()
+    })
+  }, [])
 
   const saveBlockDocument = useCallback(
     (blockDocument: BlockDocument, expectedDocumentId = documentIdRef.current) => {
@@ -150,26 +170,43 @@ export function DocumentEditor({
       const baseVersion = versionRef.current
       if (!activeDocumentId || activeDocumentId !== expectedDocumentId || baseVersion == null) return
 
-      saveMutation.mutate({
+      submitSavePayload({
         documentId: activeDocumentId,
-        blockDocument: blockDocumentForSave(blockDocument),
-        baseVersion,
-        clientMutationId: createClientMutationId()
+        blockDocument,
+        baseVersion
       })
     },
-    [saveMutation]
+    [submitSavePayload]
   )
 
   const queueAutosave = useCallback(
     (blockDocument: BlockDocument) => {
       const queuedDocumentId = documentIdRef.current
+      const baseVersion = versionRef.current
+      if (!queuedDocumentId || baseVersion == null) return
+      const pendingAutosave = {
+        documentId: queuedDocumentId,
+        blockDocument,
+        baseVersion
+      }
+      pendingAutosaveRef.current = pendingAutosave
       window.clearTimeout(autosaveTimerRef.current)
       autosaveTimerRef.current = window.setTimeout(() => {
-        saveBlockDocument(blockDocument, queuedDocumentId)
+        if (pendingAutosaveRef.current !== pendingAutosave) return
+        pendingAutosaveRef.current = null
+        submitSavePayload(pendingAutosave)
       }, AUTOSAVE_DELAY_MS)
     },
-    [saveBlockDocument]
+    [submitSavePayload]
   )
+
+  const flushPendingAutosave = useCallback(() => {
+    const pendingAutosave = pendingAutosaveRef.current
+    if (!pendingAutosave) return
+    pendingAutosaveRef.current = null
+    window.clearTimeout(autosaveTimerRef.current)
+    submitSavePayload(pendingAutosave)
+  }, [submitSavePayload])
 
   const handleSnapshotChange = useCallback(
     (snapshot: BlockDocumentEditorSnapshot, source: BlockDocumentEditorSnapshotSource) => {
@@ -189,6 +226,7 @@ export function DocumentEditor({
     const snapshot = blockEditorRef.current?.getSnapshot() ?? latestSnapshotRef.current
     if (!snapshot) return
     window.clearTimeout(autosaveTimerRef.current)
+    pendingAutosaveRef.current = null
     saveBlockDocument(snapshot.blockDocument)
   }
 
@@ -210,11 +248,15 @@ export function DocumentEditor({
   }, [])
 
   useEffect(() => {
-    return () => window.clearTimeout(autosaveTimerRef.current)
-  }, [])
+    return () => {
+      if (documentIdRef.current === documentId) {
+        documentIdRef.current = undefined
+      }
+      flushPendingAutosave()
+    }
+  }, [documentId, flushPendingAutosave])
 
   useEffect(() => {
-    window.clearTimeout(autosaveTimerRef.current)
     latestSnapshotRef.current = null
     setSaveError(null)
     setSaveState(documentId ? 'idle' : 'idle')

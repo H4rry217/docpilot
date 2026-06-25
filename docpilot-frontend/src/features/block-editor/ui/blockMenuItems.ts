@@ -69,11 +69,13 @@ function emptyListItemContent(): JSONContent {
 
 function taskListItemContent(): JSONContent {
   return {
-    type: 'listItem',
+    type: 'taskItem',
+    attrs: {
+      checked: false
+    },
     content: [
       {
-        type: 'paragraph',
-        content: [{ type: 'text', text: '[ ] ' }]
+        type: 'paragraph'
       }
     ]
   }
@@ -86,7 +88,7 @@ export const FORMAT_STRIP_ITEMS: BlockMenuItem[] = [
   headingItem(3, Heading3),
   transformItem('ordered-list', 'blockMenu.orderedList', ListOrdered, (context) => toggleOrderedList(context), (context) => context.editor.isActive('orderedList')),
   transformItem('bullet-list', 'blockMenu.bulletList', List, (context) => toggleBulletList(context), (context) => context.editor.isActive('bulletList')),
-  transformItem('task', 'blockMenu.task', CheckSquare, (context) => insertTaskList(context), isTaskLikeActive),
+  transformItem('task', 'blockMenu.task', CheckSquare, (context) => toggleTaskList(context), (context) => context.editor.isActive('taskList')),
   transformItem('quote', 'blockMenu.quote', Quote, (context) => toggleBlockquote(context), (context) => context.editor.isActive('blockquote')),
   transformItem('code', 'blockMenu.codeBlock', Code2, (context) => setCodeBlock(context), (context) => context.editor.isActive('codeBlock'))
 ]
@@ -105,7 +107,7 @@ export const INSERT_MENU_ITEMS: BlockMenuItem[] = [
     content: [emptyListItemContent()]
   })),
   transformItem('insert-task', 'blockMenu.task', CheckSquare, (context) => replaceCurrentBlock(context, {
-    type: 'bulletList',
+    type: 'taskList',
     content: [taskListItemContent()]
   })),
   transformItem('insert-quote', 'blockMenu.quote', Quote, (context) => replaceCurrentBlock(context, {
@@ -139,6 +141,7 @@ export const TRANSFORM_MENU_ITEMS: BlockMenuItem[] = [
   headingItem(3, Heading3, 'blockMenu.transform.heading3'),
   transformItem('to-bullet-list', 'blockMenu.transform.bulletList', List, (context) => toggleBulletList(context), (context) => context.editor.isActive('bulletList')),
   transformItem('to-ordered-list', 'blockMenu.transform.orderedList', ListOrdered, (context) => toggleOrderedList(context), (context) => context.editor.isActive('orderedList')),
+  transformItem('to-task', 'blockMenu.task', CheckSquare, (context) => toggleTaskList(context), (context) => context.editor.isActive('taskList')),
   transformItem('to-quote', 'blockMenu.transform.quote', Quote, (context) => toggleBlockquote(context), (context) => context.editor.isActive('blockquote')),
   transformItem('to-code', 'blockMenu.transform.codeBlock', Code2, (context) => setCodeBlock(context), (context) => context.editor.isActive('codeBlock'))
 ]
@@ -171,6 +174,7 @@ export function iconForBlockInfo(block: BlockMenuBlockInfo): LucideIcon {
     if (block.attrs.level === 2) return Heading2
     return Heading3
   }
+  if (block.typeName === 'taskList' || block.typeName === 'taskItem') return CheckSquare
   if (block.typeName === 'bulletList' || block.typeName === 'listItem') return List
   if (block.typeName === 'orderedList') return ListOrdered
   if (block.typeName === 'blockquote') return Quote
@@ -187,6 +191,7 @@ export function labelForBlockInfo(block: BlockMenuBlockInfo, t: BlockMenuTransla
     const level = typeof block.attrs.level === 'number' ? block.attrs.level : 1
     return t('blockMenu.headingLevel', { level: String(level) })
   }
+  if (block.typeName === 'taskList' || block.typeName === 'taskItem') return t('blockMenu.task')
   if (block.typeName === 'bulletList' || block.typeName === 'listItem') return t('blockMenu.list')
   if (block.typeName === 'orderedList') return t('blockMenu.orderedList')
   if (block.typeName === 'blockquote') return t('blockMenu.quote')
@@ -276,10 +281,6 @@ function isEmptyParagraph(node: ProseMirrorNode): boolean {
     && node.textContent.trim().length === 0
 }
 
-function isTaskLikeActive(context: BlockMenuActionContext): boolean {
-  return context.editor.isActive('bulletList') && context.block.text.trim().startsWith('[ ]')
-}
-
 function selectBlockForCommand(context: BlockMenuActionContext): BlockRange | null {
   const range = findBlockRangeById(context.editor, context.block.blockId)
   if (!range) return null
@@ -349,11 +350,9 @@ function setCodeBlock(context: BlockMenuActionContext): void {
   context.editor.chain().focus().setCodeBlock().run()
 }
 
-function insertTaskList(context: BlockMenuActionContext): void {
-  replaceCurrentBlock(context, {
-    type: 'bulletList',
-    content: [taskListItemContent()]
-  })
+function toggleTaskList(context: BlockMenuActionContext): void {
+  if (!selectBlockForCommand(context)) return
+  context.editor.chain().focus().toggleTaskList().run()
 }
 
 function replaceCurrentBlock(context: BlockMenuActionContext, content: JSONContent): void {

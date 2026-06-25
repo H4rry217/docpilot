@@ -383,6 +383,8 @@ describe('blockDocumentToProseMirrorJson', () => {
       attrs: { latex: '\\int_a^b f(x)dx', text: '\\int_a^b f(x)dx', notation: 'latex', delimiter: '$$' }
     })
     expect(html).toContain('tiptap-mathematics-render')
+    expect(html).toContain('docpilot-math-inline')
+    expect(html).toContain('docpilot-math-block')
     expect(html).toContain('data-type="inline-math"')
     expect(html).toContain('data-type="block-math"')
     expect(html).toContain('katex')
@@ -418,6 +420,7 @@ describe('blockDocumentToProseMirrorJson', () => {
       attrs: { latex: '\\int_a^b f(x)dx', text: '\\int_a^b f(x)dx' }
     })
     expect(html).toContain('tiptap-mathematics-render')
+    expect(html).toContain('docpilot-math-block')
     expect(html).toContain('katex')
     expect(html).not.toContain('docpilot-leaf-block')
     editor.destroy()
@@ -567,6 +570,99 @@ describe('blockDocumentToProseMirrorJson', () => {
     editor.commands.deleteSelection()
 
     expect(editor.getJSON().content?.map((node) => node.type)).toEqual(['paragraph'])
+    editor.destroy()
+  })
+
+  it('maps canonical task list items to official Tiptap task nodes', () => {
+    const blockDocument: BlockDocument = {
+      schemaVersion: 'docpilot-block/2',
+      metadata: {},
+      blocks: [
+        {
+          id: 'tasks',
+          type: 'BULLET_LIST',
+          attrs: {},
+          inlines: [],
+          children: [
+            {
+              id: 'task-1',
+              type: 'TASK_LIST_ITEM',
+              attrs: { checked: true },
+              inlines: [],
+              children: [
+                {
+                  id: 'task-text',
+                  type: 'PARAGRAPH',
+                  attrs: {},
+                  inlines: [{ type: 'TEXT', text: 'Ship task lists', attrs: {}, marks: [] }],
+                  children: []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+    const proseMirrorJson = blockDocumentToProseMirrorJson(blockDocument)
+
+    expect(proseMirrorJson.content?.[0]).toMatchObject({
+      type: 'taskList',
+      attrs: { blockId: 'tasks' },
+      content: [
+        {
+          type: 'taskItem',
+          attrs: { blockId: 'task-1', checked: true },
+          content: [
+            {
+              type: 'paragraph',
+              attrs: { blockId: 'task-text' },
+              content: [{ type: 'text', text: 'Ship task lists' }]
+            }
+          ]
+        }
+      ]
+    })
+
+    const editor = new Editor({
+      extensions: editorExtensions,
+      content: proseMirrorJson
+    })
+    const checkbox = editor.view.dom.querySelector<HTMLInputElement>('li.docpilot-task-item input[type="checkbox"]')
+
+    expect(checkbox).toBeInstanceOf(HTMLInputElement)
+    expect(checkbox?.checked).toBe(true)
+    editor.destroy()
+  })
+
+  it('updates task item checked attrs when the checkbox changes', () => {
+    const editor = new Editor({
+      extensions: editorExtensions,
+      content: {
+        type: 'doc',
+        content: [
+          {
+            type: 'taskList',
+            content: [
+              {
+                type: 'taskItem',
+                attrs: { checked: false },
+                content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Toggle me' }] }]
+              }
+            ]
+          }
+        ]
+      }
+    })
+    const checkbox = editor.view.dom.querySelector<HTMLInputElement>('li.docpilot-task-item input[type="checkbox"]')
+
+    expect(checkbox).toBeInstanceOf(HTMLInputElement)
+    if (checkbox) {
+      checkbox.checked = true
+      checkbox.dispatchEvent(new Event('change', { bubbles: true }))
+    }
+
+    const taskItem = editor.getJSON().content?.[0]?.content?.[0] as { attrs?: Record<string, unknown> } | undefined
+    expect(taskItem?.attrs).toMatchObject({ checked: true })
     editor.destroy()
   })
 

@@ -168,6 +168,52 @@ describe('proseMirrorJsonToBlockDocument', () => {
     })
   })
 
+  it('saves official Tiptap task nodes as canonical task list items', () => {
+    const blockDocument = proseMirrorJsonToBlockDocument({
+      type: 'doc',
+      content: [
+        {
+          type: 'taskList',
+          attrs: { blockId: 'tasks' },
+          content: [
+            {
+              type: 'taskItem',
+              attrs: { blockId: 'task-1', checked: true },
+              content: [
+                {
+                  type: 'paragraph',
+                  attrs: { blockId: 'task-text' },
+                  content: [{ type: 'text', text: 'Ship task lists' }]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    })
+
+    expect(blockDocument.blocks).toMatchObject([
+      {
+        id: 'tasks',
+        type: 'BULLET_LIST',
+        children: [
+          {
+            id: 'task-1',
+            type: 'TASK_LIST_ITEM',
+            attrs: { checked: true },
+            children: [
+              {
+                id: 'task-text',
+                type: 'PARAGRAPH',
+                inlines: [{ type: 'TEXT', text: 'Ship task lists' }]
+              }
+            ]
+          }
+        ]
+      }
+    ])
+  })
+
   it('normalizes html attrs from editor json', () => {
     const blockDocument = proseMirrorJsonToBlockDocument({
       type: 'doc',

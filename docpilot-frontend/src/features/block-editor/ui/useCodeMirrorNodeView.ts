@@ -1,5 +1,5 @@
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
-import { Compartment, EditorState } from '@codemirror/state'
+import { Compartment, EditorState as CodeMirrorEditorState } from '@codemirror/state'
 import {
   EditorView,
   drawSelection,
@@ -9,14 +9,63 @@ import {
   keymap,
   lineNumbers
 } from '@codemirror/view'
+import type { EditorState as ProseMirrorEditorState } from '@tiptap/pm/state'
+import type { EditorView as ProseMirrorEditorView } from '@tiptap/pm/view'
 import type { NodeViewProps } from '@tiptap/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { syntaxExtension } from './codeSyntaxExtension'
 
 const CODE_KEYMAP = [...defaultKeymap, ...historyKeymap, indentWithTab]
 
+type CodeBlockContentRange = {
+  from: number
+  text: string
+  to: number
+}
+
 function textFromNode(props: NodeViewProps): string {
   return props.node.textContent
+}
+
+export function codeBlockContentRange(
+  state: ProseMirrorEditorState,
+  getPos: NodeViewProps['getPos']
+): CodeBlockContentRange | null {
+  let position: unknown
+  try {
+    position = getPos()
+  } catch {
+    return null
+  }
+  if (typeof position !== 'number') return null
+  const node = state.doc.nodeAt(position)
+  if (node?.type.name !== 'codeBlock') return null
+  return {
+    from: position + 1,
+    text: node.textContent,
+    to: position + node.nodeSize - 1
+  }
+}
+
+export function codeBlockTextFromEditorState(
+  state: ProseMirrorEditorState,
+  getPos: NodeViewProps['getPos']
+): string | null {
+  return codeBlockContentRange(state, getPos)?.text ?? null
+}
+
+export function replaceCodeBlockTextInEditor(
+  editorView: ProseMirrorEditorView,
+  getPos: NodeViewProps['getPos'],
+  text: string
+): boolean {
+  const range = codeBlockContentRange(editorView.state, getPos)
+  if (!range || range.text === text) return false
+  const transaction = text
+    ? editorView.state.tr.insertText(text, range.from, range.to)
+    : editorView.state.tr.delete(range.from, range.to)
+  editorView.dispatch(transaction)
+  return true
 }
 
 export function useCodeMirrorNodeView({
@@ -37,12 +86,7 @@ export function useCodeMirrorNodeView({
 
   function syncCodeTextToProseMirror(text: string) {
     const activeProps = propsRef.current
-    const position = activeProps.getPos()
-    if (typeof position !== 'number') return
-    const editorView = activeProps.editor.view
-    const from = position + 1
-    const to = position + activeProps.node.nodeSize - 1
-    editorView.dispatch(editorView.state.tr.insertText(text, from, to))
+    replaceCodeBlockTextInEditor(activeProps.editor.view, activeProps.getPos, text)
   }
 
   const baseExtensions = useMemo(() => [
@@ -53,7 +97,7 @@ export function useCodeMirrorNodeView({
     highlightActiveLine(),
     highlightActiveLineGutter(),
     keymap.of(CODE_KEYMAP),
-    EditorState.tabSize.of(2),
+    CodeMirrorEditorState.tabSize.of(2),
     EditorView.updateListener.of((update) => {
       if (!update.docChanged || applyingExternalChangeRef.current) return
       const nextText = update.state.doc.toString()
@@ -82,8 +126,8 @@ export function useCodeMirrorNodeView({
 
     const view = new EditorView({
       parent: host,
-      state: EditorState.create({
-        doc: textFromNode(propsRef.current),
+      state: CodeMirrorEditorState.create({
+        doc: codeBlockTextFromEditorState(propsRef.current.editor.view.state, propsRef.current.getPos) ?? textFromNode(propsRef.current),
         extensions: [
           ...baseExtensions,
           languageCompartmentRef.current.of(syntaxExtension(language))
@@ -116,7 +160,7 @@ export function useCodeMirrorNodeView({
   useEffect(() => {
     const view = codeMirrorRef.current
     if (!view) return
-    const nextText = textFromNode(props)
+    const nextText = codeBlockTextFromEditorState(props.editor.view.state, props.getPos) ?? textFromNode(props)
     const currentText = view.state.doc.toString()
     setCodeText(nextText)
     if (currentText === nextText) return
