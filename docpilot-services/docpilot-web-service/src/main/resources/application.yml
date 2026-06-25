@@ -1,25 +1,31 @@
 spring:
   config:
+    # Shared prompt templates are required; local overrides are optional and ignored when absent.
     import:
       - classpath:docpilot-prompts.yml
       - optional:classpath:application-local.yml
   application:
     name: docpilot
   jpa:
+    # Keep persistence operations explicit in services instead of lazy-loading during web rendering.
     open-in-view: false
     hibernate:
+      # Schema is managed outside Hibernate auto-DDL.
       ddl-auto: none
   datasource:
+    # Primary relational database for application metadata such as users and settings.
     url: ${SPRING_DATASOURCE_URL:jdbc:mysql://127.0.0.1:3306/docpilot?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC}
     username: ${SPRING_DATASOURCE_USERNAME:docpilot}
     password: ${SPRING_DATASOURCE_PASSWORD:}
   mongodb:
+    # Workspace documents and revisions are stored in MongoDB.
     host: ${SPRING_MONGODB_HOST:${SPRING_DATA_MONGODB_HOST:127.0.0.1}}
     port: ${SPRING_MONGODB_PORT:${SPRING_DATA_MONGODB_PORT:27017}}
     database: ${SPRING_MONGODB_DATABASE:${SPRING_DATA_MONGODB_DATABASE:docpilot}}
     authentication-database: ${SPRING_MONGODB_AUTHENTICATION_DATABASE:${SPRING_DATA_MONGODB_AUTHENTICATION_DATABASE:admin}}
   data:
     redis:
+      # Redis backs async/debounced jobs such as the distributed knowledge index queue.
       host: ${SPRING_DATA_REDIS_HOST:127.0.0.1}
       port: ${SPRING_DATA_REDIS_PORT:6379}
       database: ${SPRING_DATA_REDIS_DATABASE:0}
@@ -27,46 +33,79 @@ spring:
       password: ${SPRING_DATA_REDIS_PASSWORD:}
 
   elasticsearch:
+    # Elasticsearch endpoint used when docpilot.knowledge.store.type is elasticsearch.
     uris: http://localhost:9200
 
 server:
+  # HTTP port for the web service.
   port: 11451
 
 docpilot:
+  # Display/build version exposed by the application.
   version: 1.0-SNAPSHOT
   id:
+    # Snowflake-style id generator datacenter segment. Keep unique across deployments sharing storage.
     datacenter-id: ${DOCPILOT_ID_DATACENTER_ID:1}
+    # Snowflake-style id generator machine segment. Keep unique per service instance in one datacenter.
     machine-id: ${DOCPILOT_ID_MACHINE_ID:1}
   web:
     logging:
       http:
+        # Master switch for HTTP request/response logging.
         enabled: ${DOCPILOT_WEB_LOGGING_HTTP_ENABLED:true}
+        # Whether request payloads are included in HTTP logs.
         request-payload-enabled: ${DOCPILOT_WEB_LOGGING_HTTP_REQUEST_PAYLOAD_ENABLED:true}
+        # Whether response payloads are included in HTTP logs.
         response-payload-enabled: ${DOCPILOT_WEB_LOGGING_HTTP_RESPONSE_PAYLOAD_ENABLED:true}
+        # Maximum request/response payload characters written to one HTTP log entry.
         max-payload-length: ${DOCPILOT_WEB_LOGGING_HTTP_MAX_PAYLOAD_LENGTH:4096}
   auth:
+    # Authentication provider id. The default provider stores local password users.
     provider: ${DOCPILOT_AUTH_PROVIDER:local-password}
     jwt:
+      # JWT signing secret. Override in every non-local deployment.
       secret: ${DOCPILOT_AUTH_JWT_SECRET:DOCPILOT_SECRET}
+      # Access token lifetime in seconds.
       access-token-ttl-seconds: 604800
     default-user:
+      # Initializes the local auth schema/default records on startup when supported by the provider.
       init-schema: true
+      # Allows users to self-register through the local password provider.
       allow-registration: ${DOCPILOT_AUTH_ALLOW_REGISTRATION:true}
+      # Extra server-side secret mixed into password hashes.
       password-pepper: ${DOCPILOT_AUTH_PASSWORD_PEPPER:}
+      # Password hashing iteration count for newly generated hashes.
       password-iterations: ${DOCPILOT_AUTH_PASSWORD_ITERATIONS:600000}
   knowledge:
+    # Master switch for built-in knowledge indexing and retrieval.
     enabled: ${DOCPILOT_KNOWLEDGE_ENABLED:false}
+    # Logical index or collection name for DocPilot-managed knowledge chunks.
     index-name: ${DOCPILOT_KNOWLEDGE_INDEX_NAME:docpilot_knowledge_chunk_search}
+    # AI embedding model id used when creating/searching vector chunks.
     embedding-model-id: ${DOCPILOT_KNOWLEDGE_EMBEDDING_MODEL_ID:main-embedding}
+    # AI chat model id used to summarize document sections for indexing.
     summary-model-id: ${DOCPILOT_KNOWLEDGE_SUMMARY_MODEL_ID:main-chat}
+    # Maximum concurrent section summary model calls in one service instance.
     summary-concurrency: ${DOCPILOT_KNOWLEDGE_SUMMARY_CONCURRENCY:3}
+    # Number of chunks sent in one embedding provider request.
     embedding-batch-size: ${DOCPILOT_KNOWLEDGE_EMBEDDING_BATCH_SIZE:10}
+    store:
+      # Chunk store implementation. Built-in values: elasticsearch, noop; extensions may add milvus/mysql/etc.
+      type: ${DOCPILOT_KNOWLEDGE_STORE_TYPE:elasticsearch}
     index:
+      # Queue mode: redis for debounced distributed indexing, direct for immediate local indexing.
       mode: ${DOCPILOT_KNOWLEDGE_INDEX_MODE:redis}
+      # Wait time after the latest document change before indexing starts.
       debounce-delay-ms: ${DOCPILOT_KNOWLEDGE_INDEX_DEBOUNCE_DELAY_MS:3000}
+      # Maximum time a document can remain delayed since its first queued change.
       max-delay-ms: ${DOCPILOT_KNOWLEDGE_INDEX_MAX_DELAY_MS:30000}
+      # Redis worker polling interval for due indexing jobs.
       poll-interval-ms: ${DOCPILOT_KNOWLEDGE_INDEX_POLL_INTERVAL_MS:1000}
+      # Maximum due documents processed by one worker tick.
       worker-batch-size: ${DOCPILOT_KNOWLEDGE_INDEX_WORKER_BATCH_SIZE:20}
+      # Distributed lock TTL while one document is being indexed.
       lock-ttl-ms: ${DOCPILOT_KNOWLEDGE_INDEX_LOCK_TTL_MS:1800000}
+      # Delay before retrying a failed indexing job.
       retry-delay-ms: ${DOCPILOT_KNOWLEDGE_INDEX_RETRY_DELAY_MS:10000}
+      # TTL for queued job metadata.
       job-ttl-ms: ${DOCPILOT_KNOWLEDGE_INDEX_JOB_TTL_MS:86400000}

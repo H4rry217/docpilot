@@ -13,7 +13,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class KnowledgeProperties {
 
     /**
-     * Default ES index name for knowledge chunks.
+     * Default logical index or collection name for knowledge chunks.
      */
     public static final String DEFAULT_INDEX_NAME = "docpilot_knowledge_chunk_search";
 
@@ -23,7 +23,7 @@ public class KnowledgeProperties {
     private boolean enabled = false;
 
     /**
-     * Elasticsearch index that stores DocPilot-managed knowledge chunks.
+     * Logical index or collection name that stores DocPilot-managed knowledge chunks.
      */
     private String indexName = DEFAULT_INDEX_NAME;
 
@@ -58,6 +58,11 @@ public class KnowledgeProperties {
     private int embeddingBatchSize = 10;
 
     /**
+     * Chunk storage and retrieval implementation selection.
+     */
+    private StoreProperties store = new StoreProperties();
+
+    /**
      * Debounced indexing queue settings.
      */
     private IndexProperties index = new IndexProperties();
@@ -66,6 +71,17 @@ public class KnowledgeProperties {
      * Prompt templates used by knowledge model calls.
      */
     private PromptProperties prompts = new PromptProperties();
+
+    @Getter
+    @Setter
+    public static class StoreProperties {
+
+        /**
+         * Store implementation type. Built-in values are noop and elasticsearch; extensions may add more.
+         */
+        private String type = "elasticsearch";
+
+    }
 
     @Getter
     @Setter

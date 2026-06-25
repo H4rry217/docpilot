@@ -1,8 +1,8 @@
 package io.docpilot.workspace.knowledge;
 
 import io.docpilot.workspace.knowledge.config.KnowledgeProperties;
-import io.docpilot.workspace.knowledge.event.DocumentContentChangedEvent;
-import io.docpilot.workspace.knowledge.event.DocumentKnowledgeDeletedEvent;
+import io.docpilot.workspace.event.DocumentContentChangedEvent;
+import io.docpilot.workspace.event.DocumentDeletedEvent;
 import io.docpilot.workspace.knowledge.event.KnowledgeIndexEventListener;
 import io.docpilot.workspace.knowledge.queue.KnowledgeIndexQueue;
 import org.junit.jupiter.api.Test;
@@ -20,7 +20,7 @@ class KnowledgeIndexEventListenerTest {
         CapturingHandler handler = new CapturingHandler();
         KnowledgeIndexEventListener listener = new KnowledgeIndexEventListener(queue, handler);
 
-        listener.onDocumentContentChanged(new DocumentContentChangedEvent(30L, 100L));
+        listener.onDocumentContentChanged(new DocumentContentChangedEvent(7L, 20L, 30L, 100L, 2L, 1L, "mutation-1"));
 
         assertThat(queue.enqueued).containsExactly(new IndexCall(30L, 100L));
         assertThat(handler.indexed).isEmpty();
@@ -32,7 +32,7 @@ class KnowledgeIndexEventListenerTest {
         CapturingHandler handler = new CapturingHandler();
         KnowledgeIndexEventListener listener = new KnowledgeIndexEventListener(queue, handler);
 
-        listener.onDocumentKnowledgeDeleted(new DocumentKnowledgeDeletedEvent(20L, 30L));
+        listener.onDocumentDeleted(new DocumentDeletedEvent(7L, 20L, 30L, 40L));
 
         assertThat(queue.canceled).containsExactly(30L);
         assertThat(handler.deleted).containsExactly(new DeleteCall(20L, 30L));

@@ -21,7 +21,6 @@ import io.docpilot.workspace.model.entity.WorkspaceDocument.DocumentContent;
 import io.docpilot.workspace.model.entity.WorkspaceNode;
 import io.docpilot.workspace.enums.WorkspaceNodeType;
 import io.docpilot.workspace.enums.WorkspaceResourceType;
-import io.docpilot.workspace.knowledge.event.DocumentContentChangedEvent;
 import io.docpilot.workspace.model.response.DocumentContentResponse;
 import io.docpilot.workspace.model.response.DocumentDetailResponse;
 import io.docpilot.workspace.model.response.DocumentResponse;
@@ -32,9 +31,6 @@ import io.docpilot.workspace.processing.WorkspaceNodeName;
 import io.docpilot.workspace.repository.DocumentRevisionRepository;
 import io.docpilot.workspace.repository.WorkspaceDocumentRepository;
 import io.docpilot.workspace.repository.WorkspaceNodeRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
@@ -50,8 +46,6 @@ import java.util.Objects;
  */
 @Service
 public class DocumentApplicationService {
-
-    private static final Logger log = LoggerFactory.getLogger(DocumentApplicationService.class);
 
     /**
      * Workspace ownership and node access service.
@@ -119,9 +113,9 @@ public class DocumentApplicationService {
     private final ProseMirrorJsonConverter proseMirrorJsonConverter = new ProseMirrorJsonConverter();
 
     /**
-     * Optional Spring event publisher used by knowledge indexing.
+     * Domain event publisher for workspace/document write facts.
      */
-    private final ApplicationEventPublisher eventPublisher;
+    private final WorkspaceDomainEventPublisher events;
 
     public DocumentApplicationService(WorkspaceApplicationService workspaceService,
                                       WorkspaceNodeRepository nodeRepository,
@@ -132,7 +126,7 @@ public class DocumentApplicationService {
                                       WorkspaceIdCodec idCodec,
                                       WorkspaceNodeName workspaceNodeName,
                                       WorkspaceTransactionRunner transactionRunner,
-                                      ApplicationEventPublisher eventPublisher) {
+                                      WorkspaceDomainEventPublisher events) {
         this.workspaceService = workspaceService;
         this.nodeRepository = nodeRepository;
         this.documentRepository = documentRepository;
@@ -142,7 +136,7 @@ public class DocumentApplicationService {
         this.idCodec = idCodec;
         this.workspaceNodeName = workspaceNodeName;
         this.transactionRunner = transactionRunner;
-        this.eventPublisher = eventPublisher;
+        this.events = events;
     }
 
     /**
@@ -198,11 +192,13 @@ public class DocumentApplicationService {
             node.setName(nodeName);
             node.markCreated();
 
-            documentRepository.save(document);
+            WorkspaceDocument persistedDocument = documentRepository.save(document);
             revisionRepository.save(revision);
-            nodeRepository.save(node);
-            publishDocumentChanged(documentId, revisionId);
-            return document;
+            WorkspaceNode savedNode = nodeRepository.save(node);
+            events.workspaceNodeCreated(subject, savedNode);
+            events.documentCreated(subject, workspace.getId(), savedNode.getId(), documentId, revisionId, 1L, title);
+            events.documentContentChanged(subject, workspace.getId(), documentId, revisionId, 1L, 0L, null);
+            return persistedDocument;
         });
         return toDetailResponse(savedDocument);
     }
@@ -223,7 +219,7 @@ public class DocumentApplicationService {
         AuthSubject subject = requireSubject();
         WorkspaceDocument savedDocument = transactionRunner.run(() -> {
             WorkspaceDocument document = requireActiveDocument(command.getDocumentId());
-            workspaceService.requireOwnedWorkspace(document.getOriginWorkspaceId());
+            Workspace workspace = workspaceService.requireOwnedWorkspace(document.getOriginWorkspaceId());
             if (!Objects.equals(document.getOwnerUserId(), subject.getUserId())) {
                 throw new ForbiddenException("Document access denied");
             }
@@ -276,7 +272,15 @@ public class DocumentApplicationService {
             document.setContent(content(blockDocument, markdown, checksum));
             document.markUpdated();
             WorkspaceDocument saved = documentRepository.save(document);
-            publishDocumentChanged(saved.getId(), revisionId);
+            events.documentContentChanged(
+                    subject,
+                    workspace.getId(),
+                    saved.getId(),
+                    revisionId,
+                    nextVersion,
+                    command.getBaseVersion(),
+                    clientMutationId
+            );
             return saved;
         });
         return toDetailResponse(savedDocument);
@@ -378,16 +382,6 @@ public class DocumentApplicationService {
             return null;
         }
         return clientMutationId.strip();
-    }
-
-    private void publishDocumentChanged(Long documentId, Long revisionId) {
-        if (eventPublisher == null) {
-            log.warn("document content changed event skipped reason=no_event_publisher documentId={} revisionId={}",
-                    documentId, revisionId);
-            return;
-        }
-        log.info("document content changed event published documentId={} revisionId={}", documentId, revisionId);
-        eventPublisher.publishEvent(new DocumentContentChangedEvent(documentId, revisionId));
     }
 
     private DocumentDetailResponse toDetailResponse(WorkspaceDocument document) {

@@ -15,7 +15,6 @@ import io.docpilot.workspace.model.entity.Workspace;
 import io.docpilot.workspace.model.entity.WorkspaceNode;
 import io.docpilot.workspace.enums.WorkspaceNodeType;
 import io.docpilot.workspace.enums.WorkspaceType;
-import io.docpilot.workspace.knowledge.event.DocumentKnowledgeDeletedEvent;
 import io.docpilot.workspace.model.request.CreateFolderCommand;
 import io.docpilot.workspace.model.response.WorkspaceListResponse;
 import io.docpilot.workspace.model.response.WorkspaceNodeResponse;
@@ -26,9 +25,6 @@ import io.docpilot.workspace.processing.WorkspaceNodeName;
 import io.docpilot.workspace.repository.WorkspaceDocumentRepository;
 import io.docpilot.workspace.repository.WorkspaceNodeRepository;
 import io.docpilot.workspace.repository.WorkspaceRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -38,8 +34,6 @@ import java.util.Objects;
 @Service
 public class WorkspaceApplicationService {
 
-    private static final Logger log = LoggerFactory.getLogger(WorkspaceApplicationService.class);
-
     private final WorkspaceRepository workspaceRepository;
     private final WorkspaceNodeRepository nodeRepository;
     private final WorkspaceDocumentRepository documentRepository;
@@ -48,7 +42,10 @@ public class WorkspaceApplicationService {
     private final WorkspaceIdCodec idCodec;
     private final WorkspaceNodeName workspaceNodeName;
     private final WorkspaceTransactionRunner transactionRunner;
-    private final ApplicationEventPublisher eventPublisher;
+    private final WorkspaceDomainEventPublisher events;
+
+    private record DeletedDocument(Long workspaceId, Long documentId, Long nodeId) {
+    }
 
     public WorkspaceApplicationService(WorkspaceRepository workspaceRepository,
                                        WorkspaceNodeRepository nodeRepository,
@@ -58,7 +55,7 @@ public class WorkspaceApplicationService {
                                        WorkspaceIdCodec idCodec,
                                        WorkspaceNodeName workspaceNodeName,
                                        WorkspaceTransactionRunner transactionRunner,
-                                       ApplicationEventPublisher eventPublisher) {
+                                       WorkspaceDomainEventPublisher events) {
         this.workspaceRepository = workspaceRepository;
         this.nodeRepository = nodeRepository;
         this.documentRepository = documentRepository;
@@ -67,7 +64,7 @@ public class WorkspaceApplicationService {
         this.idCodec = idCodec;
         this.workspaceNodeName = workspaceNodeName;
         this.transactionRunner = transactionRunner;
-        this.eventPublisher = eventPublisher;
+        this.events = events;
     }
 
     public WorkspaceResponse ensureDefaultWorkspace() {
@@ -88,7 +85,11 @@ public class WorkspaceApplicationService {
 
     public WorkspaceResponse createWorkspace(CreateWorkspaceCommand command) {
         AuthSubject subject = requireSubject();
-        Workspace workspace = transactionRunner.run(() -> createWorkspace(subject, normalizeWorkspaceName(command.getName()), WorkspaceType.CUSTOM));
+        Workspace workspace = transactionRunner.run(() -> {
+            Workspace created = createWorkspace(subject, normalizeWorkspaceName(command.getName()), WorkspaceType.CUSTOM);
+            events.workspaceCreated(subject, created);
+            return created;
+        });
         return toResponse(workspace);
     }
 
@@ -97,7 +98,9 @@ public class WorkspaceApplicationService {
         Workspace savedWorkspace = transactionRunner.run(() -> {
             Workspace workspace = requireOwnedWorkspace(command.getWorkspaceId(), subject);
             String name = normalizeWorkspaceName(command.getName());
-            if (!Objects.equals(workspace.getName(), name)) {
+            String oldName = workspace.getName();
+            boolean renamed = !Objects.equals(oldName, name);
+            if (renamed) {
                 requireWorkspaceNameAvailable(subject.getUserId(), name);
             }
 
@@ -109,7 +112,11 @@ public class WorkspaceApplicationService {
             root.setName(name);
             root.markUpdated();
             nodeRepository.save(root);
-            return workspaceRepository.save(workspace);
+            Workspace saved = workspaceRepository.save(workspace);
+            if (renamed) {
+                events.workspaceRenamed(subject, saved, oldName, name);
+            }
+            return saved;
         });
         return toResponse(savedWorkspace);
     }
@@ -126,16 +133,25 @@ public class WorkspaceApplicationService {
             workspace.markUpdated();
 
             List<WorkspaceNode> nodes = nodeRepository.findActiveByWorkspaceId(workspace.getId());
+            List<Long> deletedNodeIds = new ArrayList<>();
+            List<Long> deletedDocumentIds = new ArrayList<>();
+            List<DeletedDocument> deletedDocuments = new ArrayList<>();
             nodes.forEach(node -> {
                 node.setIsDeleted(true);
                 node.markUpdated();
+                deletedNodeIds.add(node.getId());
                 if (node.isDocumentResource()) {
                     softDeleteDocument(node.getDocumentId());
-                    publishDocumentDeleted(node.getWorkspaceId(), node.getDocumentId());
+                    deletedDocumentIds.add(node.getDocumentId());
+                    deletedDocuments.add(new DeletedDocument(node.getWorkspaceId(), node.getDocumentId(), node.getId()));
                 }
             });
             nodeRepository.saveAll(nodes);
             workspaceRepository.save(workspace);
+            deletedDocuments.forEach(deleted ->
+                    events.documentDeleted(subject, deleted.workspaceId(), deleted.documentId(), deleted.nodeId()));
+            events.workspaceNodeDeleted(subject, workspace.getId(), deletedNodeIds, deletedDocumentIds);
+            events.workspaceDeleted(subject, workspace);
             return null;
         });
     }
@@ -171,7 +187,9 @@ public class WorkspaceApplicationService {
             node.setNodeType(WorkspaceNodeType.FOLDER);
             node.setName(nodeName);
             node.markCreated();
-            return nodeRepository.save(node);
+            WorkspaceNode saved = nodeRepository.save(node);
+            events.workspaceNodeCreated(subject, saved);
+            return saved;
         });
         return toResponse(savedNode);
     }
@@ -187,13 +205,19 @@ public class WorkspaceApplicationService {
 
             WorkspaceNode parent = requireActiveNode(node.getParentNodeId());
             String nodeName = workspaceNodeName.normalizeName(command.getName());
-            if (!Objects.equals(node.getName(), nodeName)) {
+            String oldName = node.getName();
+            boolean renamed = !Objects.equals(oldName, nodeName);
+            if (renamed) {
                 requireNameAvailable(workspace.getId(), parent.getId(), nodeName);
             }
 
             node.setName(nodeName);
             node.markUpdated();
-            return nodeRepository.save(node);
+            WorkspaceNode saved = nodeRepository.save(node);
+            if (renamed) {
+                events.workspaceNodeRenamed(subject, saved, oldName, nodeName);
+            }
+            return saved;
         });
         return toResponse(savedNode);
     }
@@ -217,11 +241,17 @@ public class WorkspaceApplicationService {
                 requireNameAvailable(workspace.getId(), newParent.getId(), node.getName());
             }
 
+            Long oldParentNodeId = node.getParentNodeId();
+            List<Long> oldAncestors = new ArrayList<>(node.getAncestors());
+            boolean moved = !Objects.equals(oldParentNodeId, newParent.getId());
             node.setParentNodeId(newParent.getId());
             node.setAncestors(childAncestors(newParent));
             node.markUpdated();
             WorkspaceNode saved = nodeRepository.save(node);
             updateDescendantLocations(saved);
+            if (moved) {
+                events.workspaceNodeMoved(subject, saved, oldParentNodeId, oldAncestors);
+            }
             return saved;
         });
         return toResponse(savedNode);
@@ -236,15 +266,23 @@ public class WorkspaceApplicationService {
             List<WorkspaceNode> nodes = new ArrayList<>();
             nodes.add(node);
             nodes.addAll(nodeRepository.findActiveByWorkspaceIdAndAncestor(node.getWorkspaceId(), node.getId()));
+            List<Long> deletedNodeIds = new ArrayList<>();
+            List<Long> deletedDocumentIds = new ArrayList<>();
+            List<DeletedDocument> deletedDocuments = new ArrayList<>();
             nodes.forEach(candidate -> {
                 candidate.setIsDeleted(true);
                 candidate.markUpdated();
+                deletedNodeIds.add(candidate.getId());
                 if (candidate.isDocumentResource()) {
                     softDeleteDocument(candidate.getDocumentId());
-                    publishDocumentDeleted(candidate.getWorkspaceId(), candidate.getDocumentId());
+                    deletedDocumentIds.add(candidate.getDocumentId());
+                    deletedDocuments.add(new DeletedDocument(candidate.getWorkspaceId(), candidate.getDocumentId(), candidate.getId()));
                 }
             });
             nodeRepository.saveAll(nodes);
+            deletedDocuments.forEach(deleted ->
+                    events.documentDeleted(subject, deleted.workspaceId(), deleted.documentId(), deleted.nodeId()));
+            events.workspaceNodeDeleted(subject, node.getWorkspaceId(), deletedNodeIds, deletedDocumentIds);
             return null;
         });
     }
@@ -269,7 +307,9 @@ public class WorkspaceApplicationService {
         String name = subject.getDisplayName() == null || subject.getDisplayName().isBlank()
                 ? "Personal Workspace"
                 : subject.getDisplayName().strip() + " Workspace";
-        return createWorkspace(subject, name, WorkspaceType.PERSONAL);
+        Workspace workspace = createWorkspace(subject, name, WorkspaceType.PERSONAL);
+        events.defaultWorkspaceInitialized(subject, workspace);
+        return workspace;
     }
 
     private Workspace createWorkspace(AuthSubject subject, String name, WorkspaceType type) {
@@ -379,16 +419,6 @@ public class WorkspaceApplicationService {
             document.markUpdated();
             documentRepository.save(document);
         });
-    }
-
-    private void publishDocumentDeleted(Long workspaceId, Long documentId) {
-        if (eventPublisher == null) {
-            log.warn("document knowledge deleted event skipped reason=no_event_publisher workspaceId={} documentId={}",
-                    workspaceId, documentId);
-            return;
-        }
-        log.info("document knowledge deleted event published workspaceId={} documentId={}", workspaceId, documentId);
-        eventPublisher.publishEvent(new DocumentKnowledgeDeletedEvent(workspaceId, documentId));
     }
 
     private WorkspaceResponse toResponse(Workspace workspace) {

@@ -9,7 +9,7 @@ import java.util.List;
  *
  * @param completionId server-generated id used to correlate logs for this completion request.
  * @param modelId configured model id that produced the candidates.
- * @param shape backend-decided completion shape used for prompting and insertion handling.
+ * @param shape server-decided completion shape used for prompting and insertion handling.
  * @param candidates ranked insertion candidates. The first item is the default ghost text.
  * @param diagnostics best-effort retrieval diagnostics that did not block generation.
  */

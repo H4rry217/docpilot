@@ -21,7 +21,7 @@ public class KnowledgeElasticsearchConfig {
     private static final Logger log = LoggerFactory.getLogger(KnowledgeElasticsearchConfig.class);
 
     /**
-     * Creates the built-in store/provider only when Elasticsearch is available.
+     * Creates the built-in Elasticsearch store/provider when the knowledge store type selects it.
      *
      * @param elasticsearchClient low-level ES client used for index reads and writes.
      * @param properties knowledge index and model configuration.
@@ -30,6 +30,7 @@ public class KnowledgeElasticsearchConfig {
      */
     @Bean
     @Primary
+    @ConditionalOnProperty(prefix = "docpilot.knowledge.store", name = "type", havingValue = "elasticsearch", matchIfMissing = true)
     public ElasticsearchKnowledgeChunkStore elasticsearchKnowledgeChunkStore(ElasticsearchClient elasticsearchClient,
                                                                             KnowledgeProperties properties,
                                                                             AiEmbeddingRegistry embeddingRegistry) {

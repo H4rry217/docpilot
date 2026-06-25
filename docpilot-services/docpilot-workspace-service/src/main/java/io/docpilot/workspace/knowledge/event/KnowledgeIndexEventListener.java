@@ -2,6 +2,8 @@ package io.docpilot.workspace.knowledge.event;
 
 import io.docpilot.workspace.knowledge.KnowledgeIndexCommandHandler;
 import io.docpilot.workspace.knowledge.queue.KnowledgeIndexQueue;
+import io.docpilot.workspace.event.DocumentContentChangedEvent;
+import io.docpilot.workspace.event.DocumentDeletedEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
@@ -44,7 +46,7 @@ public class KnowledgeIndexEventListener {
 
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    public void onDocumentKnowledgeDeleted(DocumentKnowledgeDeletedEvent event) {
+    public void onDocumentDeleted(DocumentDeletedEvent event) {
         log.info("knowledge delete event received workspaceId={} documentId={}", event.workspaceId(), event.documentId());
         RuntimeException cancelFailure = null;
         try {
