@@ -1,6 +1,8 @@
 package io.docpilot.block.processing;
 
 import io.docpilot.block.model.BlockDocument;
+import io.docpilot.block.model.BlockNode;
+import io.docpilot.block.model.BlockType;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -61,6 +63,28 @@ class MarkdownBlockRendererTest {
         assertThat(markdown).contains("$x$");
         assertThat(markdown).contains("==hot==");
         assertThat(markdown).contains("```mermaid");
+    }
+
+    @Test
+    void renderCodeBlockContainingBacktickFenceWithLongerFence() {
+        BlockDocument document = parser.parse("""
+                ````markdown
+                ```bash
+                npm install
+                npm run dev
+                ```
+                ````
+                """);
+
+        String markdown = renderer.render(document);
+        BlockDocument reparsed = parser.parse(markdown);
+        BlockNode codeBlock = reparsed.getBlocks().getFirst();
+
+        assertThat(markdown).startsWith("````markdown\n");
+        assertThat(codeBlock.getType()).isEqualTo(BlockType.CODE_BLOCK);
+        assertThat(codeBlock.getAttrs()).containsEntry("language", "markdown");
+        assertThat(codeBlock.getAttrs().get("text")).asString()
+                .contains("```bash\nnpm install\nnpm run dev\n```");
     }
 
     @Test

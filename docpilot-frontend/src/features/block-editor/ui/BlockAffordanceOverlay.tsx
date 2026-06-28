@@ -28,7 +28,7 @@ import {
   type BlockMenuActionContext,
   type BlockMenuItem
 } from './blockMenuItems'
-import type { BlockAffordanceState } from './useBlockAffordances'
+import type { BlockAffordanceState } from './blockAffordanceTypes'
 
 const HOVER_OPEN_DELAY_MS = 180
 const HOVER_CLOSE_DELAY_MS = 220

@@ -1,9 +1,3 @@
-import {
-  defaultComputePositionConfig,
-  DragHandlePlugin,
-  normalizeNestedOptions,
-  type DragHandleRule
-} from '@tiptap/extension-drag-handle'
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import type { Transaction } from '@tiptap/pm/state'
 import type { Editor } from '@tiptap/react'
@@ -19,65 +13,28 @@ import {
   type BlockAffordanceHighlightDecoration
 } from '../model/blockAffordanceHighlight'
 import { blockIdentityId } from '../model/docpilotBlockIdentity'
+import { blockInfoForBlockId } from './blockMenuItems'
 import {
-  blockInfoForBlockId,
-  type BlockMenuBlockInfo
-} from './blockMenuItems'
-import { eventTargetElement, targetFromElement } from './blockSelectionGeometry'
+  affordanceGeometryFromElement,
+  blockElementById,
+  blockElementFromSelection,
+  hasVisibleRectLike,
+  pointInRect,
+  targetBlockElement
+} from './blockAffordanceGeometry'
+import {
+  BLOCK_AFFORDANCE_CONTEXT_HANDLE_WIDTH_PX,
+  BLOCK_AFFORDANCE_INSERT_HANDLE_WIDTH_PX,
+  BLOCK_AFFORDANCE_TRIGGER_HEIGHT_PX,
+  type BlockAffordanceKind,
+  type BlockAffordanceState
+} from './blockAffordanceTypes'
+import { useBlockDragHandle } from './useBlockDragHandle'
 
-export type BlockAffordanceKind = 'insert' | 'context'
-
-export type BlockAffordanceState = {
-  block: BlockMenuBlockInfo
-  highlight: {
-    height: number
-    left: number
-    top: number
-    width: number
-  }
-  kind: BlockAffordanceKind
-  left: number
-  top: number
-}
-
-const TRIGGER_HEIGHT_PX = 28
-const CONTEXT_HANDLE_WIDTH_PX = 52
-const INSERT_HANDLE_WIDTH_PX = 28
-const BLOCK_HIGHLIGHT_OUTSET_X_PX = 10
-const BLOCK_HIGHLIGHT_OUTSET_Y_PX = 4
 const BLOCK_HIGHLIGHT_REVEAL_DELAY_MS = 240
-const DRAG_HANDLE_PLUGIN_KEY = 'docpilotBlockDragHandle'
 const HANDLE_APPROACH_CORRIDOR_RIGHT_PX = 140
 const HANDLE_APPROACH_OUTSET_X_PX = 8
 const HANDLE_APPROACH_OUTSET_Y_PX = 10
-const LIST_ITEM_NODE_TYPES = new Set(['listItem', 'taskItem'])
-const LIST_WRAPPER_NODE_TYPES = new Set(['bulletList', 'orderedList', 'taskList'])
-const TABLE_NODE_TYPES = new Set(['table', 'tableRow', 'tableCell', 'tableHeader'])
-
-const docpilotDragHandleRules: DragHandleRule[] = [
-  {
-    id: 'docpilotExcludeListWrapperTargets',
-    evaluate: ({ node }) => {
-      if (LIST_WRAPPER_NODE_TYPES.has(node.type.name)) return 1500
-      return 0
-    }
-  },
-  {
-    id: 'docpilotPreferDeepListItems',
-    evaluate: ({ node, depth }) => {
-      if (LIST_ITEM_NODE_TYPES.has(node.type.name)) return -(depth * 700)
-      return 0
-    }
-  },
-  {
-    id: 'docpilotExcludeTableTargets',
-    evaluate: ({ node, parent }) => {
-      if (TABLE_NODE_TYPES.has(node.type.name)) return 1000
-      if (parent && TABLE_NODE_TYPES.has(parent.type.name)) return 1000
-      return 0
-    }
-  }
-]
 
 export function useBlockAffordances({
   editor,
@@ -90,7 +47,6 @@ export function useBlockAffordances({
 }) {
   const [affordance, setAffordanceState] = useState<BlockAffordanceState | null>(null)
   const [menuOpen, setMenuOpenState] = useState(false)
-  const [portalElement, setPortalElement] = useState<HTMLElement | null>(null)
   const affordanceRef = useRef<BlockAffordanceState | null>(null)
   const dragHandleElementRef = useRef<HTMLDivElement | null>(null)
   const dragHandlePointerBlockElementRef = useRef<HTMLElement | null>(null)
@@ -173,8 +129,8 @@ export function useBlockAffordances({
     if (!element) return
 
     element.dataset.affordanceKind = kind
-    element.style.width = `${kind === 'insert' ? INSERT_HANDLE_WIDTH_PX : CONTEXT_HANDLE_WIDTH_PX}px`
-    element.style.height = `${TRIGGER_HEIGHT_PX}px`
+    element.style.width = `${kind === 'insert' ? BLOCK_AFFORDANCE_INSERT_HANDLE_WIDTH_PX : BLOCK_AFFORDANCE_CONTEXT_HANDLE_WIDTH_PX}px`
+    element.style.height = `${BLOCK_AFFORDANCE_TRIGGER_HEIGHT_PX}px`
   }, [])
 
   const dispatchDragHandleLock = useCallback((locked: boolean) => {
@@ -353,6 +309,23 @@ export function useBlockAffordances({
     dispatchDragHandleLock(dragHandleApproachLockedRef.current)
   }, [clearHighlightRevealTimer, dispatchDragHandleLock, setBlockHighlight])
 
+  const portalElement = useBlockDragHandle({
+    activateBlockElement,
+    activateBlockPosition,
+    clearHighlightRevealTimer,
+    dragHandleApproachLockedRef,
+    dragHandleElementRef,
+    dragHandlePointerBlockElementRef,
+    dragHandleReferenceRectRef,
+    editor,
+    menuOpenRef,
+    notifyBlockInteractionStart,
+    pendingBlockHighlightRef,
+    refreshCurrentGeometry,
+    releaseDragHandleApproachLock,
+    setMenuOpen
+  })
+
   useEffect(() => {
     if (!editor) {
       setAffordance(null)
@@ -443,80 +416,6 @@ export function useBlockAffordances({
   ])
 
   useEffect(() => {
-    if (!editor) return
-    const activeEditor: Editor = editor
-    if (!activeEditor || activeEditor.isDestroyed) return
-
-    const element = document.createElement('div')
-    element.className = 'block-affordance-drag-handle'
-    element.style.position = 'absolute'
-    element.style.visibility = 'hidden'
-    element.style.width = `${CONTEXT_HANDLE_WIDTH_PX}px`
-    element.style.height = `${TRIGGER_HEIGHT_PX}px`
-    element.dataset.dragging = 'false'
-    element.addEventListener('mouseenter', releaseDragHandleApproachLock)
-    dragHandleElementRef.current = element
-    setPortalElement(element)
-
-    const { plugin, unbind } = DragHandlePlugin({
-      editor: activeEditor,
-      element,
-      pluginKey: DRAG_HANDLE_PLUGIN_KEY,
-      computePositionConfig: defaultComputePositionConfig,
-      getReferencedVirtualElement: () => {
-        const rect = dragHandleReferenceRectRef.current
-        return rect ? { getBoundingClientRect: () => rect } : null
-      },
-      nestedOptions: normalizeNestedOptions({
-        defaultRules: true,
-        edgeDetection: 'none',
-        rules: docpilotDragHandleRules
-      }),
-      onNodeChange: ({ node, pos }) => {
-        if (menuOpenRef.current || dragHandleApproachLockedRef.current) return
-        const pointerBlockElement = dragHandlePointerBlockElementRef.current
-        if (pointerBlockElement && activeEditor.view.dom.contains(pointerBlockElement)) {
-          activateBlockElement(pointerBlockElement)
-          return
-        }
-        activateBlockPosition(pos, node)
-      },
-      onElementDragStart: () => {
-        notifyBlockInteractionStart()
-        setMenuOpen(false)
-      },
-      onElementDragEnd: () => {
-        window.requestAnimationFrame(refreshCurrentGeometry)
-      }
-    })
-
-    activeEditor.registerPlugin(plugin)
-
-    return () => {
-      if (!activeEditor.isDestroyed) {
-        activeEditor.unregisterPlugin(DRAG_HANDLE_PLUGIN_KEY)
-      }
-      unbind()
-      element.removeEventListener('mouseenter', releaseDragHandleApproachLock)
-      dragHandleReferenceRectRef.current = null
-      dragHandleElementRef.current = null
-      dragHandlePointerBlockElementRef.current = null
-      dragHandleApproachLockedRef.current = false
-      pendingBlockHighlightRef.current = null
-      clearHighlightRevealTimer()
-      setPortalElement(null)
-    }
-  }, [
-    activateBlockPosition,
-    clearHighlightRevealTimer,
-    editor,
-    notifyBlockInteractionStart,
-    refreshCurrentGeometry,
-    releaseDragHandleApproachLock,
-    setMenuOpen
-  ])
-
-  useEffect(() => {
     if (menuOpen) return
     const frame = window.requestAnimationFrame(refreshFromSelection)
     return () => window.cancelAnimationFrame(frame)
@@ -530,154 +429,6 @@ export function useBlockAffordances({
     scheduleBlockHighlightReveal,
     setMenuOpen
   }
-}
-
-type AffordanceGeometry = {
-  highlightHeight: number
-  highlightLeft: number
-  highlightTop: number
-  highlightWidth: number
-  referenceRect: DOMRect
-  selectionHeight?: number
-  selectionLeft?: number
-  selectionTop?: number
-  selectionWidth?: number
-}
-
-function affordanceGeometryFromElement({
-  blockElement,
-  blockId,
-  editorRect,
-  surfaceRect
-}: {
-  blockElement: HTMLElement
-  blockId: string
-  editorRect: DOMRect
-  surfaceRect: DOMRect
-}): AffordanceGeometry {
-  const blockRect = blockElement.getBoundingClientRect()
-  const selectionTarget = targetFromElement(blockElement, editorRect, blockId)
-  const rowRect = firstListAffordanceRowRect(blockElement)
-  const style = window.getComputedStyle(blockElement)
-  const lineHeight = Number.parseFloat(style.lineHeight)
-  const fallbackWidth = blockRect.width > 0 ? blockRect.width : editorRect.width
-  const fallbackHeight = blockRect.height > 0
-    ? blockRect.height
-    : Number.isFinite(lineHeight) ? lineHeight : TRIGGER_HEIGHT_PX
-  const selectionLeft = Number.isFinite(selectionTarget?.selectionLeft)
-    ? selectionTarget?.selectionLeft
-    : undefined
-  const selectionWidth = Number.isFinite(selectionTarget?.selectionWidth)
-    ? selectionTarget?.selectionWidth
-    : undefined
-  const selectionTop = rowRect
-    ? rowRect.top - blockRect.top
-    : selectionTarget?.selectionTop
-  const selectionHeight = rowRect
-    ? rowRect.height
-    : selectionTarget?.selectionHeight
-  const visualTop = Number.isFinite(selectionTop)
-    ? blockRect.top + (selectionTop ?? 0)
-    : blockRect.top
-  const visualHeight = Number.isFinite(selectionHeight)
-    ? selectionHeight ?? fallbackHeight
-    : fallbackHeight
-  const visualLeft = Number.isFinite(selectionLeft)
-    ? blockRect.left + (selectionLeft ?? 0)
-    : blockRect.left
-  const visualWidth = Number.isFinite(selectionWidth)
-    ? selectionWidth ?? fallbackWidth
-    : fallbackWidth
-  const highlightLeft = visualLeft - surfaceRect.left - BLOCK_HIGHLIGHT_OUTSET_X_PX
-  const highlightTop = visualTop - surfaceRect.top - BLOCK_HIGHLIGHT_OUTSET_Y_PX
-  const highlightWidth = visualWidth + (BLOCK_HIGHLIGHT_OUTSET_X_PX * 2)
-  const highlightHeight = visualHeight + (BLOCK_HIGHLIGHT_OUTSET_Y_PX * 2)
-
-  return {
-    highlightHeight: Math.max(TRIGGER_HEIGHT_PX, Math.round(highlightHeight)),
-    highlightLeft: Math.round(highlightLeft),
-    highlightTop: Math.round(highlightTop),
-    highlightWidth: Math.max(TRIGGER_HEIGHT_PX, Math.round(highlightWidth)),
-    referenceRect: domRectLike({
-      height: Math.max(TRIGGER_HEIGHT_PX, highlightHeight),
-      left: visualLeft - BLOCK_HIGHLIGHT_OUTSET_X_PX,
-      top: visualTop - BLOCK_HIGHLIGHT_OUTSET_Y_PX,
-      width: Math.max(TRIGGER_HEIGHT_PX, highlightWidth)
-    }),
-    selectionHeight,
-    selectionLeft,
-    selectionTop,
-    selectionWidth
-  }
-}
-
-function firstListAffordanceRowRect(blockElement: HTMLElement): DOMRect | null {
-  if (blockElement.tagName === 'UL' || blockElement.tagName === 'OL') {
-    const firstItem = Array.from(blockElement.children)
-      .find((child): child is HTMLElement => child instanceof HTMLElement && child.tagName === 'LI')
-    return firstItem ? firstListItemRowRect(firstItem) : null
-  }
-
-  if (blockElement.tagName === 'LI') {
-    return firstListItemRowRect(blockElement)
-  }
-
-  return null
-}
-
-function firstListItemRowRect(listItem: HTMLElement): DOMRect | null {
-  const firstRow = Array.from(listItem.children)
-    .find((child): child is HTMLElement => (
-      child instanceof HTMLElement
-      && child.tagName !== 'UL'
-      && child.tagName !== 'OL'
-      && hasVisibleRect(child)
-    ))
-  if (firstRow) return firstRow.getBoundingClientRect()
-
-  return hasVisibleRect(listItem) ? listItem.getBoundingClientRect() : null
-}
-
-function hasVisibleRect(element: HTMLElement): boolean {
-  const rect = element.getBoundingClientRect()
-  return rect.width > 0 && rect.height > 0
-}
-
-function hasVisibleRectLike(rect: DOMRect): boolean {
-  return rect.width > 0 && rect.height > 0
-}
-
-function pointInRect(clientX: number, clientY: number, rect: DOMRect): boolean {
-  return clientX >= rect.left
-    && clientX <= rect.right
-    && clientY >= rect.top
-    && clientY <= rect.bottom
-}
-
-function domRectLike({
-  height,
-  left,
-  top,
-  width
-}: {
-  height: number
-  left: number
-  top: number
-  width: number
-}): DOMRect {
-  const right = left + width
-  const bottom = top + height
-  return {
-    bottom,
-    height,
-    left,
-    right,
-    top,
-    width,
-    x: left,
-    y: top,
-    toJSON: () => ({ bottom, height, left, right, top, width, x: left, y: top })
-  } as DOMRect
 }
 
 function sameAffordance(left: BlockAffordanceState | null, right: BlockAffordanceState | null): boolean {
@@ -708,45 +459,4 @@ function blockHighlightSignature(highlight: BlockAffordanceHighlightDecoration):
 
 function roundedSignaturePart(value: number | undefined): string {
   return Number.isFinite(value) ? `${Math.round(value ?? 0)}` : ''
-}
-
-function blockElementFromSelection(editor: Editor): HTMLElement | null {
-  const selection = editor.state.selection
-  const domAtPosition = editor.view.domAtPos(selection.from)
-  const element = domAtPosition.node instanceof Element
-    ? domAtPosition.node
-    : domAtPosition.node.parentElement
-
-  return targetBlockElement(element, editor.view.dom)
-}
-
-function targetBlockElement(target: EventTarget | null, editorDom: HTMLElement): HTMLElement | null {
-  const element = eventTargetElement(target)
-  if (!element || !editorDom.contains(element)) return null
-  if (element.closest('.block-affordance-layer')) return null
-  if (element.closest('.table-hover-indicator-layer, .table-divider-layer')) return null
-  if (element.closest('.tableWrapper, table, td, th')) return null
-
-  const visualContainer = element.closest<HTMLElement>([
-    'li[data-block-id]',
-    'blockquote[data-block-id]',
-    'aside.docpilot-callout[data-block-id]',
-    'details.docpilot-callout[data-block-id]'
-  ].join(','))
-  if (visualContainer && editorDom.contains(visualContainer)) return visualContainer
-
-  const blockElement = element.closest<HTMLElement>('[data-block-id]')
-  return blockElement && editorDom.contains(blockElement) ? blockElement : null
-}
-
-function blockElementById(editor: Editor, blockId: string): HTMLElement | null {
-  return editor.view.dom.querySelector<HTMLElement>(blockIdSelector(blockId))
-}
-
-function blockIdSelector(blockId: string): string {
-  if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
-    return `[data-block-id="${CSS.escape(blockId)}"]`
-  }
-
-  return `[data-block-id="${blockId.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"]`
 }

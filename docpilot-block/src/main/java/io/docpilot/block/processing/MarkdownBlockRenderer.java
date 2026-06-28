@@ -158,7 +158,7 @@ public class MarkdownBlockRenderer {
     }
 
     private String renderCodeBlock(CodeBlock block) {
-        return "```" + block.language() + "\n" + block.text().stripTrailing() + "\n```";
+        return renderFencedBlock(block.language(), block.text());
     }
 
     private String renderMathBlock(MathBlock block) {
@@ -166,7 +166,27 @@ public class MarkdownBlockRenderer {
     }
 
     private String renderDiagramBlock(DiagramBlock block) {
-        return "```" + block.engine() + "\n" + block.text().stripTrailing() + "\n```";
+        return renderFencedBlock(block.engine(), block.text());
+    }
+
+    private String renderFencedBlock(String info, String text) {
+        String content = text == null ? "" : text.stripTrailing();
+        String fence = "`".repeat(Math.max(3, longestBacktickRun(content) + 1));
+        return fence + (info == null ? "" : info) + "\n" + content + "\n" + fence;
+    }
+
+    private int longestBacktickRun(String text) {
+        int longest = 0;
+        int current = 0;
+        for (int index = 0; index < text.length(); index++) {
+            if (text.charAt(index) == '`') {
+                current++;
+                longest = Math.max(longest, current);
+            } else {
+                current = 0;
+            }
+        }
+        return longest;
     }
 
     private String renderCallout(CalloutBlock block, int depth) {

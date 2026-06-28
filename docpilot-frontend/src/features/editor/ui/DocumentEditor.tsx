@@ -7,7 +7,7 @@ import {
   useState,
   type CSSProperties
 } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   documentOutlineFromBlockDocument,
   type DocumentOutlineItem,
@@ -21,15 +21,13 @@ import {
   type BlockDocumentEditorSnapshot,
   type BlockDocumentEditorSnapshotSource
 } from '@/features/block-editor'
-import { blockDocumentForSave } from '@/features/block-editor/model/proseMirrorToBlockDocument'
-import { createClientMutationId } from '@/shared/id/clientMutationId'
 import { useI18n, type Locale } from '@/shared/i18n'
-import { getDocument, saveDocumentContent } from '../api/documentApi'
+import { getDocument } from '../api/documentApi'
 import { useAiWorkspaceLayout } from '../model/aiWorkspaceLayout'
 import {
-  createDocumentSaveQueue,
-  type DocumentSaveRequest
-} from '../model/documentSaveQueue'
+  saveStateKey,
+  useDocumentSave
+} from '../model/useDocumentSave'
 import {
   TOOL_PANEL_BOTTOM_COLLAPSED_HEIGHT,
   useToolPanelLayout
@@ -42,15 +40,12 @@ import { useDocumentOperationsConsoleState } from './DocumentOperationsConsole'
 import { WorkbenchToolPanels } from './WorkbenchToolPanels'
 import './DocumentEditor.css'
 
-const AUTOSAVE_DELAY_MS = 5000
 const OUTLINE_AUTO_COLLAPSE_CANVAS_WIDTH = 1230
-type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error'
 type InlineCompletionRuntimeSettings = {
   enabled: boolean
   idleDelayMs: number
   candidateCount: number
 }
-type PendingAutosave = DocumentSaveRequest
 
 export type DocumentEditorProps = {
   developerMode?: boolean
@@ -77,22 +72,6 @@ export function formatUpdatedAt(value: number | undefined, locale: Locale): stri
   }).format(date)
 }
 
-function saveStateKey(saveState: SaveState) {
-  switch (saveState) {
-    case 'dirty':
-      return 'editor.dirty'
-    case 'saving':
-      return 'editor.saving'
-    case 'saved':
-      return 'editor.saved'
-    case 'error':
-      return 'editor.saveFailed'
-    case 'idle':
-    default:
-      return 'editor.saveIdle'
-  }
-}
-
 export function DocumentEditor({
   developerMode = false,
   workspace,
@@ -108,8 +87,6 @@ export function DocumentEditor({
   const aiWorkspaceLayout = useAiWorkspaceLayout()
   const toolPanelLayout = useToolPanelLayout()
   const documentOperationsConsole = useDocumentOperationsConsoleState()
-  const [saveState, setSaveState] = useState<SaveState>('idle')
-  const [saveError, setSaveError] = useState<string | null>(null)
   const [blockDebugMode, setBlockDebugMode] = useState(false)
   const [outlineCollapsed, setOutlineCollapsed] = useState(false)
   const [outlineCompact, setOutlineCompact] = useState(false)
@@ -117,15 +94,9 @@ export function DocumentEditor({
   const editorLayoutRef = useRef<HTMLElement | null>(null)
   const blockEditorRef = useRef<BlockDocumentEditorHandle | null>(null)
   const latestSnapshotRef = useRef<BlockDocumentEditorSnapshot | null>(null)
-  const documentIdRef = useRef<string | undefined>(undefined)
-  const versionRef = useRef<string | null>(null)
-  const pendingAutosaveRef = useRef<PendingAutosave | null>(null)
-  const autosaveTimerRef = useRef<number | undefined>(undefined)
-  const saveQueueRef = useRef<ReturnType<typeof createDocumentSaveQueue> | null>(null)
 
   const documentId = documentNode?.documentId
   const hasDocument = Boolean(documentId)
-  documentIdRef.current = documentId
 
   const documentQuery = useQuery({
     queryKey: ['document', documentId],
@@ -133,85 +104,38 @@ export function DocumentEditor({
     queryFn: () => getDocument(documentId ?? '')
   })
 
-  const saveMutation = useMutation({
-    mutationFn: saveDocumentContent,
-    onMutate: (input) => {
-      if (input.documentId !== documentIdRef.current) return
-      setSaveError(null)
-      setSaveState('saving')
-    },
-    onSuccess: (response) => {
-      const savedDocumentId = response.document.documentId
-      const queuedFollowUp = saveQueueRef.current?.finishSave(savedDocumentId, response.document.currentVersion) ?? false
+  const getSnapshotForSave = useCallback(() => (
+    blockEditorRef.current?.getSnapshot() ?? latestSnapshotRef.current
+  ), [])
 
-      queryClient.setQueryData(['document', savedDocumentId], response)
-      if (savedDocumentId !== documentIdRef.current) return
-      versionRef.current = response.document.currentVersion
-      setSaveError(null)
-      if (!queuedFollowUp) {
-        setSaveState('saved')
-      }
-    },
-    onError: (error, input) => {
-      saveQueueRef.current?.failSave(input.documentId)
-      if (input.documentId !== documentIdRef.current) return
-      setSaveState('error')
-      setSaveError(error instanceof Error ? error.message : t('editor.saveFailed'))
-    }
+  const onSavedDocumentData = useCallback((response: typeof documentQuery.data) => {
+    if (!response) return
+    queryClient.setQueryData(['document', response.document.documentId], response)
+  }, [queryClient])
+
+  const onOutlineFromDocument = useCallback((blockDocument: BlockDocument) => {
+    onOutlineChange?.(documentOutlineFromBlockDocument(blockDocument))
+  }, [onOutlineChange])
+
+  const translateSaveFailed = useCallback((error: unknown) => (
+    error instanceof Error ? error.message : t('editor.saveFailed')
+  ), [t])
+
+  const {
+    getDocumentVersion,
+    isSaving,
+    queueAutosave,
+    registerLoadedDocument,
+    saveError,
+    saveNow,
+    saveState
+  } = useDocumentSave({
+    documentId,
+    getSnapshot: getSnapshotForSave,
+    onOutlineFromDocument,
+    onSavedDocumentData,
+    translateSaveFailed
   })
-  const saveMutationRef = useRef(saveMutation)
-  saveMutationRef.current = saveMutation
-
-  if (!saveQueueRef.current) {
-    saveQueueRef.current = createDocumentSaveQueue((payload) => {
-      saveMutationRef.current.mutate({
-        documentId: payload.documentId,
-        blockDocument: blockDocumentForSave(payload.blockDocument),
-        baseVersion: payload.baseVersion,
-        clientMutationId: createClientMutationId()
-      })
-    })
-  }
-
-  const saveBlockDocument = useCallback(
-    (blockDocument: BlockDocument, expectedDocumentId = documentIdRef.current) => {
-      const activeDocumentId = documentIdRef.current
-      if (!activeDocumentId || activeDocumentId !== expectedDocumentId) return
-
-      saveQueueRef.current?.requestSave({
-        documentId: activeDocumentId,
-        blockDocument
-      })
-    },
-    []
-  )
-
-  const queueAutosave = useCallback(
-    (blockDocument: BlockDocument) => {
-      const queuedDocumentId = documentIdRef.current
-      if (!queuedDocumentId) return
-      const pendingAutosave = {
-        documentId: queuedDocumentId,
-        blockDocument
-      }
-      pendingAutosaveRef.current = pendingAutosave
-      window.clearTimeout(autosaveTimerRef.current)
-      autosaveTimerRef.current = window.setTimeout(() => {
-        if (pendingAutosaveRef.current !== pendingAutosave) return
-        pendingAutosaveRef.current = null
-        saveQueueRef.current?.requestSave(pendingAutosave)
-      }, AUTOSAVE_DELAY_MS)
-    },
-    []
-  )
-
-  const flushPendingAutosave = useCallback(() => {
-    const pendingAutosave = pendingAutosaveRef.current
-    if (!pendingAutosave) return
-    pendingAutosaveRef.current = null
-    window.clearTimeout(autosaveTimerRef.current)
-    saveQueueRef.current?.requestSave(pendingAutosave)
-  }, [])
 
   const handleSnapshotChange = useCallback(
     (snapshot: BlockDocumentEditorSnapshot, source: BlockDocumentEditorSnapshotSource) => {
@@ -220,20 +144,10 @@ export function DocumentEditor({
 
       if (source === 'load') return
 
-      setSaveError(null)
-      setSaveState('dirty')
       queueAutosave(snapshot.blockDocument)
     },
     [onOutlineChange, queueAutosave]
   )
-
-  function saveNow() {
-    const snapshot = blockEditorRef.current?.getSnapshot() ?? latestSnapshotRef.current
-    if (!snapshot) return
-    window.clearTimeout(autosaveTimerRef.current)
-    pendingAutosaveRef.current = null
-    saveBlockDocument(snapshot.blockDocument)
-  }
 
   const getDeveloperBlockDocument = useCallback(() => {
     const snapshot = blockEditorRef.current?.getSnapshot() ?? latestSnapshotRef.current
@@ -253,19 +167,7 @@ export function DocumentEditor({
   }, [])
 
   useEffect(() => {
-    return () => {
-      if (documentIdRef.current === documentId) {
-        documentIdRef.current = undefined
-      }
-      flushPendingAutosave()
-    }
-  }, [documentId, flushPendingAutosave])
-
-  useEffect(() => {
     latestSnapshotRef.current = null
-    versionRef.current = documentId ? saveQueueRef.current?.getVersion(documentId) ?? null : null
-    setSaveError(null)
-    setSaveState(documentId ? 'idle' : 'idle')
 
     if (!documentId) {
       onOutlineChange?.([])
@@ -274,17 +176,8 @@ export function DocumentEditor({
 
   useEffect(() => {
     if (!documentQuery.data) return
-    const loadedDocument = documentQuery.data.document
-    saveQueueRef.current?.setVersion(loadedDocument.documentId, loadedDocument.currentVersion)
-    if (loadedDocument.documentId !== documentIdRef.current) return
-
-    versionRef.current = loadedDocument.currentVersion
-    if (saveQueueRef.current?.hasPendingSave(loadedDocument.documentId)) return
-
-    setSaveError(null)
-    setSaveState('saved')
-    onOutlineChange?.(documentOutlineFromBlockDocument(loadedDocument.content.blockDocument))
-  }, [documentQuery.data, onOutlineChange])
+    registerLoadedDocument(documentQuery.data.document)
+  }, [documentQuery.data, registerLoadedDocument])
 
   useEffect(() => {
     if (!outlineJumpRequest) return
@@ -372,7 +265,7 @@ export function DocumentEditor({
             blockDebugMode={blockDebugMode}
             developerMode={developerMode}
             canSave={Boolean(documentId && latestSnapshotRef.current)}
-            isSaving={saveMutation.isPending}
+            isSaving={isSaving}
             onSave={saveNow}
             onToggleBlockDebugMode={() => setBlockDebugMode((enabled) => !enabled)}
           />
@@ -424,7 +317,7 @@ export function DocumentEditor({
         <WorkbenchToolPanels
           consoleController={documentOperationsConsole}
           getBlockDocument={getDeveloperBlockDocument}
-          getDocumentVersion={() => versionRef.current}
+          getDocumentVersion={getDocumentVersion}
           layout={toolPanelLayout}
           onApplyBlockDocument={applyDeveloperBlockDocument}
           onJumpToBlock={jumpToDeveloperBlock}
