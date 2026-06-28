@@ -28,6 +28,11 @@ public class RequestLoggingConfig {
     private boolean responsePayloadEnabled = true;
 
     /**
+     * Ant-style paths that bypass HTTP request/response logging entirely.
+     */
+    private Set<String> excludedPaths = new LinkedHashSet<>();
+
+    /**
      * Maximum payload characters printed to logs. Larger payloads are truncated.
      */
     private int maxPayloadLength = 4096;

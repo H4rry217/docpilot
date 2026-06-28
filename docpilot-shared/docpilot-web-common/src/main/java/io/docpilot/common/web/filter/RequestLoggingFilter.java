@@ -46,6 +46,7 @@ import java.net.URLDecoder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -73,6 +74,11 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
     public RequestLoggingFilter(ObjectMapper objectMapper, RequestLoggingConfig config) {
         this.objectMapper = objectMapper;
         this.config = config;
+    }
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        return isLoggingExcluded(request);
     }
 
     @Override
@@ -314,12 +320,29 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         return URLDecoder.decode(value, charset);
     }
 
+    private boolean isLoggingExcluded(HttpServletRequest request) {
+        return matchesConfiguredPath(config.getExcludedPaths(), requestPath(request));
+    }
+
     private boolean isPayloadExcluded(HttpServletRequest request) {
-        String uri = request.getRequestURI();
-        return Optional.ofNullable(config.getPayloadExcludedPaths()).stream()
-                .flatMap(Set::stream)
+        return matchesConfiguredPath(config.getPayloadExcludedPaths(), requestPath(request));
+    }
+
+    private boolean matchesConfiguredPath(Collection<String> patterns, String path) {
+        return Optional.ofNullable(patterns).stream()
+                .flatMap(Collection::stream)
                 .filter(StringUtils::hasText)
-                .anyMatch(pattern -> pathMatcher.match(pattern, uri));
+                .anyMatch(pattern -> pathMatcher.match(pattern, path));
+    }
+
+    private String requestPath(HttpServletRequest request) {
+        String uri = request.getRequestURI();
+        String contextPath = request.getContextPath();
+        if (StringUtils.hasText(contextPath) && uri.startsWith(contextPath)) {
+            String path = uri.substring(contextPath.length());
+            return StringUtils.hasText(path) ? path : "/";
+        }
+        return uri;
     }
 
     private boolean hasRequestBody(HttpServletRequest request) {

@@ -53,6 +53,8 @@ docpilot:
       http:
         # Master switch for HTTP request/response logging.
         enabled: ${DOCPILOT_WEB_LOGGING_HTTP_ENABLED:true}
+        # Comma-separated Ant-style paths that bypass logRequest/logResponse entirely.
+        excluded-paths: ${DOCPILOT_WEB_LOGGING_HTTP_EXCLUDED_PATHS:/health}
         # Whether request payloads are included in HTTP logs.
         request-payload-enabled: ${DOCPILOT_WEB_LOGGING_HTTP_REQUEST_PAYLOAD_ENABLED:true}
         # Whether response payloads are included in HTTP logs.
