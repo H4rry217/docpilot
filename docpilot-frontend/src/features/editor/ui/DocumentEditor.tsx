@@ -27,6 +27,10 @@ import { useI18n, type Locale } from '@/shared/i18n'
 import { getDocument, saveDocumentContent } from '../api/documentApi'
 import { useAiWorkspaceLayout } from '../model/aiWorkspaceLayout'
 import {
+  createDocumentSaveQueue,
+  type DocumentSaveRequest
+} from '../model/documentSaveQueue'
+import {
   TOOL_PANEL_BOTTOM_COLLAPSED_HEIGHT,
   useToolPanelLayout
 } from '../model/toolPanelLayout'
@@ -46,11 +50,7 @@ type InlineCompletionRuntimeSettings = {
   idleDelayMs: number
   candidateCount: number
 }
-type PendingAutosave = {
-  baseVersion: string
-  blockDocument: BlockDocument
-  documentId: string
-}
+type PendingAutosave = DocumentSaveRequest
 
 export type DocumentEditorProps = {
   developerMode?: boolean
@@ -121,6 +121,7 @@ export function DocumentEditor({
   const versionRef = useRef<string | null>(null)
   const pendingAutosaveRef = useRef<PendingAutosave | null>(null)
   const autosaveTimerRef = useRef<number | undefined>(undefined)
+  const saveQueueRef = useRef<ReturnType<typeof createDocumentSaveQueue> | null>(null)
 
   const documentId = documentNode?.documentId
   const hasDocument = Boolean(documentId)
@@ -140,13 +141,19 @@ export function DocumentEditor({
       setSaveState('saving')
     },
     onSuccess: (response) => {
-      queryClient.setQueryData(['document', response.document.documentId], response)
-      if (response.document.documentId !== documentIdRef.current) return
+      const savedDocumentId = response.document.documentId
+      const queuedFollowUp = saveQueueRef.current?.finishSave(savedDocumentId, response.document.currentVersion) ?? false
+
+      queryClient.setQueryData(['document', savedDocumentId], response)
+      if (savedDocumentId !== documentIdRef.current) return
       versionRef.current = response.document.currentVersion
       setSaveError(null)
-      setSaveState('saved')
+      if (!queuedFollowUp) {
+        setSaveState('saved')
+      }
     },
     onError: (error, input) => {
+      saveQueueRef.current?.failSave(input.documentId)
       if (input.documentId !== documentIdRef.current) return
       setSaveState('error')
       setSaveError(error instanceof Error ? error.message : t('editor.saveFailed'))
@@ -155,49 +162,47 @@ export function DocumentEditor({
   const saveMutationRef = useRef(saveMutation)
   saveMutationRef.current = saveMutation
 
-  const submitSavePayload = useCallback((payload: PendingAutosave) => {
-    saveMutationRef.current.mutate({
-      documentId: payload.documentId,
-      blockDocument: blockDocumentForSave(payload.blockDocument),
-      baseVersion: payload.baseVersion,
-      clientMutationId: createClientMutationId()
+  if (!saveQueueRef.current) {
+    saveQueueRef.current = createDocumentSaveQueue((payload) => {
+      saveMutationRef.current.mutate({
+        documentId: payload.documentId,
+        blockDocument: blockDocumentForSave(payload.blockDocument),
+        baseVersion: payload.baseVersion,
+        clientMutationId: createClientMutationId()
+      })
     })
-  }, [])
+  }
 
   const saveBlockDocument = useCallback(
     (blockDocument: BlockDocument, expectedDocumentId = documentIdRef.current) => {
       const activeDocumentId = documentIdRef.current
-      const baseVersion = versionRef.current
-      if (!activeDocumentId || activeDocumentId !== expectedDocumentId || baseVersion == null) return
+      if (!activeDocumentId || activeDocumentId !== expectedDocumentId) return
 
-      submitSavePayload({
+      saveQueueRef.current?.requestSave({
         documentId: activeDocumentId,
-        blockDocument,
-        baseVersion
+        blockDocument
       })
     },
-    [submitSavePayload]
+    []
   )
 
   const queueAutosave = useCallback(
     (blockDocument: BlockDocument) => {
       const queuedDocumentId = documentIdRef.current
-      const baseVersion = versionRef.current
-      if (!queuedDocumentId || baseVersion == null) return
+      if (!queuedDocumentId) return
       const pendingAutosave = {
         documentId: queuedDocumentId,
-        blockDocument,
-        baseVersion
+        blockDocument
       }
       pendingAutosaveRef.current = pendingAutosave
       window.clearTimeout(autosaveTimerRef.current)
       autosaveTimerRef.current = window.setTimeout(() => {
         if (pendingAutosaveRef.current !== pendingAutosave) return
         pendingAutosaveRef.current = null
-        submitSavePayload(pendingAutosave)
+        saveQueueRef.current?.requestSave(pendingAutosave)
       }, AUTOSAVE_DELAY_MS)
     },
-    [submitSavePayload]
+    []
   )
 
   const flushPendingAutosave = useCallback(() => {
@@ -205,8 +210,8 @@ export function DocumentEditor({
     if (!pendingAutosave) return
     pendingAutosaveRef.current = null
     window.clearTimeout(autosaveTimerRef.current)
-    submitSavePayload(pendingAutosave)
-  }, [submitSavePayload])
+    saveQueueRef.current?.requestSave(pendingAutosave)
+  }, [])
 
   const handleSnapshotChange = useCallback(
     (snapshot: BlockDocumentEditorSnapshot, source: BlockDocumentEditorSnapshotSource) => {
@@ -258,6 +263,7 @@ export function DocumentEditor({
 
   useEffect(() => {
     latestSnapshotRef.current = null
+    versionRef.current = documentId ? saveQueueRef.current?.getVersion(documentId) ?? null : null
     setSaveError(null)
     setSaveState(documentId ? 'idle' : 'idle')
 
@@ -268,10 +274,16 @@ export function DocumentEditor({
 
   useEffect(() => {
     if (!documentQuery.data) return
-    versionRef.current = documentQuery.data.document.currentVersion
+    const loadedDocument = documentQuery.data.document
+    saveQueueRef.current?.setVersion(loadedDocument.documentId, loadedDocument.currentVersion)
+    if (loadedDocument.documentId !== documentIdRef.current) return
+
+    versionRef.current = loadedDocument.currentVersion
+    if (saveQueueRef.current?.hasPendingSave(loadedDocument.documentId)) return
+
     setSaveError(null)
     setSaveState('saved')
-    onOutlineChange?.(documentOutlineFromBlockDocument(documentQuery.data.document.content.blockDocument))
+    onOutlineChange?.(documentOutlineFromBlockDocument(loadedDocument.content.blockDocument))
   }, [documentQuery.data, onOutlineChange])
 
   useEffect(() => {

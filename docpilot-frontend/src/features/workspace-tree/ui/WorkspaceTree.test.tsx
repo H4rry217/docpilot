@@ -153,6 +153,52 @@ describe('WorkspaceTree', () => {
     expect(document.querySelector('.tree-row-name-extension')).not.toBeInTheDocument()
   })
 
+  it('opens node actions for the right-clicked document', async () => {
+    const onRenameNode = vi.fn()
+    render(
+      <TestProviders>
+        <WorkspaceTree
+          nodes={nodes}
+          onSelectNode={() => undefined}
+          onRenameNode={onRenameNode}
+        />
+      </TestProviders>
+    )
+
+    const documentRow = screen.getByRole('button', { name: 'README.md' }).parentElement as HTMLElement
+    fireEvent.contextMenu(documentRow, { button: 2, clientX: 16, clientY: 16 })
+
+    const renameItem = await screen.findByRole('menuitem', { name: '重命名' })
+    expect(screen.queryByRole('menuitem', { name: '新建文档' })).not.toBeInTheDocument()
+
+    fireEvent.click(renameItem)
+
+    expect(onRenameNode).toHaveBeenCalledWith(nodes[0].children[0])
+  })
+
+  it('opens root actions for the workspace tree blank area', async () => {
+    const onCreateDocument = vi.fn()
+    const { container } = render(
+      <TestProviders>
+        <WorkspaceTree
+          nodes={nodes}
+          onSelectNode={() => undefined}
+          onCreateDocument={onCreateDocument}
+        />
+      </TestProviders>
+    )
+
+    const treeRoot = container.querySelector('[data-workspace-tree-root="true"]') as HTMLElement
+    fireEvent.contextMenu(treeRoot, { button: 2, clientX: 4, clientY: 4 })
+
+    const createDocumentItem = await screen.findByRole('menuitem', { name: '新建文档' })
+    expect(screen.queryByRole('menuitem', { name: '重命名' })).not.toBeInTheDocument()
+
+    fireEvent.click(createDocumentItem)
+
+    expect(onCreateDocument).toHaveBeenCalledWith(undefined)
+  })
+
   it('switches from the file tree to the workspace list from the workspace card', () => {
     const onSelectWorkspace = vi.fn()
     render(

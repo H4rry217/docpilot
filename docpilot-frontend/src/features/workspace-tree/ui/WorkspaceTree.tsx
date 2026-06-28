@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type MouseEvent } from 'react'
 import { FileUp } from 'lucide-react'
 import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -69,6 +69,7 @@ export function WorkspaceTree({
 }: WorkspaceTreeProps) {
   const { t } = useI18n()
   const [collapsedFolderIds, setCollapsedFolderIds] = useState<Set<string>>(() => new Set())
+  const [contextMenuNode, setContextMenuNode] = useState<WorkspaceTreeNode | undefined>()
   const [showWorkspaceList, setShowWorkspaceList] = useState(false)
   const dnd = useWorkspaceTreeDnd({ onUploadMarkdownFiles })
   const currentWorkspaceName = workspaceName ?? t('sidebar.workspace')
@@ -89,11 +90,18 @@ export function WorkspaceTree({
     return !collapsedFolderIds.has(node.nodeId)
   }
 
+  function handleTreeContextMenu(event: MouseEvent<HTMLDivElement>) {
+    if (event.target instanceof Element && event.target.closest('[data-workspace-tree-node-row="true"]')) return
+    setContextMenuNode(undefined)
+  }
+
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <div
+          data-workspace-tree-root="true"
           className="relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden py-3"
+          onContextMenu={handleTreeContextMenu}
           onDragOver={showWorkspaceList ? undefined : dnd.handlePanelDragOver}
           onDragLeave={showWorkspaceList ? undefined : dnd.handlePanelDragLeave}
           onDrop={showWorkspaceList ? undefined : dnd.handlePanelDrop}
@@ -136,6 +144,7 @@ export function WorkspaceTree({
                         onCreateDocument={onCreateDocument}
                         onRenameNode={onRenameNode}
                         onDeleteNode={onDeleteNode}
+                        onOpenContextMenu={setContextMenuNode}
                         dragTargetNodeId={dnd.dragTargetNodeId}
                         onMarkdownDragOver={dnd.handleMarkdownDragOver}
                         onMarkdownDragLeave={dnd.handleMarkdownDragLeave}
@@ -155,6 +164,7 @@ export function WorkspaceTree({
         </div>
       </ContextMenuTrigger>
       <WorkspaceContextMenu
+        node={contextMenuNode}
         rootNodeId={rootNodeId}
         onCreateDocument={onCreateDocument}
         onCreateFolder={onCreateFolder}
